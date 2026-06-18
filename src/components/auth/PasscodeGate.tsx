@@ -62,10 +62,10 @@ export const PasscodeGate = ({ children }: PasscodeGateProps) => {
     <div className="min-h-full grid place-items-center px-6 py-16">
       <div className="w-full max-w-sm flex flex-col gap-8">
         <header className="flex flex-col gap-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
             Willow
           </h1>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-text-secondary">
             Enter your six-digit passcode to continue.
           </p>
         </header>

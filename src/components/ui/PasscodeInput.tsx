@@ -42,11 +42,11 @@ export const PasscodeInput = ({
     className={clsx('flex flex-col gap-3', className)}
   >
     <div className="flex flex-col gap-1">
-      <Field.Label className="text-sm font-medium text-neutral-700">
+      <Field.Label className="text-sm font-medium text-text-primary">
         {label}
       </Field.Label>
       {description ? (
-        <Field.Description className="text-sm text-neutral-500">
+        <Field.Description className="text-sm text-text-secondary">
           {description}
         </Field.Description>
       ) : null}
@@ -68,21 +68,28 @@ export const PasscodeInput = ({
           key={i}
           autoFocus={autoFocus && i === 0}
           aria-label={`${label} digit ${i + 1} of ${length}`}
+          /* Disable password-manager autofill — these are one-time numeric
+             slots, not credentials. Dashlane / 1Password / LastPass each
+             read their own opt-out attribute. */
+          data-form-type="other"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
           className={clsx(
-            'h-14 w-12 rounded-xl border bg-white text-center text-xl font-semibold tabular-nums',
-            'text-neutral-900 caret-neutral-900 shadow-sm transition outline-none',
-            'border-neutral-300',
-            'focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10',
-            'data-disabled:cursor-not-allowed data-disabled:bg-neutral-100 data-disabled:text-neutral-400',
-            'data-invalid:border-red-500 data-invalid:focus:border-red-500 data-invalid:focus:ring-red-500/15',
-            'data-complete:border-neutral-900',
+            'h-14 w-12 rounded-xl border bg-bg-primary text-center text-xl font-semibold tabular-nums',
+            'text-text-primary caret-text-primary shadow-sm transition outline-none',
+            'border-border-secondary',
+            'focus:border-text-primary focus:ring-2 focus:ring-text-primary/10',
+            'data-disabled:cursor-not-allowed data-disabled:bg-bg-tertiary data-disabled:text-text-disabled',
+            'data-invalid:border-border-danger data-invalid:focus:border-border-danger data-invalid:focus:ring-border-danger/15',
+            'data-complete:border-text-primary',
           )}
         />
       ))}
     </OTPField.Root>
 
     {errorMessage ? (
-      <Field.Error className="text-sm text-red-600" match>
+      <Field.Error className="text-sm text-text-danger" match>
         {errorMessage}
       </Field.Error>
     ) : null}

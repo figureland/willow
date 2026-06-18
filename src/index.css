@@ -1,12 +1,175 @@
 @import url("https://fonts.googleapis.com/css2?family=Overpass:ital,wght@0,100..900;1,100..900&display=swap");
 @import "tailwindcss";
 
+/* ----------------------------------------------------------------------- */
+/* Design tokens — sourced from the Sandy Molecules library (Figma file     */
+/* wB1ll2qBeHbeddUHlplxfB, nodes 604:15 + 604:1698).                        */
+/*                                                                         */
+/* Two layers:                                                             */
+/*  1. Raw ramps    — sandy/, bayer/, gray/, neutral/, amber/, red/.       */
+/*  2. Semantic     — text/, bg/, border/, button/, icon/, field/, support/ */
+/*                    These reference the raw ramps and are what UI code   */
+/*                    should consume in 99% of cases.                      */
+/*                                                                         */
+/* Note: the Figma source spells it "tetriary"; the codebase uses the      */
+/* correct English spelling "tertiary" throughout.                         */
+/* ----------------------------------------------------------------------- */
 @theme {
+  /* ------------------------------- Type ------------------------------- */
   --font-sans:
     "Overpass", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     sans-serif;
   --font-mono:
     "Overpass Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Canonical type scale — the ONLY sizes that should appear in code.
+     Use `text-xs … text-2xl`, never raw px / rem values, never Tailwind's
+     defaults like `text-base` or `text-3xl`. Each step carries its own
+     line-height so callers don't pick one ad-hoc. */
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 26px;
+  --text-2xl--line-height: 36px;
+
+  /* --------------------------- Radii ---------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 9999px;
+
+  /* ============================ Raw ramps ============================== */
+
+  /* Brand — Sandy (green). Full 50→950 ramp. */
+  --color-sandy-50: #eefff1;
+  --color-sandy-100: #d7ffe0;
+  --color-sandy-200: #b2ffc3;
+  --color-sandy-300: #73f64a;
+  --color-sandy-400: #33f560;
+  --color-sandy-500: #09de3a;
+  --color-sandy-600: #00b82b;
+  --color-sandy-700: #049126;
+  --color-sandy-800: #0a7123;
+  --color-sandy-900: #0a5d20;
+  --color-sandy-950: #00340e;
+
+  /* Alt brand — Bayer (yellow-green). Partial ramp from source. */
+  --color-bayer-200: #caf69c;
+  --color-bayer-400: #9cd34f;
+  --color-bayer-600: #56a343;
+  --color-bayer-700: #458450;
+  --color-bayer-800: #306038;
+  --color-bayer-900: #1f4126;
+  --color-bayer-950: #0d2713;
+
+  /* Neutrals */
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  /* Gray ramp (used by semantic text/border/bg slots) */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #cbd5e1;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #94a3b8;
+
+  /* Slate (passthrough — same as gray-100 but kept for naming parity) */
+  --color-slate-100: #f1f5f9;
+
+  /* Support ramps */
+  --color-amber-50: #fffbeb;
+  --color-amber-600: #d97706;
+  --color-red-50: #fef2f2;
+  --color-red-600: #dc2626;
+  --color-orange-600: #ea580c;
+
+  /* Transparency */
+  --color-invisible: rgba(255, 255, 255, 0);
+  --color-base-white: #ffffff;
+
+  /* ============================ Semantic =============================== */
+
+  /* Text */
+  --color-text-primary: #171717;
+  --color-text-primary-inverse: #f9fafb;
+  --color-text-inverse: #f9fafb; /* alias of -inverse */
+  --color-text-secondary: #6b7280;
+  --color-text-placeholder: #6b7280;
+  --color-text-disabled: #6b7280;
+  --color-text-danger: #dc2626;
+  --color-text-brand: #00b82b;
+  --color-text-brand-dark: #0a5d20;
+
+  /* Backgrounds */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-bg-selected: #b2ffc3;
+  --color-bg-brand-primary: #00b82b;
+  --color-bg-brand-secondary: #00b82b;
+
+  /* Icon */
+  --color-icon-primary: #0a0a0a;
+  --color-icon-primary-inverse: #f9fafb;
+  --color-icon-inverse: #f9fafb; /* alias */
+  --color-icon-secondary: #6b7280;
+  --color-icon-disabled: #6b7280;
+  --color-icon-brand: #00b82b;
+
+  /* Border */
+  --color-border-primary: #00b82b;
+  --color-border-primary-hover: #0a7123;
+  --color-border-primary-active: #0a5d20;
+  --color-border-primary-focus: #33f560;
+  --color-border-secondary: #e2e8f0;
+  --color-border-secondary-hover: #cbd5e1;
+  --color-border-secondary-active: #94a3b8;
+  --color-border-secondary-focus: #00b82b;
+  --color-border-tertiary: #f1f5f9;
+  --color-border-tertiary-hover: #e2e8f0;
+  --color-border-tertiary-active: #cbd5e1;
+  --color-border-tertiary-focus: #00b82b;
+  --color-border-disabled: #cbd5e1;
+  --color-border-danger: #dc2626;
+  --color-border-invisible: rgba(255, 255, 255, 0);
+
+  /* Button fills */
+  --color-button-primary: #00b82b;
+  --color-button-primary-hover: #049126;
+  --color-button-primary-active: #0a7123;
+  --color-button-secondary: #e2e8f0;
+  --color-button-secondary-hover: #cbd5e1;
+  --color-button-secondary-active: #94a3b8;
+  --color-button-tertiary: #f1f5f9;
+  --color-button-tertiary-hover: #e2e8f0;
+  --color-button-tertiary-active: #cbd5e1;
+  --color-button-disabled: #cbd5e1;
+
+  /* Field (form inputs) */
+  --color-field-primary: #ffffff;
+  --color-field-disabled: #d1d5db;
+  --color-field-placeholder: #ffffff;
+
+  /* Support — amber / green / red triplets for callouts, alerts, badges */
+  --color-support-bg-amber: #fffbeb;
+  --color-support-bg-green: #eefff1;
+  --color-support-bg-red: #fef2f2;
+  --color-support-fg-amber: #d97706;
+  --color-support-fg-green: #00b82b;
+  --color-support-fg-red: #dc2626;
+  --color-support-border-amber: #d97706;
+  --color-support-border-green: #00b82b;
+  --color-support-border-red: #dc2626;
 }
 
 @layer base {
@@ -17,6 +180,75 @@
   }
 
   body {
-    @apply bg-neutral-50 text-neutral-900 font-sans antialiased;
+    /* Default to the design-system Body-1 step (text-md, 16/24).
+       Anything that needs a different size must opt in via a token utility. */
+    @apply bg-bg-secondary text-text-primary text-md font-sans antialiased;
+    letter-spacing: 0.15px;
   }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+/*
+ * MUI font reset.
+ *
+ * MUI v9 hardcodes a Roboto/Helvetica font shorthand on its components. The
+ * data grid root, the column-header menu (portaled to <body>) and the
+ * pagination footer all need explicit overrides because:
+ *   1. Emotion's per-route class hashing can sit above our `sx` rules.
+ *   2. Portaled surfaces (menus, popovers) don't inherit from the grid root.
+ * Pin the design-system font on every MUI surface we render so the
+ * cascade is unambiguous regardless of insertion order or DOM location.
+ */
+.MuiDataGrid-root,
+.MuiDataGrid-root .MuiDataGrid-columnHeader,
+.MuiDataGrid-root .MuiDataGrid-cell {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+/* Pagination footer + any nested MUI bits inside it. */
+.MuiDataGrid-footerContainer,
+.MuiDataGrid-footerContainer * {
+  font-family: var(--font-sans);
+}
+
+/*
+ * Portaled MUI surfaces — column-header menus, popovers, tooltips. These
+ * sit in document.body so they can't inherit from the data-grid root. The
+ * `:where()` wrapper keeps specificity low so component-specific overrides
+ * (e.g. `text-sm` inside a custom element) still win.
+ */
+:where(
+  .MuiMenu-root,
+  .MuiMenu-paper,
+  .MuiMenu-list,
+  .MuiMenuItem-root,
+  .MuiList-root,
+  .MuiListItem-root,
+  .MuiPopover-root,
+  .MuiPopover-paper,
+  .MuiPopper-root,
+  .MuiTooltip-tooltip,
+  .MuiTooltip-popper,
+  .MuiDialog-paper,
+  .MuiDataGrid-menu,
+  .MuiDataGrid-panel,
+  .MuiButtonBase-root,
+  .MuiButton-root,
+  .MuiIconButton-root,
+  .MuiTypography-root,
+  .MuiInputBase-root,
+  .MuiSelect-select,
+  .MuiTablePagination-root,
+  .MuiTablePagination-toolbar,
+  .MuiTablePagination-selectLabel,
+  .MuiTablePagination-displayedRows
+) {
+  font-family: var(--font-sans);
 }
