@@ -2,7 +2,7 @@ import { Select as BaseSelect } from '@base-ui/react/select'
 import clsx from 'clsx'
 import { type ReactNode, type Ref, useId, useMemo, useState } from 'react'
 import { Checkbox } from './Checkbox'
-import { IconChevronDown, IconSearch } from './icons'
+import { IconSearch } from './icons'
 
 /**
  * Heavier close glyph used by the trigger's clear button. The shared
@@ -10,6 +10,8 @@ import { IconChevronDown, IconSearch } from './icons'
  * header — at 16px inside the trigger it reads as far too thin, so we
  * inline a chunkier Material-style cross here.
  */
+const ICON_STROKE = 2.5
+
 const ClearIcon = ({ size = 16 }: { size?: number }) => (
   <svg
     width={size}
@@ -20,20 +22,62 @@ const ClearIcon = ({ size = 16 }: { size?: number }) => (
     focusable="false"
   >
     <path
-      d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
-      fill="currentColor"
+      d="M6 6L18 18M18 6L6 18"
+      stroke="currentColor"
+      strokeWidth={ICON_STROKE}
+      strokeLinecap="round"
     />
   </svg>
 )
 
 /**
- * Trailing affordance shown on a populated trigger: clear button + a
- * minimal vertical divider that separates it from the (always-present)
- * dropdown chevron. Positioned absolutely so it can sit inside Base UI's
- * `<Trigger>` button without nesting interactive elements (invalid HTML).
- *
- * Layout target (left → right):  text … [×] │ [⌄]
+ * Stroke-style chevron — explicitly matches `ClearIcon`'s line weight so the
+ * two glyphs read as siblings inside the trigger.
  */
+const ChevronIcon = ({ size = 16 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path
+      d="M6 9L12 15L18 9"
+      stroke="currentColor"
+      strokeWidth={ICON_STROKE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/**
+ * Trailing affordance group rendered absolutely over the trigger.
+ *
+ * Two zones, right-aligned:
+ *   - `ChevronTail`: always-rendered chevron, anchored to the right edge.
+ *   - `ClearTail`:   optional clear button + 1px divider, sitting immediately
+ *     to the left of the chevron when a value is selected.
+ *
+ * The chevron lives outside Base UI's `<Trigger>` flex flow so the trigger's
+ * right padding doesn't push it inward when state changes — its position is
+ * constant across populated/empty/error states.
+ */
+
+const ChevronTail = () => (
+  <span
+    aria-hidden="true"
+    className={clsx(
+      'absolute top-1/2 -translate-y-1/2 right-3 pointer-events-none',
+      'size-5 grid place-items-center text-icon-primary',
+    )}
+  >
+    <ChevronIcon />
+  </span>
+)
+
 const ClearTail = ({
   ariaLabel,
   onClear,
@@ -41,10 +85,9 @@ const ClearTail = ({
   ariaLabel: string
   onClear: () => void
 }) => (
-  <div
-    // right offset = trigger right padding (10px) + chevron width (24px).
-    className="absolute top-1/2 -translate-y-1/2 right-[34px] flex items-center gap-2"
-  >
+  // Right offset = trigger right pad (12px) + chevron (20px) + 8px breathing
+  // room = 40px.
+  <div className="absolute top-1/2 -translate-y-1/2 right-[40px] flex items-center gap-2">
     <button
       type="button"
       aria-label={ariaLabel}
@@ -208,7 +251,10 @@ const triggerSurface = ({
 }) =>
   clsx(
     'group/select-trigger relative w-full flex items-center gap-2',
-    'pl-3.5 pr-2.5 py-2 rounded-md border-2 bg-bg-primary',
+    // Right padding reserves room for the absolutely-positioned chevron
+    // (always rendered, 20px box + 12px from edge = 32px). When the clear
+    // tail is also shown the trigger gets `pr-[80px]` from the call site.
+    'pl-3.5 pr-9 py-2 rounded-md border-2 bg-bg-primary',
     'text-md tracking-[0.25px] outline-none transition-colors',
     isPlaceholder ? 'text-text-placeholder' : 'text-text-primary',
     state === 'disabled'
@@ -298,6 +344,13 @@ const SearchBar = ({ value, onChange, placeholder }: SearchBarProps) => (
       placeholder={placeholder ?? 'Search'}
       aria-label="Filter options"
       autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      data-1p-ignore="true"
+      data-lpignore="true"
+      data-bwignore="true"
+      data-form-type="other"
       className={clsx(
         'flex-1 min-w-0 bg-transparent outline-none',
         'text-md tracking-[0.25px] text-text-primary placeholder:text-text-placeholder',
@@ -399,9 +452,9 @@ export const Select = <Value extends string = string>({
             ref={ref}
             className={clsx(
               triggerSurface({ state, isPlaceholder: !selected }),
-              // Reserve room for the inline tail group (clear + divider)
-              // sitting between the text and the chevron.
-              showClear && 'pr-[60px]',
+              // Reserve room for the clear tail (button + divider) sitting
+              // between the text and the always-rendered chevron.
+              showClear && 'pr-[80px]',
             )}
           >
             <span className="flex-1 min-w-0 text-left truncate">
@@ -409,11 +462,9 @@ export const Select = <Value extends string = string>({
                 {() => (selected ? selected.label : placeholder)}
               </BaseSelect.Value>
             </span>
-            <BaseSelect.Icon className="shrink-0 text-icon-primary">
-              <IconChevronDown />
-            </BaseSelect.Icon>
           </BaseSelect.Trigger>
 
+          <ChevronTail />
           {showClear ? (
             <ClearTail
               ariaLabel={clearLabel}
@@ -591,21 +642,18 @@ export const MultiSelect = <Value extends string = string>({
                 state,
                 isPlaceholder: selectedOptions.length === 0,
               }),
-              // Reserve room for the inline tail group (clear + divider).
               clearable &&
                 selectedOptions.length > 0 &&
                 !disabled &&
-                'pr-[60px]',
+                'pr-[80px]',
             )}
           >
             <span className="flex-1 min-w-0 text-left truncate">
               {triggerLabel}
             </span>
-            <BaseSelect.Icon className="shrink-0 text-icon-primary">
-              <IconChevronDown />
-            </BaseSelect.Icon>
           </BaseSelect.Trigger>
 
+          <ChevronTail />
           {clearable && selectedOptions.length > 0 && !disabled ? (
             <ClearTail ariaLabel={clearLabel} onClear={() => commitValue([])} />
           ) : null}

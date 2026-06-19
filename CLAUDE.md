@@ -19,6 +19,12 @@ src/
 
 Routing is React Router v7. `AppWrapper` is mounted once at the router level and owns the sidebar + background; pages render inside it via `<Outlet />` and use `<AppShell>` for their per-page chrome.
 
+## Domain hierarchy (canonical)
+
+The conceptual data hierarchy for the Sandy / Willow product — Organisation → Farm → Enterprise → Field → Season → Land use → Operations — is defined in [`data-hierarchy.md`](./data-hierarchy.md) at the repo root. Treat that file as the source of truth for what each level represents, the examples, and why it matters. When a request talks about "fields", "enterprises", "operations" etc., reconcile the terminology against that table before modelling or naming new code.
+
+Not every level is materialised in code today (`Enterprise`, `Season`, `Operations` are not yet zod-typed); the levels that are live in `src/types/` as described below. When asked to add a new level or attribute, check `data-hierarchy.md` first to match its language.
+
 ## Domain model
 
 All core types live in `src/types/`. Each type is in its own file and exports BOTH the zod schema and the inferred TS type. Import from `'@/types'` (or `'../types'` relative).
@@ -40,11 +46,13 @@ User ──┐                    User has one of:
        ├─→ Organisation[]   (central account — organisationIds populated)
        └─→ Farm[]           (single account  — farmIds populated)
 Organisation → Farm[]       (organisation owns farms by id, farmIds)
-Farm → Field[]              (farm owns fields by id, fieldIds)
-Field has: id, name, farmId, coordinates (Position), boundary (PolygonRing)
+Farm                        (no fieldIds — derive via getFieldsForFarm)
+Field has: id, name, farmId, area, crop, boundary (PolygonRing[])
 ```
 
-Geo primitives are GeoJSON-shaped: `Position = [longitude, latitude]`; `PolygonRing` is a closed ring of Positions (first === last). The boundary is the field's outer ring only — no holes modelled.
+Field membership is one-way: each `Field` carries `farmId`, and `Farm` does not duplicate the list. Use `getFieldsForFarm(farmId)` from `'@/data'`.
+
+Geo primitives are GeoJSON-shaped: `Position = [longitude, latitude]`; `PolygonRing` is a closed ring of Positions (first === last). `Field.boundary` is an array of independent rings (disjoint parcels / fenced-off features), not a single ring — pass a one-element array for a contiguous shape.
 
 When adding a new core type:
 
@@ -85,19 +93,23 @@ Every record is `<Schema>.parse(...)`-validated at module load so a malformed ed
 
 ## Routes
 
-| Path                              | Page                          |
-| --------------------------------- | ----------------------------- |
-| `/`                               | DataCheckPage                 |
-| `/sustainability`                 | PlaceholderPage               |
-| `/opportunities`                  | PlaceholderPage               |
-| `/ncvm`                           | PlaceholderPage               |
-| `/sandy-setup`                    | PlaceholderPage               |
-| `/sandy-ai`                       | PlaceholderPage               |
-| `/my-farms`                       | MyFarmsLayout → MyFarmsIndex  |
-| `/my-farms/:orgId`                | OrganisationOverview          |
-| `/my-farms/:orgId/:farmId`        | FarmDetail                    |
-| `/my-farms/:orgId/:farmId/:fieldId` | FieldDetail                 |
-| `/data-table`                     | DataTablePage                 |
-| `/design-system`                  | DesignSystemPage              |
+| Path                                                | Page                          |
+| --------------------------------------------------- | ----------------------------- |
+| `/`                                                 | DataCheckPage                 |
+| `/sustainability`                                   | PlaceholderPage               |
+| `/opportunities`                                    | PlaceholderPage               |
+| `/ncvm`                                             | PlaceholderPage               |
+| `/sandy-setup`                                      | PlaceholderPage               |
+| `/sandy-ai`                                         | PlaceholderPage               |
+| `/my-farms`                                         | MyFarmsLayout → MyFarmsIndex  |
+| `/my-farms/:orgId`                                  | OrganisationOverview          |
+| `/my-farms/:orgId/:farmId`                          | FarmLayout → FarmOverview     |
+| `/my-farms/:orgId/:farmId/fields-and-crops`         | FarmFieldsAndCrops            |
+| `/my-farms/:orgId/:farmId/fields-and-crops/:fieldId`| FarmFieldsAndCrops + SideSheet|
+| `/my-farms/:orgId/:farmId/operations`               | FarmOperations                |
+| `/my-farms/:orgId/:farmId/uploads`                  | FarmUploads                   |
+| `/data-table`                                       | DataTablePage                 |
+| `/data-upload`                                      | DataUploadWizard              |
+| `/design-system`                                    | DesignSystemPage              |
 
 Sidebar entries live in `src/components/shell/SidebarNav.tsx → DEFAULT_SIDEBAR_ITEMS`. The active item is inferred from the URL (exact match preferred, prefix match as fallback so sub-routes light up the parent).

@@ -6,14 +6,13 @@ import { type Organisation, OrganisationSchema } from '../types'
  */
 export const ORGANISATIONS: Organisation[] = [
   OrganisationSchema.parse({
-    id: 'org-whispering-willow',
-    name: 'Whispering Willow Estates',
-    farmIds: ['farm-foxglove-hill', 'farm-amber-harvest'],
-  }),
-  OrganisationSchema.parse({
     id: 'org-brookside',
     name: 'Brookside Holdings',
-    farmIds: ['farm-brookside-leys'],
+    farmIds: [
+      'farm-brookside-leys',
+      'farm-foxglove-hill',
+      'farm-amber-harvest',
+    ],
   }),
 ]
 

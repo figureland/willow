@@ -11,8 +11,6 @@ import {
   IconMenuOpportunities,
   IconMenuSustainability,
   IconMenuUtilities,
-  IconPalette,
-  IconTable,
 } from '../ui/icons'
 
 export type SidebarItem = {
@@ -83,24 +81,6 @@ export const DEFAULT_SIDEBAR_ITEMS: SidebarItem[] = [
     label: 'Sandy setup',
     icon: <IconMenuUtilities />,
     href: '/sandy-setup',
-  },
-  {
-    id: 'sandy-ai',
-    label: 'Sandy AI agents',
-    icon: <IconPalette />,
-    href: '/sandy-ai',
-  },
-  {
-    id: 'data-table',
-    label: 'Data table',
-    icon: <IconTable />,
-    href: '/data-table',
-  },
-  {
-    id: 'design-system',
-    label: 'Design system',
-    icon: <IconPalette />,
-    href: '/design-system',
   },
 ]
 

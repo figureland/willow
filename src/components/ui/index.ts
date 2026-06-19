@@ -15,6 +15,8 @@ export { DatePicker } from './DatePicker'
 export * from './icons'
 export type { MapBasemap, MapPolygon, MapViewProps } from './MapView'
 export { MapView } from './MapView'
+export type { ModalProps } from './Modal'
+export { Modal } from './Modal'
 export type { PasscodeInputProps } from './PasscodeInput'
 export { PasscodeInput } from './PasscodeInput'
 export type { RadioGroupProps, RadioProps } from './Radio'
@@ -47,3 +49,11 @@ export type {
 export { Tab, TabBar, TabPanel, Tabs } from './Tabs'
 export type { TextInputProps } from './TextInput'
 export { TextInput } from './TextInput'
+export type { WizardLayoutProps, WizardStepConfig } from './WizardLayout'
+export { WizardLayout } from './WizardLayout'
+export type {
+  WizardStep,
+  WizardStepperProps,
+  WizardStepStatus,
+} from './WizardStepper'
+export { WizardStepper } from './WizardStepper'

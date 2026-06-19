@@ -756,9 +756,18 @@ export const DesignSystemPage = () => {
 
         <Section
           title="Badge"
-          description="Generic label chip. Unified `rounded-md` radius across all sizes; tone drives the colour pair, size drives padding + type + icon scale. Pair with a trend icon for the chip-status / chip-trend use cases."
+          description="Generic label chip. Unified `rounded-md` radius across all sizes; tone drives the colour pair (green = OK / note, orange = warning, red = blocking, neutral = informational), size drives padding + type + icon scale."
         >
           <div className="flex flex-col gap-6">
+            {/* Three-tier status row */}
+            <div className="flex flex-wrap items-center gap-4">
+              <Badge tone="green">OK</Badge>
+              <Badge tone="orange">Warning</Badge>
+              <Badge tone="red">Blocking</Badge>
+              <Badge>Note</Badge>
+            </div>
+
+            {/* Tone × size grid for the trend use case */}
             <div className="flex flex-wrap items-center gap-4">
               <Badge tone="green" size="sm" icon={<IconTrendUp />}>
                 170%
@@ -768,6 +777,15 @@ export const DesignSystemPage = () => {
               </Badge>
               <Badge tone="green" size="lg" icon={<IconTrendUp />}>
                 32%
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Badge tone="orange" size="sm">
+                3 missing
+              </Badge>
+              <Badge tone="orange">Yield outlier</Badge>
+              <Badge tone="orange" size="lg">
+                Needs review
               </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-4">

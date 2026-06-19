@@ -1,9 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { PasscodeGate } from './components/auth/PasscodeGate'
 import { AppWrapper } from './components/shell'
-import { DataCheckPage } from './pages/DataCheckPage'
 import { DataTablePage } from './pages/DataTablePage'
 import { DesignSystemPage } from './pages/DesignSystemPage'
+import { DataUploadWizard } from './pages/data-upload/DataUploadWizard'
 import {
   FarmFieldsAndCrops,
   FarmLayout,
@@ -18,9 +19,20 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 
 export const App = () => (
   <PasscodeGate>
+    <Toaster
+      position="bottom-center"
+      richColors
+      toastOptions={{
+        // Pin to the design-system type tokens so toasts match the rest of
+        // the prototype's chrome. text-lg keeps the title comfortably above
+        // the body default so the notification reads as bold and immediate.
+        className:
+          'text-lg tracking-[0.15px] font-sans border-2 border-border-tertiary',
+      }}
+    />
     <Routes>
       <Route element={<AppWrapper />}>
-        <Route path="/" element={<DataCheckPage />} />
+        <Route path="/" element={<PlaceholderPage title="Home" />} />
         <Route
           path="/sustainability"
           element={<PlaceholderPage title="Sustainability" />}
@@ -61,6 +73,8 @@ export const App = () => (
         </Route>
 
         <Route path="/data-table" element={<DataTablePage />} />
+        <Route path="/data-upload" element={<DataUploadWizard />} />
+        <Route path="/data-upload/:stepId" element={<DataUploadWizard />} />
         <Route path="/design-system" element={<DesignSystemPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

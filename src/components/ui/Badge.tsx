@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 
-export type BadgeTone = 'green' | 'red' | 'neutral'
+export type BadgeTone = 'green' | 'orange' | 'red' | 'neutral'
 
 export type BadgeSize = 'sm' | 'md' | 'lg'
 
@@ -37,6 +37,10 @@ const iconPixelSize: Record<BadgeSize, number> = {
 
 const toneClasses: Record<BadgeTone, string> = {
   green: 'bg-support-bg-green text-text-brand-dark',
+  // Amber/orange — the design system uses the amber ramp internally but the
+  // semantic intent here is "warning", so we expose it as `orange` for
+  // callers.
+  orange: 'bg-support-bg-amber text-support-fg-amber',
   red: 'bg-support-bg-red text-support-fg-red',
   neutral: 'bg-bg-tertiary text-text-secondary',
 }

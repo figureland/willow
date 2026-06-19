@@ -13,7 +13,7 @@ export const CENTRAL_USER: User = UserSchema.parse({
   id: 'user-toby',
   name: 'Toby Milner-Gulland',
   email: 'toby@figure.land',
-  organisationIds: ['org-whispering-willow', 'org-brookside'],
+  organisationIds: ['org-brookside'],
   farmIds: [],
 })
 

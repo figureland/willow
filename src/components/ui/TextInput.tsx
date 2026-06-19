@@ -127,6 +127,18 @@ export const TextInput = ({
             [descriptionId, errorId].filter(Boolean).join(' ') || undefined
           }
           onChange={handleChange}
+          // Opt out of password managers (1Password, Dashlane, Bitwarden,
+          // LastPass, Chrome) by default — these fields are domain values
+          // (field names, crops, etc.), never credentials. Callers can
+          // override any of these via `{...rest}`.
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
+          data-form-type="other"
           {...rest}
           className={clsx(
             'flex-1 min-w-0 bg-transparent outline-none',

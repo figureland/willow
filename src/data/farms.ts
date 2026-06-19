@@ -10,14 +10,14 @@ export const FARMS: Farm[] = [
     id: 'farm-foxglove-hill',
     name: 'Foxglove Hill',
     address: 'Foxglove Lane, Banbury, Oxfordshire OX17 3AA',
-    organisationId: 'org-whispering-willow',
+    organisationId: 'org-brookside',
     coordinates: [-1.337, 52.064],
   }),
   FarmSchema.parse({
     id: 'farm-amber-harvest',
     name: 'Amber Harvest Farm',
     address: 'Mill Road, Witney, Oxfordshire OX28 4JJ',
-    organisationId: 'org-whispering-willow',
+    organisationId: 'org-brookside',
     coordinates: [-1.482, 51.785],
   }),
   FarmSchema.parse({
