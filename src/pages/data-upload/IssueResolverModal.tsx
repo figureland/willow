@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -61,13 +61,45 @@ const seedState = (issues: Issue[]): Record<string, IssueState> => {
 /* Resolver root                                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Group the incoming issues into per-farm batches. Each batch is one modal
+ * page — the user sees all of a farm's outstanding issues at once.
+ */
+type Batch = {
+  key: string
+  /** Title shown above the batch (typically the farm name). */
+  title: string
+  issues: Issue[]
+}
+
+const buildBatches = (issues: Issue[]): Batch[] => {
+  const byFarm = new Map<string, Issue[]>()
+  for (const issue of issues) {
+    const farm =
+      issue.type === 'farm-missing'
+        ? issue.sourceName
+        : issue.type === 'field-missing'
+          ? issue.farmName
+          : 'Other'
+    const list = byFarm.get(farm) ?? []
+    list.push(issue)
+    byFarm.set(farm, list)
+  }
+  return Array.from(byFarm.entries()).map(([farm, list]) => ({
+    key: farm,
+    title: farm,
+    issues: list,
+  }))
+}
+
 export const IssueResolverModal = ({
   open,
   onOpenChange,
   issues,
   onComplete,
 }: IssueResolverModalProps) => {
-  const [index, setIndex] = useState(0)
+  const batches = useMemo(() => buildBatches(issues), [issues])
+  const [batchIndex, setBatchIndex] = useState(0)
   // Seed once per mount; if the issue set changes we let the parent control
   // remount via `key=` upstream.
   const [state, setState] = useState<Record<string, IssueState>>(() =>
@@ -77,34 +109,54 @@ export const IssueResolverModal = ({
   // Reset the cursor when the modal opens — without this, a second visit
   // would start where the user left off, which is jarring.
   useEffect(() => {
-    if (open) setIndex(0)
+    if (open) setBatchIndex(0)
   }, [open])
 
-  const issue = issues[index]
-  const total = issues.length
-  const isFirst = index === 0
-  const isLast = index === total - 1
+  const batch = batches[batchIndex]
+  const totalBatches = batches.length
+  const isFirst = batchIndex === 0
+  const isLast = batchIndex === totalBatches - 1
 
-  const update = (next: IssueState) =>
-    setState((curr) => ({ ...curr, [issue.id]: next }))
+  const update = (id: string, next: IssueState) =>
+    setState((curr) => ({ ...curr, [id]: next }))
 
   const handleNext = () => {
     if (isLast) {
       onComplete?.(state)
       onOpenChange(false)
     } else {
-      setIndex((i) => Math.min(total - 1, i + 1))
+      setBatchIndex((i) => Math.min(totalBatches - 1, i + 1))
     }
   }
-  const handleBack = () => setIndex((i) => Math.max(0, i - 1))
+  const handleBack = () => setBatchIndex((i) => Math.max(0, i - 1))
+
+  // Progress treats every individual issue as a unit so the bar reflects the
+  // user's real distance through the work — not just the batch count.
+  const issuesBeforeBatch = batches
+    .slice(0, batchIndex)
+    .reduce((acc, b) => acc + b.issues.length, 0)
+  const completedIssues = issuesBeforeBatch + (batch?.issues.length ?? 0)
+  const progressPct = issues.length
+    ? (completedIssues / issues.length) * 100
+    : 0
+
+  if (!batch) return null
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={issue.title}
-      eyebrow={`Issue ${index + 1} of ${total}`}
+      title={batch.title}
+      eyebrow={`${batch.issues.length} ${batch.issues.length === 1 ? 'thing' : 'things'} to fix`}
       maxWidth="720px"
+      topBar={
+        <div aria-hidden="true" className="h-1.5 w-full bg-bg-tertiary">
+          <div
+            className="h-full bg-bg-brand-primary transition-[width] duration-200 ease-out"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      }
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
@@ -119,7 +171,20 @@ export const IssueResolverModal = ({
         </>
       }
     >
-      <IssueBody issue={issue} state={state[issue.id]} onChange={update} />
+      <div className="flex flex-col gap-6 divide-y-2 divide-border-tertiary">
+        {batch.issues.map((issue) => (
+          <div key={issue.id} className="flex flex-col gap-3 pt-6 first:pt-0">
+            <p className="text-sm font-semibold text-text-secondary">
+              {issue.title}
+            </p>
+            <IssueBody
+              issue={issue}
+              state={state[issue.id]}
+              onChange={(next) => update(issue.id, next)}
+            />
+          </div>
+        ))}
+      </div>
     </Modal>
   )
 }
@@ -213,6 +278,9 @@ const MissingChooser = ({
       case 'remove':
         onChange({ ...state, resolution: { kind: 'remove' } })
         break
+      case 'ignore':
+        onChange({ ...state, resolution: { kind: 'ignore' } })
+        break
       case 'create-new':
         onChange({
           ...state,
@@ -297,6 +365,11 @@ const MissingChooser = ({
           value="remove"
           label="Remove from this import"
           description={`Drop the ${noun} and any rows referring to it.`}
+        />
+        <Radio
+          value="ignore"
+          label="Ignore"
+          description={`Keep the ${noun} as-is and skip this issue for now.`}
         />
       </RadioGroup>
     </div>

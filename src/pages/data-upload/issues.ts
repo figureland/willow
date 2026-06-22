@@ -113,14 +113,54 @@ export type Issue = FarmMissingIssue | FieldMissingIssue | MappingIssue
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Crude edit distance — good enough to pick the nearest farm/field name for
+ * the "Replace" default. Cheaper than Levenshtein and fine for prototype-scale
+ * lists.
+ */
+const closeness = (a: string, b: string): number => {
+  const la = a.toLowerCase()
+  const lb = b.toLowerCase()
+  if (la === lb) return 0
+  // Higher score = more different.
+  let diff = Math.abs(la.length - lb.length) * 2
+  for (let i = 0; i < Math.min(la.length, lb.length); i++) {
+    if (la[i] !== lb[i]) diff += 1
+  }
+  return diff
+}
+
+/** Pick the option whose label most closely matches the source name. */
+const closestOption = (
+  source: string,
+  options: { value: string; label: string }[],
+): string | null => {
+  if (options.length === 0) return null
+  let best = options[0]
+  let bestScore = closeness(source, best.label)
+  for (let i = 1; i < options.length; i++) {
+    const score = closeness(source, options[i].label)
+    if (score < bestScore) {
+      bestScore = score
+      best = options[i]
+    }
+  }
+  return best.value
+}
+
+/**
  * What the resolver starts with. Mapping issues default to accepting Sandy's
  * prediction (when supplied), which feels right for the "happy path" — the
- * user just clicks through. Farm/field issues start `pending` because the
- * choice between remove/create/match is meaningful.
+ * user just clicks through. Farm/field issues default to **Replace** with the
+ * closest-named existing record auto-selected; the user can override.
  */
 export const defaultResolutionForIssue = (issue: Issue): Resolution => {
-  if (issue.type === 'farm-missing' || issue.type === 'field-missing') {
-    return { kind: 'pending' }
+  if (issue.type === 'farm-missing') {
+    const value = closestOption(issue.sourceName, issue.existingFarms) ?? ''
+    return { kind: 'match-existing', value }
+  }
+  if (issue.type === 'field-missing') {
+    const value = closestOption(issue.sourceName, issue.existingFields) ?? ''
+    return { kind: 'match-existing', value }
   }
   return { kind: 'pending' }
 }
@@ -129,19 +169,17 @@ export const defaultResolutionForIssue = (issue: Issue): Resolution => {
 /* Mock data                                                                   */
 /* -------------------------------------------------------------------------- */
 
-const EXISTING_FARMS = [
-  { value: 'farm-brookside-leys', label: 'Brookside Leys' },
-  { value: 'farm-foxglove-hill', label: 'Foxglove Hill' },
-  { value: 'farm-amber-harvest', label: 'Amber Harvest Farm' },
-]
+import { FARMS, FIELDS } from '../../data'
 
-const EXISTING_FIELDS = [
-  { value: 'field-millpond', label: 'Millpond' },
-  { value: 'field-orchard-fold', label: 'Orchard Fold' },
-  { value: 'field-mill-lane', label: 'Mill Lane' },
-  { value: 'field-saltway', label: 'Saltway' },
-  { value: 'field-stone-pightle', label: 'Stone Pightle' },
-]
+export const EXISTING_FARMS = FARMS.map((f) => ({
+  value: f.id,
+  label: f.name,
+}))
+
+export const EXISTING_FIELDS = FIELDS.map((f) => ({
+  value: f.id,
+  label: f.name,
+}))
 
 const CROP_VARIETY_OPTIONS = [
   {

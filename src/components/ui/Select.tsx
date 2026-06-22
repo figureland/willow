@@ -321,7 +321,9 @@ const FieldShell = ({
 /* -------------------------------------------------------------------------- */
 
 const popupClass = clsx(
-  'z-30 overflow-hidden rounded-md border-2 border-border-secondary bg-bg-primary',
+  // z-[60] keeps the popup above modals (which use z-50). Without this the
+  // dropdown rendered behind the Modal popup and was unclickable.
+  'z-[60] overflow-hidden rounded-md border-2 border-border-secondary bg-bg-primary',
   'shadow-[0_8px_8px_-2px_rgba(0,0,0,0.05)]',
   'min-w-[var(--anchor-width)] max-w-[min(calc(100vw-32px),520px)]',
   'origin-[var(--transform-origin)] transition-opacity duration-150 ease-out',
@@ -474,7 +476,7 @@ export const Select = <Value extends string = string>({
         </div>
 
         <BaseSelect.Portal>
-          <BaseSelect.Positioner sideOffset={4} className="z-30 outline-none">
+          <BaseSelect.Positioner sideOffset={4} className="z-[60] outline-none">
             <BaseSelect.Popup className={popupClass}>
               {searchable ? (
                 <SearchBar
@@ -660,7 +662,7 @@ export const MultiSelect = <Value extends string = string>({
         </div>
 
         <BaseSelect.Portal>
-          <BaseSelect.Positioner sideOffset={4} className="z-30 outline-none">
+          <BaseSelect.Positioner sideOffset={4} className="z-[60] outline-none">
             <BaseSelect.Popup className={popupClass}>
               {searchable ? (
                 <SearchBar

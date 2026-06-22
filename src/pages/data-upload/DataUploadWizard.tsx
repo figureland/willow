@@ -6,14 +6,15 @@ import { CheckDataStep } from './CheckDataStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import { IssueResolverModal } from './IssueResolverModal'
-import { MOCK_ISSUES } from './issues'
+import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
+import { generateSummary } from './summary'
 import { UploadStep } from './UploadStep'
 
 const BASE_STEP_IDS = [
   'upload',
   'review',
-  'check-data',
+  'refine-data',
   'completeness',
   'anomaly-detection',
   'commit',
@@ -38,8 +39,49 @@ export const DataUploadWizard = () => {
   // advance to the next step automatically.
   const [issuesOpen, setIssuesOpen] = useState(false)
   const advanceFromReview = () => {
-    navigate(`${DATA_UPLOAD_BASE}/check-data`)
+    navigate(`${DATA_UPLOAD_BASE}/refine-data`)
   }
+
+  // Generate the detection summary once for the wizard's lifetime. Drives
+  // both the Review step's display and the issue resolver — counts and
+  // error lists stay in sync.
+  const summary = useMemo(() => generateSummary(), [])
+
+  // Build issues from the per-farm errors. Unrecognised fields become
+  // field-missing issues; unrecognised farms become farm-missing issues.
+  // Mapping issues are appended afterwards.
+  const issues: Issue[] = useMemo(() => {
+    const out: Issue[] = []
+    for (const farm of summary.farmRows) {
+      const errs = farm.errors ?? []
+      for (let i = 0; i < errs.length; i++) {
+        const err = errs[i]
+        const sourceMatch = err.match(/"([^"]+)"/)
+        const sourceName = sourceMatch?.[1] ?? err
+        if (err.startsWith('Farm "')) {
+          out.push({
+            id: `${farm.id}-farm`,
+            type: 'farm-missing',
+            title: 'Farm not recognised',
+            sourceName,
+            existingFarms: EXISTING_FARMS,
+          })
+        } else {
+          out.push({
+            id: `${farm.id}-err-${i}`,
+            type: 'field-missing',
+            title: 'Field not recognised',
+            sourceName,
+            farmName: farm.name,
+            existingFields: EXISTING_FIELDS,
+          })
+        }
+      }
+    }
+    return out
+  }, [summary])
+
+  const continueLabel = `Fix ${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}`
 
   const steps: WizardStepConfig[] = useMemo(
     () => [
@@ -51,8 +93,8 @@ export const DataUploadWizard = () => {
       {
         id: 'review',
         label: 'Review',
-        content: <ReviewStep />,
-        continueLabel: `Review ${MOCK_ISSUES.length} issues`,
+        content: <ReviewStep summary={summary} />,
+        continueLabel,
         onContinue: () => {
           setIssuesOpen(true)
           // Don't advance — the modal will navigate us forward on finish.
@@ -60,8 +102,8 @@ export const DataUploadWizard = () => {
         },
       },
       {
-        id: 'check-data',
-        label: 'Check data',
+        id: 'refine-data',
+        label: 'Refine data',
         content: <CheckDataStep />,
       },
       {
@@ -81,7 +123,7 @@ export const DataUploadWizard = () => {
         hideContinue: true,
       },
     ],
-    [],
+    [summary, continueLabel],
   )
 
   // Redirect missing or unknown step ids to the first step. We do this in an
@@ -111,7 +153,7 @@ export const DataUploadWizard = () => {
       <IssueResolverModal
         open={issuesOpen}
         onOpenChange={setIssuesOpen}
-        issues={MOCK_ISSUES}
+        issues={issues}
         onComplete={() => {
           setIssuesOpen(false)
           advanceFromReview()

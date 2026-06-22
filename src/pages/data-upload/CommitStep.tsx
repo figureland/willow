@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Badge, Button, Card } from '../../components/ui'
-import { FarmsFieldsCard, TotalRecordsCard, YearsCard } from './SummaryCards'
+import { FarmsTable, SummaryBar } from './SummaryCards'
 
 /* -------------------------------------------------------------------------- */
 /* Mock commit summary                                                         */
@@ -13,6 +13,36 @@ const COMMIT_SUMMARY = {
   years: [2024, 2025, 2026],
   farms: { total: 4, unrecognised: 1 },
   fields: { total: 42, unrecognised: 3 },
+  farmRows: [
+    {
+      id: 'farm-1',
+      name: 'Brookside Leys',
+      fieldCount: 14,
+      enterprises: ['Arable'],
+      cropTypes: ['Winter wheat', 'Spring barley', 'Oilseed rape'],
+    },
+    {
+      id: 'farm-2',
+      name: 'Foxglove Hill',
+      fieldCount: 11,
+      enterprises: ['Arable', 'Mixed'],
+      cropTypes: ['Winter wheat', 'Grass ley'],
+    },
+    {
+      id: 'farm-3',
+      name: 'Amber Harvest Farm',
+      fieldCount: 9,
+      enterprises: ['Perennial'],
+      cropTypes: ['Cider apples'],
+    },
+    {
+      id: 'farm-4',
+      name: 'Heron Lea',
+      fieldCount: 8,
+      enterprises: ['Permanent grassland'],
+      cropTypes: ['Permanent pasture'],
+    },
+  ],
   confirmed: {
     count: 1_847,
     description:
@@ -82,29 +112,15 @@ export const CommitStep = () => {
         </p>
       </header>
 
-      {/* Headline cards, reused from the Review step. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        <TotalRecordsCard
-          count={
-            COMMIT_SUMMARY.confirmed.count + COMMIT_SUMMARY.prefilled.count
-          }
-          description="Records about to be saved — the sum of confirmed and prefilled rows. Skipped items aren't counted."
-        />
-        <YearsCard years={COMMIT_SUMMARY.years} />
-        <FarmsFieldsCard
-          showWarnings={false}
-          farms={{
-            noun: 'farm',
-            unrecognised: COMMIT_SUMMARY.farms.unrecognised,
-            total: COMMIT_SUMMARY.farms.total,
-          }}
-          fields={{
-            noun: 'field',
-            unrecognised: COMMIT_SUMMARY.fields.unrecognised,
-            total: COMMIT_SUMMARY.fields.total,
-          }}
-        />
-      </div>
+      {/* Headline bar, reused from the Review step. */}
+      <SummaryBar
+        totalRecords={
+          COMMIT_SUMMARY.confirmed.count + COMMIT_SUMMARY.prefilled.count
+        }
+        years={COMMIT_SUMMARY.years}
+      />
+
+      <FarmsTable farms={COMMIT_SUMMARY.farmRows} showWarnings={false} />
 
       {/* Confirmed / Prefilled / Skipped breakdown. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

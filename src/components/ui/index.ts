@@ -49,6 +49,8 @@ export type {
 export { Tab, TabBar, TabPanel, Tabs } from './Tabs'
 export type { TextInputProps } from './TextInput'
 export { TextInput } from './TextInput'
+export type { TooltipProps } from './Tooltip'
+export { Tooltip } from './Tooltip'
 export type { WizardLayoutProps, WizardStepConfig } from './WizardLayout'
 export { WizardLayout } from './WizardLayout'
 export type {

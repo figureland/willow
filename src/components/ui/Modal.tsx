@@ -18,6 +18,11 @@ export type ModalProps = {
   maxWidth?: string
   /** Sticky footer (e.g. action bar). */
   footer?: ReactNode
+  /**
+   * Optional bar rendered flush against the top edge of the modal — useful
+   * for a thin progress indicator that should sit above the header.
+   */
+  topBar?: ReactNode
   children: ReactNode
 }
 
@@ -35,6 +40,7 @@ export const Modal = ({
   description,
   maxWidth = '640px',
   footer,
+  topBar,
   children,
 }: ModalProps) => (
   <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -48,7 +54,7 @@ export const Modal = ({
       />
       <BaseDialog.Popup
         className={clsx(
-          'fixed inset-0 z-50 m-auto flex max-h-[90vh] flex-col',
+          'fixed inset-0 z-50 m-auto flex max-h-[90vh] flex-col overflow-hidden',
           'bg-bg-primary rounded-xl border-2 border-border-tertiary shadow-xl',
           'outline-none',
           'transition-[opacity,transform] duration-200 ease-out',
@@ -57,6 +63,7 @@ export const Modal = ({
         )}
         style={{ width: '92vw', maxWidth }}
       >
+        {topBar}
         <header className="flex flex-col gap-1 px-6 py-5 border-b-2 border-border-tertiary">
           {eyebrow ? (
             <span className="text-sm font-semibold text-text-secondary">
