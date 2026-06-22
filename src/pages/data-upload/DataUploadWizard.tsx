@@ -14,8 +14,8 @@ const BASE_STEP_IDS = [
   'upload',
   'review',
   'check-data',
-  'anomaly-detection',
   'completeness',
+  'anomaly-detection',
   'commit',
 ] as const
 
@@ -65,14 +65,14 @@ export const DataUploadWizard = () => {
         content: <CheckDataStep />,
       },
       {
-        id: 'anomaly-detection',
-        label: 'Anomaly detection',
-        content: <AnomalyDetectionStep />,
-      },
-      {
         id: 'completeness',
         label: 'Completeness',
         content: <CompletenessStep />,
+      },
+      {
+        id: 'anomaly-detection',
+        label: 'Anomaly detection',
+        content: <AnomalyDetectionStep />,
       },
       {
         id: 'commit',

@@ -268,7 +268,10 @@ export const UploadStep = () => {
         onBrowseClick={() => inputRef.current?.click()}
       />
 
-      <FileList files={files} onDelete={deleteFile} />
+      <div className="flex flex-col justify-center gap-6">
+        <TemplatePanel farmCount={3} fieldCount={32} />
+        <FileList files={files} onDelete={deleteFile} />
+      </div>
 
       <input
         ref={inputRef}
@@ -281,6 +284,62 @@ export const UploadStep = () => {
     </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* Template panel                                                              */
+/* -------------------------------------------------------------------------- */
+
+const IconDownload = ({ size = 20 }: { size?: number }) => (
+  <SignageIcon size={size}>
+    <path
+      d="M12 4V15M12 15L7.5 10.5M12 15L16.5 10.5"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M4 19H20"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </SignageIcon>
+)
+
+const TemplatePanel = ({
+  farmCount,
+  fieldCount,
+}: {
+  farmCount: number
+  fieldCount: number
+}) => (
+  <div className="flex flex-col gap-3 rounded-xl border-2 border-border-tertiary bg-bg-primary p-5">
+    <div className="flex flex-col gap-1">
+      <p className="text-2xl font-semibold leading-9 text-text-primary">
+        Use template
+      </p>
+      <p className="text-md text-text-secondary">
+        Download a custom Excel template tailored for your organisation (
+        {farmCount} farms and {fieldCount} fields).
+      </p>
+    </div>
+    <a
+      href="/api/template.xlsx"
+      download
+      className={clsx(
+        'inline-flex w-fit items-center gap-2 rounded-md',
+        'bg-bg-primary border-2 border-border-secondary text-text-primary',
+        'px-4 py-2 text-md font-semibold tracking-[0.15px]',
+        'hover:border-border-secondary-hover hover:bg-bg-secondary transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+      )}
+    >
+      <IconDownload />
+      <span className="pt-[2px]">Download template</span>
+    </a>
+  </div>
+)
 
 /* -------------------------------------------------------------------------- */
 /* Drop zone                                                                   */
