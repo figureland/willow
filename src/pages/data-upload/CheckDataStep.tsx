@@ -1,8 +1,9 @@
 import clsx from 'clsx'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Badge,
+  Button,
   DataTable,
   type GridColDef,
   IconSearch,
@@ -13,6 +14,7 @@ import {
   Tabs,
   TextInput,
 } from '../../components/ui'
+import { SheetReviewModal } from './SheetReviewModal'
 
 /* -------------------------------------------------------------------------- */
 /* Tab state                                                                   */
@@ -87,7 +89,11 @@ const ActionGlyph = ({ kind }: { kind: ActionKind }) => (
 )
 
 const ActionCell = ({ action }: { action: ActionKind }) => (
-  <Badge tone={ACTION_TONE[action]} size="sm" icon={<ActionGlyph kind={action} />}>
+  <Badge
+    tone={ACTION_TONE[action]}
+    size="sm"
+    icon={<ActionGlyph kind={action} />}
+  >
     {ACTION_LABEL[action]}
   </Badge>
 )
@@ -122,23 +128,6 @@ const FIELD_NAMES = [
   'Hayrick',
   'Marlpit',
   'Old Barn Field',
-]
-
-const PRIMARY_LAND_USE = [
-  'Arable',
-  'Permanent pasture',
-  'Temporary grass',
-  'Orchard',
-  'Mixed',
-]
-
-const SOIL_TYPES = [
-  'Clay loam',
-  'Sandy loam',
-  'Silt loam',
-  'Sandy clay loam',
-  'Peat',
-  'Chalk',
 ]
 
 const CROP_NAMES = [
@@ -312,102 +301,6 @@ const StatusDot = ({ status }: { status: RowStatus }) => (
   />
 )
 
-const STATUS_FILTER_OPTIONS: { value: RowStatus; label: string }[] = [
-  { value: 'blocking', label: 'Blocking' },
-  { value: 'warning', label: 'Warning' },
-  { value: 'note', label: 'Note' },
-  { value: 'ok', label: 'OK' },
-]
-
-/* -------------------------------------------------------------------------- */
-/* Tab 1 — Fields                                                              */
-/* -------------------------------------------------------------------------- */
-
-type FieldRow = {
-  id: string
-  fieldName: string
-  farmName: string
-  area: number | null
-  primaryLandUse: string | null
-  soilType: string | null
-  status: RowStatus
-}
-
-const fieldRowStatus = (
-  row: Omit<FieldRow, 'id' | 'fieldName' | 'farmName' | 'status'>,
-): RowStatus =>
-  statusOf({
-    // Area is the analytical anchor for a field — no area, no calcs.
-    blocking: row.area === null,
-    warningCount: missingCount(row.primaryLandUse),
-    noteCount: missingCount(row.soilType),
-  })
-
-const FIELDS_ROWS: FieldRow[] = sortByFarm(
-  Array.from({ length: 20 }, (_, i) => {
-    const base = {
-      id: `field-${i}`,
-      fieldName: pick(FIELD_NAMES, i),
-      farmName: pick(FARM_NAMES, i),
-      area: maybeMissing(num(i, 1, 1.5, 24, 1), i, 41, 0.25),
-      primaryLandUse: maybeMissing(
-        pickHashed(PRIMARY_LAND_USE, i, 2),
-        i,
-        42,
-        0.35,
-      ),
-      soilType: maybeMissing(pickHashed(SOIL_TYPES, i, 3), i, 43, 0.4),
-    }
-    return { ...base, status: fieldRowStatus(base) }
-  }),
-)
-
-const FIELDS_COLUMNS: GridColDef<FieldRow>[] = [
-  { field: 'farmName', headerName: 'Farm name', flex: 1.4, minWidth: 180 },
-  {
-    field: 'status',
-    headerName: '',
-    width: 56,
-    sortable: true,
-    filterable: false,
-    renderCell: ({ row }) => (
-      <span className="grid h-full place-items-center">
-        <StatusDot status={row.status} />
-      </span>
-    ),
-  },
-  { field: 'fieldName', headerName: 'Field name', flex: 1.4, minWidth: 180 },
-  {
-    field: 'area',
-    headerName: 'Size (ha)',
-    type: 'number',
-    flex: 0.8,
-    minWidth: 110,
-    renderCell: ({ row }) =>
-      row.area === null ? (
-        <MissingCell />
-      ) : (
-        <span className="tabular-nums">{row.area.toFixed(1)}</span>
-      ),
-  },
-  {
-    field: 'primaryLandUse',
-    headerName: 'Primary land use',
-    flex: 1.2,
-    minWidth: 180,
-    renderCell: ({ row }) =>
-      row.primaryLandUse === null ? <MissingCell /> : row.primaryLandUse,
-  },
-  {
-    field: 'soilType',
-    headerName: 'Soil type',
-    flex: 1.2,
-    minWidth: 160,
-    renderCell: ({ row }) =>
-      row.soilType === null ? <MissingCell /> : row.soilType,
-  },
-]
-
 /* -------------------------------------------------------------------------- */
 /* Tab 2 — Cropping                                                            */
 /* -------------------------------------------------------------------------- */
@@ -437,7 +330,13 @@ type CroppingRow = {
 const croppingRowStatus = (
   row: Omit<
     CroppingRow,
-    'id' | 'fieldName' | 'farmName' | 'harvestYear' | 'cropName' | 'status'
+    | 'id'
+    | 'fieldName'
+    | 'farmName'
+    | 'harvestYear'
+    | 'cropName'
+    | 'status'
+    | 'action'
   >,
 ): RowStatus =>
   statusOf({
@@ -488,12 +387,11 @@ const CROPPING_ROWS: CroppingRow[] = sortByFarm(
       harvestYield: maybeMissing(harvestYield, i, 60, 0.4),
       legumeMix: maybeMissing(i % 5 === 0 ? 'Yes' : 'No', i, 61, 0.6),
     }
-    return { ...base, status: croppingRowStatus(base) }
+    return { ...base, status: croppingRowStatus(base), action: pickAction(i) }
   }),
 )
 
 const CROPPING_COLUMNS: GridColDef<CroppingRow>[] = [
-  { field: 'farmName', headerName: 'Farm name', flex: 1.2, minWidth: 160 },
   {
     field: 'status',
     headerName: '',
@@ -506,7 +404,15 @@ const CROPPING_COLUMNS: GridColDef<CroppingRow>[] = [
       </span>
     ),
   },
-  { field: 'fieldName', headerName: 'Field name', flex: 1.2, minWidth: 160 },
+  { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
+  {
+    field: 'action',
+    headerName: 'Action',
+    flex: 0.6,
+    minWidth: 100,
+    sortable: true,
+    renderCell: ({ row }) => <ActionCell action={row.action} />,
+  },
   {
     field: 'harvestYear',
     headerName: 'Harvest year',
@@ -670,6 +576,7 @@ type OperationRow = {
   unit: string | null
   appliedArea: number | null
   status: RowStatus
+  action: ActionKind
 }
 
 const operationRowStatus = (
@@ -683,6 +590,7 @@ const operationRowStatus = (
     | 'operationType'
     | 'operationGroup'
     | 'status'
+    | 'action'
   >,
 ): RowStatus =>
   statusOf({
@@ -730,12 +638,11 @@ const OPERATIONS_ROWS: OperationRow[] = sortByFarm(
       unit: maybeMissing(pick(UNITS_BY_GROUP[group] ?? ['—'], i), i, 76, 0.35),
       appliedArea: maybeMissing(num(i, 14, 2.5, 28, 1), i, 77, 0.4),
     }
-    return { ...base, status: operationRowStatus(base) }
+    return { ...base, status: operationRowStatus(base), action: pickAction(i) }
   }),
 )
 
 const OPERATIONS_COLUMNS: GridColDef<OperationRow>[] = [
-  { field: 'farmName', headerName: 'Farm name', flex: 1.2, minWidth: 160 },
   {
     field: 'status',
     headerName: '',
@@ -748,7 +655,15 @@ const OPERATIONS_COLUMNS: GridColDef<OperationRow>[] = [
       </span>
     ),
   },
-  { field: 'fieldName', headerName: 'Field name', flex: 1.2, minWidth: 160 },
+  { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
+  {
+    field: 'action',
+    headerName: 'Action',
+    flex: 0.6,
+    minWidth: 100,
+    sortable: true,
+    renderCell: ({ row }) => <ActionCell action={row.action} />,
+  },
   {
     field: 'harvestYear',
     headerName: 'Harvest year',
@@ -873,12 +788,13 @@ type SoilSamplingRow = {
   topSoilDepth: number | null
   subSoilDepth: number | null
   status: RowStatus
+  action: ActionKind
 }
 
 const soilRowStatus = (
   row: Omit<
     SoilSamplingRow,
-    'id' | 'fieldName' | 'farmName' | 'harvestYear' | 'status'
+    'id' | 'fieldName' | 'farmName' | 'harvestYear' | 'status' | 'action'
   >,
 ): RowStatus =>
   statusOf({
@@ -949,12 +865,11 @@ const SOIL_ROWS: SoilSamplingRow[] = sortByFarm(
         0.6,
       ),
     }
-    return { ...base, status: soilRowStatus(base) }
+    return { ...base, status: soilRowStatus(base), action: pickAction(i) }
   }),
 )
 
 const SOIL_COLUMNS: GridColDef<SoilSamplingRow>[] = [
-  { field: 'farmName', headerName: 'Farm name', flex: 1.2, minWidth: 160 },
   {
     field: 'status',
     headerName: '',
@@ -967,7 +882,15 @@ const SOIL_COLUMNS: GridColDef<SoilSamplingRow>[] = [
       </span>
     ),
   },
-  { field: 'fieldName', headerName: 'Field name', flex: 1.2, minWidth: 160 },
+  { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
+  {
+    field: 'action',
+    headerName: 'Action',
+    flex: 0.6,
+    minWidth: 100,
+    sortable: true,
+    renderCell: ({ row }) => <ActionCell action={row.action} />,
+  },
   {
     field: 'harvestYear',
     headerName: 'Harvest year',
@@ -1129,20 +1052,22 @@ const SOIL_COLUMNS: GridColDef<SoilSamplingRow>[] = [
 /* Step component                                                              */
 /* -------------------------------------------------------------------------- */
 
-const isRowStatus = (v: string): v is RowStatus =>
-  v === 'blocking' || v === 'warning' || v === 'note' || v === 'ok'
+const ALL_FARMS_VALUE = '__all__'
 
-/** Filter rows by query (matches farm + field) and status set. */
-const filterRows = <
-  Row extends { farmName: string; fieldName?: string; status: RowStatus },
->(
+const FARM_FILTER_OPTIONS = [
+  { value: ALL_FARMS_VALUE, label: 'All farms' },
+  ...FARM_NAMES.map((name) => ({ value: name, label: name })),
+]
+
+/** Filter rows by query (matches farm + field) and farm set. */
+const filterRows = <Row extends { farmName: string; fieldName?: string }>(
   rows: Row[],
   query: string,
-  statuses: RowStatus[],
+  farms: string[],
 ): Row[] => {
   const q = query.trim().toLowerCase()
   return rows.filter((row) => {
-    if (statuses.length > 0 && !statuses.includes(row.status)) return false
+    if (farms.length > 0 && !farms.includes(row.farmName)) return false
     if (!q) return true
     const haystack = `${row.farmName} ${row.fieldName ?? ''}`.toLowerCase()
     return haystack.includes(q)
@@ -1152,16 +1077,23 @@ const filterRows = <
 export const CheckDataStep = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const raw = searchParams.get('tab')
-  const tab: TabId = isTabId(raw) ? raw : 'fields'
+  const tab: TabId = isTabId(raw) ? raw : 'cropping'
+
+  // Show the sheet-review modal on first mount so the user confirms what
+  // Sandy detected before they start refining the table data.
+  const [sheetReviewOpen, setSheetReviewOpen] = useState(true)
+  const [sheetConfirmed, setSheetConfirmed] = useState(false)
 
   const query = searchParams.get('q') ?? ''
-  const statusFilter = searchParams.getAll('status').filter(isRowStatus)
+  // `farm` param values are the farm names themselves; an empty set means
+  // "all farms" (so we don't need to encode it explicitly).
+  const farmFilter = searchParams.getAll('farm')
 
   const setTab = (next: TabId) => {
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev)
-        if (next === 'fields') p.delete('tab')
+        if (next === 'cropping') p.delete('tab')
         else p.set('tab', next)
         return p
       },
@@ -1181,12 +1113,30 @@ export const CheckDataStep = () => {
     )
   }
 
-  const setStatusFilter = (next: string[]) => {
+  // Farms multiselect with "Select all" as the first option. Picking it
+  // wipes any individual farm selections; picking an individual farm wipes
+  // the "Select all" sentinel.
+  const farmSelectValue =
+    farmFilter.length === 0 ? [ALL_FARMS_VALUE] : farmFilter
+  const setFarmFilter = (next: string[]) => {
+    const previouslyHadAll = farmSelectValue.includes(ALL_FARMS_VALUE)
+    const nowHasAll = next.includes(ALL_FARMS_VALUE)
+    let resolved: string[]
+    if (nowHasAll && !previouslyHadAll) {
+      // User just toggled "All farms" on — clear individual picks.
+      resolved = []
+    } else if (nowHasAll && previouslyHadAll) {
+      // Both are still set; the user added an individual farm. Drop the
+      // sentinel so the individual selection wins.
+      resolved = next.filter((v) => v !== ALL_FARMS_VALUE)
+    } else {
+      resolved = next
+    }
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev)
-        p.delete('status')
-        for (const s of next) p.append('status', s)
+        p.delete('farm')
+        for (const f of resolved) p.append('farm', f)
         return p
       },
       { replace: true },
@@ -1197,7 +1147,6 @@ export const CheckDataStep = () => {
   // tab switch. The row arrays are top-level constants already.
   const columns = useMemo(
     () => ({
-      fields: FIELDS_COLUMNS,
       cropping: CROPPING_COLUMNS,
       operations: OPERATIONS_COLUMNS,
       'soil-sampling': SOIL_COLUMNS,
@@ -1205,21 +1154,17 @@ export const CheckDataStep = () => {
     [],
   )
 
-  const filteredFields = useMemo(
-    () => filterRows(FIELDS_ROWS, query, statusFilter),
-    [query, statusFilter],
-  )
   const filteredCropping = useMemo(
-    () => filterRows(CROPPING_ROWS, query, statusFilter),
-    [query, statusFilter],
+    () => filterRows(CROPPING_ROWS, query, farmFilter),
+    [query, farmFilter],
   )
   const filteredOperations = useMemo(
-    () => filterRows(OPERATIONS_ROWS, query, statusFilter),
-    [query, statusFilter],
+    () => filterRows(OPERATIONS_ROWS, query, farmFilter),
+    [query, farmFilter],
   )
   const filteredSoil = useMemo(
-    () => filterRows(SOIL_ROWS, query, statusFilter),
-    [query, statusFilter],
+    () => filterRows(SOIL_ROWS, query, farmFilter),
+    [query, farmFilter],
   )
 
   return (
@@ -1236,64 +1181,98 @@ export const CheckDataStep = () => {
         </div>
         <div className="w-[260px]">
           <MultiSelect
-            placeholder="All statuses"
-            aria-label="Filter by status"
-            value={statusFilter}
-            onValueChange={setStatusFilter}
-            items={STATUS_FILTER_OPTIONS}
+            placeholder="All farms"
+            aria-label="Filter by farm"
+            value={farmSelectValue}
+            onValueChange={setFarmFilter}
+            items={FARM_FILTER_OPTIONS}
             searchable={false}
           />
         </div>
+        {sheetConfirmed ? (
+          <Button variant="secondary" onClick={() => setSheetReviewOpen(true)}>
+            Review what Sandy found
+          </Button>
+        ) : null}
       </div>
 
-      <Tabs<TabId> value={tab} onValueChange={setTab}>
-        <TabBar>
-          <Tab value="fields">Fields</Tab>
-          <Tab value="cropping">Cropping</Tab>
-          <Tab value="operations">Operations</Tab>
-          <Tab value="soil-sampling">Soil sampling</Tab>
-        </TabBar>
+      {/* Sticky-left styles for the first two columns (Field · Action).
+          Applied via raw CSS keyed off MUI's `data-field` attribute so the
+          wider table can scroll horizontally underneath them. */}
+      <style>{`
+        .refine-grid .MuiDataGrid-cell[data-field='fieldName'],
+        .refine-grid .MuiDataGrid-cell[data-field='action'],
+        .refine-grid .MuiDataGrid-columnHeader[data-field='fieldName'],
+        .refine-grid .MuiDataGrid-columnHeader[data-field='action'] {
+          position: sticky;
+          background-color: var(--color-bg-primary);
+          z-index: 3;
+        }
+        .refine-grid .MuiDataGrid-cell[data-field='fieldName'],
+        .refine-grid .MuiDataGrid-columnHeader[data-field='fieldName'] {
+          left: 0;
+        }
+        .refine-grid .MuiDataGrid-cell[data-field='action'],
+        .refine-grid .MuiDataGrid-columnHeader[data-field='action'] {
+          left: 140px;
+          box-shadow: 2px 0 0 var(--color-border-tertiary);
+        }
+        .refine-grid .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='fieldName'],
+        .refine-grid .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='action'] {
+          background-color: var(--color-bg-secondary);
+        }
+      `}</style>
+      <div
+        className={clsx(
+          'refine-grid transition-opacity duration-200',
+          !sheetConfirmed && 'pointer-events-none opacity-40',
+        )}
+        aria-hidden={!sheetConfirmed ? 'true' : undefined}
+      >
+        <Tabs<TabId> value={tab} onValueChange={setTab}>
+          <TabBar>
+            <Tab value="cropping">Cropping</Tab>
+            <Tab value="operations">Operations</Tab>
+            <Tab value="soil-sampling">Soil sampling</Tab>
+          </TabBar>
 
-        <TabPanel value="fields" className="pt-4">
-          <DataTable
-            rows={filteredFields}
-            columns={columns.fields}
-            defaultPageSize={20}
-            pageSizeOptions={[10, 20, 50]}
-            selectable={false}
-          />
-        </TabPanel>
+          <TabPanel value="cropping" className="pt-4">
+            <DataTable
+              rows={filteredCropping}
+              columns={columns.cropping}
+              defaultPageSize={20}
+              pageSizeOptions={[10, 20, 50]}
+              selectable={false}
+            />
+          </TabPanel>
 
-        <TabPanel value="cropping" className="pt-4">
-          <DataTable
-            rows={filteredCropping}
-            columns={columns.cropping}
-            defaultPageSize={20}
-            pageSizeOptions={[10, 20, 50]}
-            selectable={false}
-          />
-        </TabPanel>
+          <TabPanel value="operations" className="pt-4">
+            <DataTable
+              rows={filteredOperations}
+              columns={columns.operations}
+              defaultPageSize={20}
+              pageSizeOptions={[10, 20, 50]}
+              selectable={false}
+            />
+          </TabPanel>
 
-        <TabPanel value="operations" className="pt-4">
-          <DataTable
-            rows={filteredOperations}
-            columns={columns.operations}
-            defaultPageSize={20}
-            pageSizeOptions={[10, 20, 50]}
-            selectable={false}
-          />
-        </TabPanel>
+          <TabPanel value="soil-sampling" className="pt-4">
+            <DataTable
+              rows={filteredSoil}
+              columns={columns['soil-sampling']}
+              defaultPageSize={20}
+              pageSizeOptions={[10, 20, 50]}
+              selectable={false}
+            />
+          </TabPanel>
+        </Tabs>
+      </div>
 
-        <TabPanel value="soil-sampling" className="pt-4">
-          <DataTable
-            rows={filteredSoil}
-            columns={columns['soil-sampling']}
-            defaultPageSize={20}
-            pageSizeOptions={[10, 20, 50]}
-            selectable={false}
-          />
-        </TabPanel>
-      </Tabs>
+      <SheetReviewModal
+        open={sheetReviewOpen}
+        onOpenChange={setSheetReviewOpen}
+        onComplete={() => setSheetConfirmed(true)}
+      />
     </div>
   )
 }
