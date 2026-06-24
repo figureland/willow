@@ -13,6 +13,7 @@ import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
 import { generateSummary } from './summary'
 import { type UploadedFile, UploadStep } from './UploadStep'
+import { CANONICAL_VOCAB, MOCK_VALUE_MAPPING_FIXTURES } from './value-mapping'
 
 const BASE_STEP_IDS = [
   'upload',
@@ -103,6 +104,37 @@ export const DataUploadWizard = () => {
         }
       }
     }
+
+    // Schema-transformation demo issues — one per sheet of the example
+    // workbook. In a real implementation Sandy would emit one of these for
+    // any uploaded file it can't parse against the canonical schema.
+    for (const sheetName of ['PRD_Fertilizers', 'PRD_Chemicals']) {
+      out.push({
+        id: `schema-${sheetName}`,
+        type: 'schema-transformation',
+        title: 'File structure',
+        filename: 'xfarm-operations-export.xlsx',
+        sheetName,
+        dataCategory: 'Operations',
+      })
+    }
+
+    // Value-mapping demo issues — one per (category, column) pair from the
+    // mock fixtures. Wired from the shared MOCK_VALUE_MAPPING_FIXTURES so
+    // edits to that file drive the whole demo.
+    for (const fixture of MOCK_VALUE_MAPPING_FIXTURES) {
+      out.push({
+        id: `values-${fixture.category}-${fixture.sourceColumn}`,
+        type: 'value-mapping',
+        title: 'Help us understand your values',
+        category: fixture.category,
+        sourceColumn: fixture.sourceColumn,
+        targetLabel: fixture.targetLabel,
+        sourceValues: fixture.values,
+        canonicalOptions: CANONICAL_VOCAB[fixture.category],
+      })
+    }
+
     return out
   }, [summary])
 

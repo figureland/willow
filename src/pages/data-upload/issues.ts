@@ -31,6 +31,15 @@ export type Resolution =
   | { kind: 'ignore' }
   | { kind: 'create-new'; name: string }
   | { kind: 'match-existing'; value: string }
+  /** Schema-transformation issues store a full rule program (see
+   *  `./schema-transformation.ts`) under `program`. We keep it as
+   *  `unknown` here so this module stays unaware of the schema
+   *  primitives; the resolver narrows when needed. */
+  | { kind: 'rule-program'; program: unknown }
+  /** Value-mapping issues store a per-source-value decision map keyed by
+   *  the raw source string. `unknown` keeps this module independent of
+   *  the value-mapping primitives. */
+  | { kind: 'value-mapping'; decisions: unknown }
 
 /* -------------------------------------------------------------------------- */
 /* Issue variants                                                              */
@@ -85,7 +94,47 @@ export type FieldMissingBatchIssue = BaseIssue & {
 }
 
 /**
- * Generic mapping issue used for 3–7. The source values are what the import
+ * 3. Schema transformation — Sandy can't directly map this file's columns
+ *    onto the canonical schema. The resolver lets the user describe their
+ *    spreadsheet's layout one canonical field at a time, building a small
+ *    visual rule program. See `./schema-transformation.ts` for the model.
+ */
+export type SchemaTransformationIssue = BaseIssue & {
+  type: 'schema-transformation'
+  /** Filename the rules apply to. Surfaced in the issue header. */
+  filename: string
+  /** Sheet within the workbook this issue is scoped to. */
+  sheetName: string
+  /** Human label for the data category (e.g. "Operations"). */
+  dataCategory: string
+}
+
+/**
+ * 4. Value mapping — Sandy spotted column values it doesn't recognise (e.g.
+ *    `WW` for Winter wheat). The user maps each unknown value onto a known
+ *    canonical value or adds it as a new rule. Rules are scoped by data
+ *    category so they're reused across files in that category.
+ */
+export type ValueMappingIssue = BaseIssue & {
+  type: 'value-mapping'
+  /** Data category the rules apply to (Operations / Cropping / …). */
+  category: 'operational' | 'cropping' | 'soil-sampling'
+  /** Source column the unknown values came from. */
+  sourceColumn: string
+  /** Canonical field label they map onto. */
+  targetLabel: string
+  /** Unknown source values with their suggested canonical match. */
+  sourceValues: {
+    value: string
+    occurrences: number
+    suggestion?: string
+  }[]
+  /** Canonical vocabulary the dropdown picks from. */
+  canonicalOptions: { value: string; label: string }[]
+}
+
+/**
+ * Generic mapping issue used for 4–8. The source values are what the import
  * contained; the user picks the corresponding system value (with a Sandy
  * prediction pre-selected when available).
  */
@@ -125,6 +174,8 @@ export type Issue =
   | FarmMissingIssue
   | FieldMissingIssue
   | FieldMissingBatchIssue
+  | SchemaTransformationIssue
+  | ValueMappingIssue
   | MappingIssue
 
 /* -------------------------------------------------------------------------- */
@@ -181,6 +232,28 @@ export const defaultResolutionForIssue = (issue: Issue): Resolution => {
     const value = closestOption(issue.sourceName, issue.existingFields) ?? ''
     return { kind: 'match-existing', value }
   }
+  if (issue.type === 'schema-transformation') {
+    // Pre-fill obvious 1:1 column rules (e.g. fieldName → Field name) so the
+    // user opens the modal to a head start instead of an empty form.
+    return {
+      kind: 'rule-program',
+      program: suggestedProgramForSheet(issue.sheetName),
+    }
+  }
+  if (issue.type === 'value-mapping') {
+    // Seed each known source value with Sandy's suggestion (when present)
+    // so the happy path is "skim and confirm" rather than "fill in 5 selects".
+    const decisions: Record<
+      string,
+      { kind: 'map'; canonicalValue: string } | { kind: 'skip' }
+    > = {}
+    for (const sv of issue.sourceValues) {
+      decisions[sv.value] = sv.suggestion
+        ? { kind: 'map', canonicalValue: sv.suggestion }
+        : { kind: 'skip' }
+    }
+    return { kind: 'value-mapping', decisions }
+  }
   if (issue.type === 'field-missing-batch') {
     // Pre-select the suggested farm by name when available, otherwise the
     // first existing farm — the user can swap before confirming.
@@ -201,6 +274,7 @@ export const defaultResolutionForIssue = (issue: Issue): Resolution => {
 /* -------------------------------------------------------------------------- */
 
 import { FARMS, FIELDS } from '../../data'
+import { suggestedProgramForSheet } from './schema-transformation'
 
 export const EXISTING_FARMS = FARMS.map((f) => ({
   value: f.id,

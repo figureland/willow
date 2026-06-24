@@ -1,8 +1,7 @@
 import clsx from 'clsx'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Button,
   DataTable,
   type GridColDef,
   IconSearch,
@@ -14,7 +13,6 @@ import {
   TextInput,
 } from '../../components/ui'
 import { ActionCell, type ActionKind } from './ActionCell'
-import { SheetReviewModal } from './SheetReviewModal'
 
 /* -------------------------------------------------------------------------- */
 /* Tab state                                                                   */
@@ -1008,11 +1006,6 @@ export const CheckDataStep = () => {
   const raw = searchParams.get('tab')
   const tab: TabId = isTabId(raw) ? raw : 'cropping'
 
-  // Show the sheet-review modal on first mount so the user confirms what
-  // Sandy detected before they start refining the table data.
-  const [sheetReviewOpen, setSheetReviewOpen] = useState(true)
-  const [sheetConfirmed, setSheetConfirmed] = useState(false)
-
   const query = searchParams.get('q') ?? ''
   // `farm` param values are the farm names themselves; an empty set means
   // "all farms" (so we don't need to encode it explicitly).
@@ -1118,11 +1111,6 @@ export const CheckDataStep = () => {
             searchable={false}
           />
         </div>
-        {sheetConfirmed ? (
-          <Button variant="secondary" onClick={() => setSheetReviewOpen(true)}>
-            Review what Sandy found
-          </Button>
-        ) : null}
       </div>
 
       {/* Sticky-left styles for the first two columns (Field · Action).
@@ -1151,13 +1139,7 @@ export const CheckDataStep = () => {
           background-color: var(--color-bg-secondary);
         }
       `}</style>
-      <div
-        className={clsx(
-          'refine-grid transition-opacity duration-200',
-          !sheetConfirmed && 'pointer-events-none opacity-40',
-        )}
-        aria-hidden={!sheetConfirmed ? 'true' : undefined}
-      >
+      <div className="refine-grid">
         <Tabs<TabId> value={tab} onValueChange={setTab}>
           <TabBar>
             <Tab value="cropping">Cropping</Tab>
@@ -1196,12 +1178,6 @@ export const CheckDataStep = () => {
           </TabPanel>
         </Tabs>
       </div>
-
-      <SheetReviewModal
-        open={sheetReviewOpen}
-        onOpenChange={setSheetReviewOpen}
-        onComplete={() => setSheetConfirmed(true)}
-      />
     </div>
   )
 }

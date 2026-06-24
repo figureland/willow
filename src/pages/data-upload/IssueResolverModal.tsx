@@ -9,7 +9,15 @@ import {
   type Issue,
   type MappingIssue,
   type Resolution,
+  type SchemaTransformationIssue,
+  type ValueMappingIssue,
 } from './issues'
+import { SchemaRuleEditor } from './SchemaRuleEditor'
+import {
+  emptyProgramForSheet,
+  type SchemaRuleProgram,
+} from './schema-transformation'
+import type { ValueMappingDecisions } from './value-mapping'
 
 type IssueResolverModalProps = {
   open: boolean
@@ -44,12 +52,14 @@ const seedState = (issues: Issue[]): Record<string, IssueState> => {
   const out: Record<string, IssueState> = {}
   for (const issue of issues) {
     out[issue.id] = { resolution: defaultResolutionForIssue(issue) }
-    // Only mapping-style issues carry per-row sub-resolutions. Farm / field
-    // (single + batch) all use the single resolution on the issue.
+    // Only mapping-style issues carry per-row sub-resolutions. Everything
+    // else uses the single resolution on the issue.
     const isMapping =
       issue.type !== 'farm-missing' &&
       issue.type !== 'field-missing' &&
-      issue.type !== 'field-missing-batch'
+      issue.type !== 'field-missing-batch' &&
+      issue.type !== 'schema-transformation' &&
+      issue.type !== 'value-mapping'
     if (isMapping) {
       const rows: Record<string, Resolution> = {}
       for (const row of issue.rows) {
@@ -132,11 +142,17 @@ export const IssueResolverModal = ({
 
   if (!issue) return null
 
+  // Per-issue title + descriptive subtitle so each body doesn't have to
+  // render its own header strip. The description carries file/sheet context
+  // (filename › sheet) when relevant.
+  const { title, description } = modalCopyFor(issue)
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={issue.title}
+      title={title}
+      description={description}
       maxWidth="720px"
       topBar={
         <div aria-hidden="true" className="h-1.5 w-full bg-bg-tertiary">
@@ -155,6 +171,51 @@ export const IssueResolverModal = ({
       />
     </Modal>
   )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Per-issue modal copy — title + filename › sheet subtitle                    */
+/* -------------------------------------------------------------------------- */
+
+/** Render a filename optionally followed by a chevron + sheet name. */
+const FileBreadcrumb = ({
+  filename,
+  sheet,
+}: {
+  filename: string
+  sheet?: string
+}) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span>{filename}</span>
+    {sheet ? (
+      <>
+        <span aria-hidden="true" className="text-text-secondary">
+          ›
+        </span>
+        <span className="font-semibold text-text-primary">{sheet}</span>
+      </>
+    ) : null}
+  </span>
+)
+
+const modalCopyFor = (
+  issue: Issue,
+): { title: React.ReactNode; description?: React.ReactNode } => {
+  if (issue.type === 'schema-transformation') {
+    return {
+      title: 'Help us understand your file structure',
+      description: (
+        <FileBreadcrumb filename={issue.filename} sheet={issue.sheetName} />
+      ),
+    }
+  }
+  if (issue.type === 'value-mapping') {
+    return {
+      title: 'Help us understand your values',
+      description: `${issue.targetLabel} · ${issue.sourceColumn}`,
+    }
+  }
+  return { title: issue.title }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -193,6 +254,26 @@ const IssueBody = ({ issue, state, onChange, onResolve }: IssueBodyProps) => {
   if (issue.type === 'field-missing-batch') {
     return (
       <FieldMissingBatchBody
+        issue={issue}
+        state={state}
+        onChange={onChange}
+        onResolve={onResolve}
+      />
+    )
+  }
+  if (issue.type === 'schema-transformation') {
+    return (
+      <SchemaTransformationBody
+        issue={issue}
+        state={state}
+        onChange={onChange}
+        onResolve={onResolve}
+      />
+    )
+  }
+  if (issue.type === 'value-mapping') {
+    return (
+      <ValueMappingBody
         issue={issue}
         state={state}
         onChange={onChange}
@@ -467,6 +548,146 @@ const FieldMissingBatchBody = ({
           }}
         >
           Pick fields on a map
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Schema transformation — visual rule editor                                  */
+/* -------------------------------------------------------------------------- */
+
+type SchemaBodyProps = {
+  issue: SchemaTransformationIssue
+  state: IssueState
+  onChange: (next: IssueState) => void
+  onResolve: () => void
+}
+
+const SchemaTransformationBody = ({
+  issue,
+  state,
+  onChange,
+  onResolve,
+}: SchemaBodyProps) => {
+  // Narrow the resolution to a rule-program; seed an empty program scoped to
+  // the issue's sheet if we don't have one yet.
+  const program: SchemaRuleProgram =
+    state.resolution.kind === 'rule-program'
+      ? (state.resolution.program as SchemaRuleProgram)
+      : emptyProgramForSheet(issue.sheetName)
+
+  const updateProgram = (next: SchemaRuleProgram) =>
+    onChange({ ...state, resolution: { kind: 'rule-program', program: next } })
+
+  return (
+    <SchemaRuleEditor
+      sheetName={issue.sheetName}
+      program={program}
+      onChange={updateProgram}
+      onDone={onResolve}
+    />
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Value mapping — per-source-value decision rows                              */
+/* -------------------------------------------------------------------------- */
+
+type ValueMappingBodyProps = {
+  issue: ValueMappingIssue
+  state: IssueState
+  onChange: (next: IssueState) => void
+  onResolve: () => void
+}
+
+const ValueMappingBody = ({
+  issue,
+  state,
+  onChange,
+  onResolve,
+}: ValueMappingBodyProps) => {
+  const decisions: ValueMappingDecisions =
+    state.resolution.kind === 'value-mapping'
+      ? (state.resolution.decisions as ValueMappingDecisions)
+      : {}
+
+  const writeDecisions = (next: ValueMappingDecisions) =>
+    onChange({
+      ...state,
+      resolution: { kind: 'value-mapping', decisions: next },
+    })
+
+  const setDecision = (
+    sourceValue: string,
+    decision: ValueMappingDecisions[string],
+  ) => writeDecisions({ ...decisions, [sourceValue]: decision })
+
+  // Each row is "Skip" / mapped / new-rule. Counts drive the footer copy.
+  const skipped = issue.sourceValues.filter(
+    (sv) => decisions[sv.value]?.kind === 'skip' || !decisions[sv.value],
+  ).length
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Column header row — fixed widths mirror the value rows below. */}
+      <div className="flex items-center gap-4 px-1">
+        <div className="flex-1 min-w-0 text-sm font-semibold text-text-secondary">
+          Found in your file
+        </div>
+        <div className="w-[280px] shrink-0 text-sm font-semibold text-text-secondary">
+          Map to
+        </div>
+      </div>
+
+      <ul className="flex flex-col gap-2">
+        {issue.sourceValues.map((sv) => {
+          const decision = decisions[sv.value] ?? { kind: 'skip' as const }
+          const selectedValue =
+            decision.kind === 'map' ? decision.canonicalValue : ''
+          return (
+            <li
+              key={sv.value}
+              className="flex items-center gap-4 rounded-lg border-2 border-border-tertiary px-4 py-3"
+            >
+              <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+                <p className="text-lg font-semibold text-text-primary truncate">
+                  {sv.value}
+                </p>
+                <p className="text-sm text-text-secondary">
+                  {sv.occurrences.toLocaleString()} rows
+                </p>
+              </div>
+              <div className="w-[280px] shrink-0">
+                <Select
+                  aria-label={`Map ${sv.value} to`}
+                  items={issue.canonicalOptions}
+                  value={selectedValue || null}
+                  onValueChange={(value) =>
+                    value &&
+                    setDecision(sv.value, {
+                      kind: 'map',
+                      canonicalValue: value,
+                    })
+                  }
+                  clearable={false}
+                  placeholder="(pick a match)"
+                />
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-text-secondary">
+          {skipped === 0
+            ? 'All values resolved.'
+            : `${skipped} still to review.`}
+        </p>
+        <Button variant="primary" onClick={onResolve}>
+          Confirm
         </Button>
       </div>
     </div>
