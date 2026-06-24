@@ -13,9 +13,13 @@ import {
   type ValueMappingIssue,
 } from './issues'
 import { SchemaRuleEditor } from './SchemaRuleEditor'
+import { SheetSnippet, SNIPPET_VISIBLE_ROWS } from './SheetSnippet'
 import {
+  EXAMPLE_WORKBOOK,
   emptyProgramForSheet,
+  type HighlightRef,
   type SchemaRuleProgram,
+  type Sheet,
 } from './schema-transformation'
 import type { ValueMappingDecisions } from './value-mapping'
 
@@ -295,6 +299,30 @@ type MissingBodyProps<I extends FarmMissingIssue | FieldMissingIssue> = {
   onResolve: () => void
 }
 
+/** Demo defaults — in production the wizard would pass the originating
+ *  sheet + column for the issue; in the prototype we fall back to a
+ *  plausible fixture so the snippet is always populated. */
+const FARM_SOURCE_SHEET = 'Fields_Crops'
+const FARM_SOURCE_COLUMN = 'intrafarm'
+const FIELD_SOURCE_SHEET = 'PRD_Fertilizers'
+const FIELD_SOURCE_COLUMN = 'fieldName'
+
+const findSheetByName = (name: string): Sheet | undefined =>
+  EXAMPLE_WORKBOOK.sheets.find((s) => s.name === name)
+
+/** Does the cell value in the snippet correspond to the source name from
+ *  the issue? The Fields_Crops fixture wraps farm names in `['…']` so we
+ *  do a soft contains-check rather than a strict equality. */
+const rowValueMatchesSource = (
+  cellValue: string | undefined,
+  sourceName: string,
+): boolean => {
+  if (!cellValue) return false
+  const a = cellValue.toLowerCase()
+  const b = sourceName.toLowerCase()
+  return a.includes(b) || b.includes(a)
+}
+
 const FarmMissingBody = ({
   issue,
   state,
@@ -306,6 +334,8 @@ const FarmMissingBody = ({
     noun="farm"
     options={issue.existingFarms}
     affects={issue.affects}
+    snippetSheet={FARM_SOURCE_SHEET}
+    snippetColumn={FARM_SOURCE_COLUMN}
     state={state}
     onChange={onChange}
     onResolve={onResolve}
@@ -324,6 +354,8 @@ const FieldMissingBody = ({
     noun="field"
     options={issue.existingFields}
     affects={issue.affects}
+    snippetSheet={FIELD_SOURCE_SHEET}
+    snippetColumn={FIELD_SOURCE_COLUMN}
     state={state}
     onChange={onChange}
     onResolve={onResolve}
@@ -336,6 +368,10 @@ type MissingChooserProps = {
   noun: 'farm' | 'field'
   options: { value: string; label: string }[]
   affects?: number
+  /** Sheet to render in the snippet preview. */
+  snippetSheet: string
+  /** Column in that sheet whose values the source name belongs to. */
+  snippetColumn: string
   state: IssueState
   onChange: (next: IssueState) => void
   onResolve: () => void
@@ -347,6 +383,8 @@ const MissingChooser = ({
   noun,
   options,
   affects,
+  snippetSheet,
+  snippetColumn,
   state,
   onChange,
   onResolve,
@@ -355,9 +393,28 @@ const MissingChooser = ({
   // defaultResolutionForIssue; the user can swap via the dropdown.
   const selectedValue =
     state.resolution.kind === 'match-existing' ? state.resolution.value : ''
+  const selectedLabel =
+    options.find((o) => o.value === selectedValue)?.label ?? ''
 
   const setMatch = (value: string) =>
     onChange({ ...state, resolution: { kind: 'match-existing', value } })
+
+  // Snippet preview — same component the schema editor uses. We highlight
+  // the source column and, for rows whose value matches the unrecognised
+  // sourceName, project the selected match into the "resolves to" column.
+  const sheet = findSheetByName(snippetSheet)
+  const highlights: HighlightRef[] = sheet
+    ? [{ sheet: sheet.name, column: snippetColumn, role: 'source' }]
+    : []
+  const resolvedValues = sheet
+    ? sheet.sampleRows
+        .slice(0, SNIPPET_VISIBLE_ROWS)
+        .map((row) =>
+          rowValueMatchesSource(row[snippetColumn], sourceName) && selectedLabel
+            ? selectedLabel
+            : null,
+        )
+    : undefined
 
   return (
     <div className="flex flex-col gap-6">
@@ -397,6 +454,17 @@ const MissingChooser = ({
           clearable={false}
         />
       </div>
+
+      {/* Snippet — supporting context for the issue. Highlights the column
+          the unrecognised value came from; rows that contain the source
+          name preview the resolved match in the green "→ resolves to" col. */}
+      {sheet ? (
+        <SheetSnippet
+          sheet={sheet}
+          highlights={highlights}
+          resolvedValues={resolvedValues}
+        />
+      ) : null}
 
       {/* Action — primary "Use this match" only when a value is selected. */}
       {selectedValue ? (
@@ -463,9 +531,28 @@ const FieldMissingBatchBody = ({
 }: FieldBatchBodyProps) => {
   const selectedValue =
     state.resolution.kind === 'match-existing' ? state.resolution.value : ''
+  const selectedLabel =
+    issue.existingFarms.find((f) => f.value === selectedValue)?.label ?? ''
 
   const setMatch = (value: string) =>
     onChange({ ...state, resolution: { kind: 'match-existing', value } })
+
+  // Snippet preview — show the field-list sheet with `fieldName` tinted as
+  // source. Any row whose fieldName is one of the unknowns previews the
+  // selected target farm in the green resolved column.
+  const sheet = findSheetByName(FIELD_SOURCE_SHEET)
+  const highlights: HighlightRef[] = sheet
+    ? [{ sheet: sheet.name, column: FIELD_SOURCE_COLUMN, role: 'source' }]
+    : []
+  const unknownSet = new Set(issue.sourceNames.map((n) => n.toLowerCase()))
+  const resolvedValues = sheet
+    ? sheet.sampleRows.slice(0, SNIPPET_VISIBLE_ROWS).map((row) => {
+        const cell = row[FIELD_SOURCE_COLUMN]
+        return cell && unknownSet.has(cell.toLowerCase()) && selectedLabel
+          ? selectedLabel
+          : null
+      })
+    : undefined
 
   return (
     <div className="flex flex-col gap-6">
@@ -516,6 +603,16 @@ const FieldMissingBatchBody = ({
           clearable={false}
         />
       </div>
+
+      {/* Snippet — same visual as the schema editor; rows whose fieldName
+          appears in the batch preview the chosen target farm. */}
+      {sheet ? (
+        <SheetSnippet
+          sheet={sheet}
+          highlights={highlights}
+          resolvedValues={resolvedValues}
+        />
+      ) : null}
 
       {/* Primary action — only when a farm is picked. */}
       {selectedValue ? (
