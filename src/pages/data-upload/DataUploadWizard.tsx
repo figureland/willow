@@ -5,6 +5,7 @@ import { AnomalyDetectionStep } from './AnomalyDetectionStep'
 import { CheckDataStep } from './CheckDataStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
+import { IntroStep } from './IntroStep'
 import { IssueResolverModal } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
@@ -20,8 +21,13 @@ const BASE_STEP_IDS = [
   'commit',
 ] as const
 
+const START_STEP_ID = 'start'
+
 export const DATA_UPLOAD_BASE = '/data-upload'
-export const DATA_UPLOAD_STEP_IDS = BASE_STEP_IDS as readonly string[]
+export const DATA_UPLOAD_STEP_IDS = [
+  START_STEP_ID,
+  ...BASE_STEP_IDS,
+] as readonly string[]
 
 /**
  * /data-upload/:stepId — six-step data upload flow. Each step is a real
@@ -126,24 +132,39 @@ export const DataUploadWizard = () => {
     [summary, continueLabel],
   )
 
-  // Redirect missing or unknown step ids to the first step. We do this in an
+  // Redirect missing or unknown step ids to the start step. We do this in an
   // effect (instead of returning <Navigate>) so the redirect is itself a
   // history replace — back from a deeper step still works.
   const known = stepId !== undefined && DATA_UPLOAD_STEP_IDS.includes(stepId)
   useEffect(() => {
     if (!known) {
-      navigate(`${DATA_UPLOAD_BASE}/${steps[0].id}`, { replace: true })
+      navigate(`${DATA_UPLOAD_BASE}/${START_STEP_ID}`, { replace: true })
     }
-  }, [known, navigate, steps])
+  }, [known, navigate])
 
   const exit = () => navigate('/')
+
+  // The start step takes over the whole page — no top bar, no stepper, no
+  // footer. The wizard chrome only appears once the user begins a new upload
+  // or resumes a draft.
+  if (!known || stepId === START_STEP_ID) {
+    return (
+      <div className="flex flex-1 flex-col p-8">
+        <IntroStep
+          onStartNew={() => navigate(`${DATA_UPLOAD_BASE}/${steps[0].id}`)}
+          onResumeDraft={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
+          onViewPastUploads={() => navigate(`${DATA_UPLOAD_BASE}/past`)}
+        />
+      </div>
+    )
+  }
 
   return (
     <>
       <WizardLayout
         title="Upload data"
         steps={steps}
-        currentStepId={known ? stepId : steps[0].id}
+        currentStepId={stepId}
         onNavigate={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
         onCancel={exit}
         onSaveAndQuit={exit}

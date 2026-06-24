@@ -12,13 +12,7 @@ import { IconPlus, Spinner } from '../../components/ui'
  * user gets a clear "we don't accept this" affordance instead of a stalled
  * analyse spinner.
  */
-export type FileKind =
-  | 'csv'
-  | 'excel'
-  | 'excel-template'
-  | 'pdf'
-  | 'gatekeeper'
-  | 'invalid'
+export type FileKind = 'csv' | 'excel' | 'excel-template' | 'pdf' | 'invalid'
 
 /** Kinds we actually store in state — invalid is rejected at the door. */
 export type AcceptedFileKind = Exclude<FileKind, 'invalid'>
@@ -64,8 +58,6 @@ const inferKind = (name: string): FileKind => {
       return 'excel'
     case 'pdf':
       return 'pdf'
-    case 'json':
-      return 'gatekeeper'
     default:
       return 'invalid'
   }
@@ -82,8 +74,6 @@ const labelForKind = (kind: FileKind): string => {
       return 'Sandy import template'
     case 'pdf':
       return 'Document'
-    case 'gatekeeper':
-      return 'Gatekeeper export'
     case 'invalid':
       return 'Invalid file type'
   }
@@ -204,7 +194,7 @@ export const UploadStep = () => {
       // to delete and no red row to apologise for in the UI.
       if (kind === 'invalid') {
         toast.error(`${file.name} isn't a supported file type`, {
-          description: 'Accepted formats: CSV, Excel, PDF, Gatekeeper export.',
+          description: 'Accepted formats: CSV, Excel, PDF.',
         })
         continue
       }
@@ -379,7 +369,7 @@ const DropZone = ({
         Drop files here to get started
       </p>
       <p className="text-md text-text-secondary">
-        CSV · Excel · PDF · Gatekeeper export — drag from your desktop, or
+        CSV · Excel · PDF — drag from your desktop, or
       </p>
     </div>
 
