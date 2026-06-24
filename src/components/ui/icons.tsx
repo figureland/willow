@@ -277,3 +277,23 @@ export const IconArrowUpRight = (props: IconProps) => (
     />
   </FigmaIcon>
 )
+
+/** Generic file/document glyph — page with a folded corner. */
+export const IconFile = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 2.41L17.59 9H15a1 1 0 0 1-1-1V5.41Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** Download arrow — used as an affordance on file-row download links. */
+export const IconDownload = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.6V4a1 1 0 0 1 1-1Zm-8 16a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)

@@ -1,7 +1,13 @@
 import { useMemo } from 'react'
-import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
 import { AppShell } from '../../components/shell'
-import { Card, Tab, TabBar, Tabs } from '../../components/ui'
+import { Card, IconChevronRight, Tab, TabBar, Tabs } from '../../components/ui'
 import { getFarm, getOrganisation } from '../../data'
 
 type FarmParams = {
@@ -51,7 +57,7 @@ export const FarmLayout = () => {
       <AppShell
         header={{
           title: 'Farm not found',
-          onBack: () => navigate(backHref),
+          showBack: false,
         }}
       >
         <Card>
@@ -63,17 +69,44 @@ export const FarmLayout = () => {
     )
   }
 
+  const breadcrumb = (
+    <nav
+      aria-label="Breadcrumb"
+      className="flex items-center gap-1 text-md text-text-secondary"
+    >
+      <Link
+        to="/my-farms"
+        className="hover:text-text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+      >
+        My farms
+      </Link>
+      {organisation ? (
+        <>
+          <IconChevronRight size={16} className="text-icon-secondary" />
+          <Link
+            to={backHref}
+            className="hover:text-text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+          >
+            {organisation.name}
+          </Link>
+        </>
+      ) : null}
+      <IconChevronRight size={16} className="text-icon-secondary" />
+      <span
+        aria-current="page"
+        className="font-semibold text-text-primary truncate"
+      >
+        {farm.name}
+      </span>
+    </nav>
+  )
+
   return (
     <AppShell
       header={{
-        title: farm.name,
-        showBack: true,
-        onBack: () => navigate(backHref),
-        actions: organisation ? (
-          <span className="text-sm text-text-secondary">
-            {organisation.name}
-          </span>
-        ) : null,
+        title: breadcrumb,
+        titleVariant: 'breadcrumb',
+        showBack: false,
         tabs: (
           <Tabs
             value={activeTab}

@@ -6,6 +6,7 @@ import { DataTablePage } from './pages/DataTablePage'
 import { DesignSystemPage } from './pages/DesignSystemPage'
 import { DataUploadWizard } from './pages/data-upload/DataUploadWizard'
 import { PastUploadsPage } from './pages/data-upload/PastUploadsPage'
+import { UploadSummaryPage } from './pages/data-upload/UploadSummaryPage'
 import {
   FarmFieldsAndCrops,
   FarmLayout,
@@ -76,6 +77,10 @@ export const App = () => (
         <Route path="/data-table" element={<DataTablePage />} />
         <Route path="/data-upload" element={<DataUploadWizard />} />
         <Route path="/data-upload/past" element={<PastUploadsPage />} />
+        <Route
+          path="/data-upload/past/:uploadId"
+          element={<UploadSummaryPage />}
+        />
         <Route path="/data-upload/:stepId" element={<DataUploadWizard />} />
         <Route path="/design-system" element={<DesignSystemPage />} />
       </Route>

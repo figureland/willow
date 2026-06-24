@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
+import { CategoriseFilesModal } from './CategoriseFilesModal'
 import { CheckDataStep } from './CheckDataStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import { IntroStep } from './IntroStep'
+import type { IssueState } from './IssueResolverModal'
 import { IssueResolverModal } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
 import { generateSummary } from './summary'
-import { UploadStep } from './UploadStep'
+import { type UploadedFile, UploadStep } from './UploadStep'
 
 const BASE_STEP_IDS = [
   'upload',
@@ -53,13 +55,16 @@ export const DataUploadWizard = () => {
   // error lists stay in sync.
   const summary = useMemo(() => generateSummary(), [])
 
-  // Build issues from the per-farm errors. Unrecognised fields become
-  // field-missing issues; unrecognised farms become farm-missing issues.
-  // Mapping issues are appended afterwards.
+  // Build issues from the per-farm errors. Unrecognised farms become
+  // farm-missing issues. For unknown fields we collapse anything per-farm
+  // with 2+ entries into a single field-missing-batch issue (demonstrates
+  // the "one decision for many fields" flow); single field errors stay as
+  // standalone field-missing issues.
   const issues: Issue[] = useMemo(() => {
     const out: Issue[] = []
     for (const farm of summary.farmRows) {
       const errs = farm.errors ?? []
+      const fieldNames: string[] = []
       for (let i = 0; i < errs.length; i++) {
         const err = errs[i]
         const sourceMatch = err.match(/"([^"]+)"/)
@@ -73,11 +78,25 @@ export const DataUploadWizard = () => {
             existingFarms: EXISTING_FARMS,
           })
         } else {
+          fieldNames.push(sourceName)
+        }
+      }
+      if (fieldNames.length >= 2) {
+        out.push({
+          id: `${farm.id}-fields-batch`,
+          type: 'field-missing-batch',
+          title: 'Fields not recognised',
+          sourceNames: fieldNames,
+          suggestedFarmName: farm.name,
+          existingFarms: EXISTING_FARMS,
+        })
+      } else {
+        for (let i = 0; i < fieldNames.length; i++) {
           out.push({
             id: `${farm.id}-err-${i}`,
             type: 'field-missing',
             title: 'Field not recognised',
-            sourceName,
+            sourceName: fieldNames[i],
             farmName: farm.name,
             existingFields: EXISTING_FIELDS,
           })
@@ -87,23 +106,82 @@ export const DataUploadWizard = () => {
     return out
   }, [summary])
 
-  const continueLabel = `Fix ${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}`
+  // Lifted resolver state lets the IssuesTable show resolved/ignored marks
+  // outside the modal. The modal writes to this map; the table reads from it.
+  const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
+  const [focusIssueId, setFocusIssueId] = useState<string | null>(null)
+
+  const resolvedCount = issues.filter((i) => {
+    const s = issueState[i.id]
+    if (!s) return false
+    const k = s.resolution.kind
+    if (k === 'pending' || k === 'ignore') return false
+    if (k === 'match-existing' && !s.resolution.value) return false
+    return true
+  }).length
+  const remaining = issues.length - resolvedCount
+  const continueLabel =
+    remaining === 0
+      ? 'Continue'
+      : `Fix ${remaining} ${remaining === 1 ? 'issue' : 'issues'}`
+
+  // Lifted out of UploadStep so the wizard footer can gate Continue on at
+  // least one file having been added and finished analysing.
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const canContinueUpload =
+    uploadedFiles.length > 0 && uploadedFiles.every((f) => f.status === 'ready')
+
+  // Categorise-files modal — pops up after Continue on the Upload step and
+  // gates the move into Review until the user confirms a data category for
+  // each file.
+  const [categoriseOpen, setCategoriseOpen] = useState(false)
+
+  // Once files are in, the Continue label reflects how many will move forward.
+  // Before any files land we fall back to the generic "Continue" so the
+  // disabled state doesn't read as "Continue with 0 files".
+  const uploadContinueLabel =
+    uploadedFiles.length > 0
+      ? `Continue with ${uploadedFiles.length} ${
+          uploadedFiles.length === 1 ? 'file' : 'files'
+        }`
+      : undefined
 
   const steps: WizardStepConfig[] = useMemo(
     () => [
       {
         id: 'upload',
         label: 'Add documents',
-        content: <UploadStep />,
+        content: <UploadStep onFilesChange={setUploadedFiles} />,
+        canContinue: canContinueUpload,
+        continueLabel: uploadContinueLabel,
+        onContinue: () => {
+          setCategoriseOpen(true)
+          // Don't advance — the modal owns the navigation forward.
+          return false
+        },
       },
       {
         id: 'review',
         label: 'Review',
-        content: <ReviewStep summary={summary} />,
+        content: (
+          <ReviewStep
+            summary={summary}
+            fileNames={uploadedFiles.map((f) => f.name)}
+            issues={issues}
+            issueState={issueState}
+            onIssueClick={(id) => {
+              setFocusIssueId(id)
+              setIssuesOpen(true)
+            }}
+          />
+        ),
         continueLabel,
         onContinue: () => {
+          // If everything is already resolved/ignored, let the wizard advance
+          // normally. Otherwise open the resolver so the user can finish.
+          if (remaining === 0) return
+          setFocusIssueId(null)
           setIssuesOpen(true)
-          // Don't advance — the modal will navigate us forward on finish.
           return false
         },
       },
@@ -129,7 +207,16 @@ export const DataUploadWizard = () => {
         hideContinue: true,
       },
     ],
-    [summary, continueLabel],
+    [
+      summary,
+      continueLabel,
+      canContinueUpload,
+      uploadedFiles,
+      uploadContinueLabel,
+      issues,
+      issueState,
+      remaining,
+    ],
   )
 
   // Redirect missing or unknown step ids to the start step. We do this in an
@@ -142,7 +229,7 @@ export const DataUploadWizard = () => {
     }
   }, [known, navigate])
 
-  const exit = () => navigate('/')
+  const exit = () => navigate('/my-farms')
 
   // The start step takes over the whole page — no top bar, no stepper, no
   // footer. The wizard chrome only appears once the user begins a new upload
@@ -175,9 +262,23 @@ export const DataUploadWizard = () => {
         open={issuesOpen}
         onOpenChange={setIssuesOpen}
         issues={issues}
+        state={issueState}
+        onStateChange={setIssueState}
+        focusIssueId={focusIssueId}
         onComplete={() => {
           setIssuesOpen(false)
-          advanceFromReview()
+          // Only auto-advance when the user came in via the wizard footer
+          // (i.e. they want to push forward). Per-row clicks just close.
+          if (focusIssueId === null) advanceFromReview()
+        }}
+      />
+      <CategoriseFilesModal
+        open={categoriseOpen}
+        onOpenChange={setCategoriseOpen}
+        files={uploadedFiles}
+        onConfirm={() => {
+          setCategoriseOpen(false)
+          navigate(`${DATA_UPLOAD_BASE}/review`)
         }}
       />
     </>

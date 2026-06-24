@@ -14,6 +14,8 @@ export type FarmSummary = {
   name: string
   kind: FarmKind
   fieldCount: number
+  /** Sample of detected field names — drives the simplified Review list. */
+  fieldNames: string[]
   enterprises: string[]
   cropTypes: string[]
   errors?: string[]
@@ -105,11 +107,19 @@ export const generateSummary = (): DetectionSummary => {
   // also surface a farm-missing issue alongside any field issues.
   const farmRows: FarmSummary[] = farmNames.map((name, i) => {
     const kind: FarmKind = i < unrecognisedFarms ? 'unrecognised' : 'matched'
+    const count = perFarmFieldCounts[i]
+    // Cap the displayed field names to a reasonable handful so very large
+    // farms don't blow out the layout; the full count is still tracked.
+    const fieldNames = pickFromPool(
+      FIELD_NAME_POOL,
+      Math.min(FIELD_NAME_POOL.length, count),
+    )
     return {
       id: `farm-${i}`,
       name,
       kind,
-      fieldCount: perFarmFieldCounts[i],
+      fieldCount: count,
+      fieldNames,
       enterprises: pickFromPool(ENTERPRISE_POOL, pickRandomInt(1, 3)),
       cropTypes: pickFromPool(
         CROP_POOL,
@@ -119,15 +129,28 @@ export const generateSummary = (): DetectionSummary => {
     }
   })
 
-  for (const farm of farmRows) {
-    const fieldErrorCount = pickRandomInt(0, 3)
+  // Guarantee at least one farm in the batch lands with ≥2 field errors so
+  // the demo always surfaces the field-missing-batch flow alongside the
+  // single field-missing path.
+  const guaranteedBatchFarmIdx = pickRandomInt(0, farmRows.length - 1)
+  for (let f = 0; f < farmRows.length; f++) {
+    const farm = farmRows[f]
+    const fieldErrorCount =
+      f === guaranteedBatchFarmIdx ? pickRandomInt(3, 5) : pickRandomInt(0, 2)
     const errors: string[] = []
     if (farm.kind === 'unrecognised') {
       errors.push(`Farm "${farm.name}" not in Sandy`)
     }
+    const used = new Set<string>()
     for (let i = 0; i < fieldErrorCount; i++) {
-      const sample = pick(FIELD_NAME_POOL, i + farm.id.charCodeAt(0))
-      errors.push(`Unrecognised field "${sample}"`)
+      let candidate = pick(FIELD_NAME_POOL, i + farm.id.charCodeAt(0))
+      let attempts = 0
+      while (used.has(candidate) && attempts < FIELD_NAME_POOL.length) {
+        attempts++
+        candidate = pick(FIELD_NAME_POOL, i + farm.id.charCodeAt(0) + attempts)
+      }
+      used.add(candidate)
+      errors.push(`Unrecognised field "${candidate}"`)
     }
     farm.errors = errors
   }

@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { Link, useParams } from 'react-router-dom'
-import { Badge, type BadgeTone, Button, Card } from '../../components/ui'
+import { Badge, type BadgeTone, Card } from '../../components/ui'
 import { getFarmsForOrganisation, getOrganisation } from '../../data'
 
 /* -------------------------------------------------------------------------- */
@@ -74,54 +74,6 @@ const FARM_SCORES: Record<string, Record<ServiceId, number>> = {
   },
 }
 
-type AttentionAction = {
-  id: string
-  /** Farm + service context shown as an eyebrow. */
-  context: string
-  /** Plain-language "do this to get that" copy. */
-  copy: string
-  /** Short impact tag — drives the right-aligned badge. */
-  impact: string
-  /** CTA label + destination. */
-  ctaLabel: string
-  ctaHref: string
-}
-
-const ATTENTION_ACTIONS: AttentionAction[] = [
-  {
-    id: 'a-1',
-    context: 'Foxglove Hill · Water & N',
-    copy: 'Add your fertiliser operations to understand whether nitrogen inefficiency is driving this cost hotspot.',
-    impact: 'Lifts Water & N from 48 → 71',
-    ctaLabel: 'Add operations',
-    ctaHref: '/my-farms',
-  },
-  {
-    id: 'a-2',
-    context: 'Brookside Leys · Carbon',
-    copy: 'Confirming soil type on Field 7 would raise your Carbon confidence from initial estimate to Directional.',
-    impact: 'Carbon confidence + 1 tier',
-    ctaLabel: 'Confirm soil type',
-    ctaHref: '/my-farms',
-  },
-  {
-    id: 'a-3',
-    context: 'Foxglove Hill · Biodiversity',
-    copy: 'Map your hedgerow lengths and Sandy can score Biodiversity for this farm for the first time.',
-    impact: 'Unlocks Biodiversity score',
-    ctaLabel: 'Map hedgerows',
-    ctaHref: '/my-farms',
-  },
-  {
-    id: 'a-4',
-    context: 'Brookside Leys · Soil health',
-    copy: 'Upload your 2025 NRM sample results to move 6 fields from prefilled estimates to verified.',
-    impact: 'Soil health 58 → 78',
-    ctaLabel: 'Upload samples',
-    ctaHref: '/my-farms',
-  },
-]
-
 /* -------------------------------------------------------------------------- */
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -166,8 +118,7 @@ export const OrganisationOverview = () => {
   return (
     <div className="flex flex-col gap-6">
       {/* Headline stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Farms" value={rows.length.toString()} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Average completeness" value={`${portfolioAvg}%`} />
         <StatCard
           label="Needing attention"
@@ -236,18 +187,6 @@ export const OrganisationOverview = () => {
           </table>
         </Card>
       </section>
-
-      {/* Attention queue */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-text-primary">
-          Attention queue
-        </h2>
-        <Card className="flex flex-col divide-y-2 divide-border-tertiary p-0">
-          {ATTENTION_ACTIONS.map((action) => (
-            <ActionRow key={action.id} action={action} />
-          ))}
-        </Card>
-      </section>
     </div>
   )
 }
@@ -295,26 +234,3 @@ const ScoreTile = ({ score }: { score: number }) => {
     </span>
   )
 }
-
-/* -------------------------------------------------------------------------- */
-/* Attention queue row                                                         */
-/* -------------------------------------------------------------------------- */
-
-const ActionRow = ({ action }: { action: AttentionAction }) => (
-  <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
-    <div className="flex flex-1 flex-col gap-1 min-w-0">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
-        {action.context}
-      </p>
-      <p className="text-md text-text-primary">{action.copy}</p>
-    </div>
-    <div className="flex items-center gap-3 shrink-0">
-      <Badge tone="green" size="sm">
-        {action.impact}
-      </Badge>
-      <Link to={action.ctaHref}>
-        <Button variant="secondary">{action.ctaLabel}</Button>
-      </Link>
-    </div>
-  </div>
-)

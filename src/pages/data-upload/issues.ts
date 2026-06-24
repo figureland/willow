@@ -70,6 +70,21 @@ export type FieldMissingIssue = BaseIssue & {
 }
 
 /**
+ * 2b. A batch of unknown fields that share a context (typically the same
+ *     just-resolved farm). The user picks a single target farm and Sandy
+ *     attaches every listed field name to it as a new field. Demonstrates
+ *     the "many fields, one decision" path requested by the user.
+ */
+export type FieldMissingBatchIssue = BaseIssue & {
+  type: 'field-missing-batch'
+  /** Source field names detected in the upload that need attaching. */
+  sourceNames: string[]
+  /** Suggested farm the batch came from — drives the default selection. */
+  suggestedFarmName?: string
+  existingFarms: { value: string; label: string }[]
+}
+
+/**
  * Generic mapping issue used for 3–7. The source values are what the import
  * contained; the user picks the corresponding system value (with a Sandy
  * prediction pre-selected when available).
@@ -106,7 +121,11 @@ export type MappingIssue = BaseIssue & {
   }[]
 }
 
-export type Issue = FarmMissingIssue | FieldMissingIssue | MappingIssue
+export type Issue =
+  | FarmMissingIssue
+  | FieldMissingIssue
+  | FieldMissingBatchIssue
+  | MappingIssue
 
 /* -------------------------------------------------------------------------- */
 /* Defaults                                                                    */
@@ -160,6 +179,18 @@ export const defaultResolutionForIssue = (issue: Issue): Resolution => {
   }
   if (issue.type === 'field-missing') {
     const value = closestOption(issue.sourceName, issue.existingFields) ?? ''
+    return { kind: 'match-existing', value }
+  }
+  if (issue.type === 'field-missing-batch') {
+    // Pre-select the suggested farm by name when available, otherwise the
+    // first existing farm — the user can swap before confirming.
+    const fromSuggested = issue.suggestedFarmName
+      ? issue.existingFarms.find(
+          (f) =>
+            f.label.toLowerCase() === issue.suggestedFarmName?.toLowerCase(),
+        )?.value
+      : undefined
+    const value = fromSuggested ?? issue.existingFarms[0]?.value ?? ''
     return { kind: 'match-existing', value }
   }
   return { kind: 'pending' }

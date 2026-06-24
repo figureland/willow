@@ -4,6 +4,15 @@ import { IconArrowLeft } from '../ui/icons'
 
 export type AppHeaderProps = {
   title: ReactNode
+  /**
+   * Visual treatment for the title slot.
+   *   - `heading` (default): renders inside an `<h1>` with the page-title type
+   *     scale. Use for normal screen titles.
+   *   - `breadcrumb`: renders the title as a plain row at body type size, with
+   *     no wrapping heading element. Use when `title` is itself a breadcrumb
+   *     or another non-heading node.
+   */
+  titleVariant?: 'heading' | 'breadcrumb'
   /** Hide the back arrow when the screen is a top-level destination. */
   showBack?: boolean
   onBack?: () => void
@@ -20,6 +29,7 @@ export type AppHeaderProps = {
 
 export const AppHeader = ({
   title,
+  titleVariant = 'heading',
   showBack = true,
   onBack,
   actions,
@@ -49,9 +59,13 @@ export const AppHeader = ({
         </button>
       ) : null}
 
-      <h1 className="flex-1 min-w-0 text-2xl font-semibold leading-9 text-text-primary truncate">
-        {title}
-      </h1>
+      {titleVariant === 'heading' ? (
+        <h1 className="flex-1 min-w-0 text-2xl font-semibold leading-9 text-text-primary truncate">
+          {title}
+        </h1>
+      ) : (
+        <div className="flex-1 min-w-0">{title}</div>
+      )}
 
       {actions ? (
         <div className="flex items-center gap-2 shrink-0">{actions}</div>

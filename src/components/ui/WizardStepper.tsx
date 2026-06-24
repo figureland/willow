@@ -31,6 +31,12 @@ export type WizardStepperProps = {
    * back. Pass the active-step setter from the parent wizard.
    */
   onStepClick?: (index: number, step: WizardStep) => void
+  /**
+   * Layout direction. `horizontal` (default) flows left-to-right with chevron
+   * separators; `vertical` stacks steps in a column, intended for use as a
+   * left-rail navigation in side-by-side wizard layouts.
+   */
+  direction?: 'horizontal' | 'vertical'
   className?: string
 }
 
@@ -55,13 +61,20 @@ export const WizardStepper = ({
   current,
   furthest,
   onStepClick,
+  direction = 'horizontal',
   className,
 }: WizardStepperProps) => {
   const furthestIdx = furthest ?? current
+  const vertical = direction === 'vertical'
   return (
     <ol
       aria-label="Progress"
-      className={clsx('flex flex-wrap items-center gap-x-3 gap-y-2', className)}
+      className={clsx(
+        vertical
+          ? 'flex flex-col gap-1'
+          : 'flex flex-wrap items-center gap-x-3 gap-y-2',
+        className,
+      )}
     >
       {steps.map((step, i) => {
         const status = stepStatus(i, current, furthestIdx)
@@ -69,14 +82,18 @@ export const WizardStepper = ({
           !!onStepClick && (status === 'complete' || status === 'current')
         const number = step.number ?? i + 1
         return (
-          <li key={step.id} className="flex items-center gap-3">
+          <li
+            key={step.id}
+            className={clsx(vertical ? 'flex' : 'flex items-center gap-3')}
+          >
             <button
               type="button"
               onClick={clickable ? () => onStepClick(i, step) : undefined}
               disabled={!clickable}
               aria-current={status === 'current' ? 'step' : undefined}
               className={clsx(
-                'group/wizard-step inline-flex items-center gap-2 rounded-md px-2 py-1',
+                'group/wizard-step inline-flex items-center gap-3 rounded-md px-2 py-1.5',
+                vertical && 'w-full',
                 'text-md font-medium tracking-[0.15px] transition-colors',
                 clickable
                   ? 'cursor-pointer hover:bg-bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40'
@@ -89,7 +106,7 @@ export const WizardStepper = ({
               <span
                 aria-hidden="true"
                 className={clsx(
-                  'inline-flex size-6 items-center justify-center rounded-pill text-sm font-semibold tracking-[0.15px]',
+                  'inline-flex size-6 items-center justify-center rounded-pill text-sm font-semibold tracking-[0.15px] shrink-0',
                   status === 'current' &&
                     'bg-bg-brand-primary text-text-primary-inverse',
                   status === 'complete' && 'bg-sandy-100 text-text-brand-dark',
@@ -98,9 +115,9 @@ export const WizardStepper = ({
               >
                 {number}
               </span>
-              <span className="pt-[2px]">{step.label}</span>
+              <span className="pt-[2px] text-left truncate">{step.label}</span>
             </button>
-            {i < steps.length - 1 ? (
+            {!vertical && i < steps.length - 1 ? (
               <span aria-hidden="true" className="text-icon-secondary shrink-0">
                 <IconChevronRight size={16} />
               </span>

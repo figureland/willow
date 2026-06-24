@@ -118,7 +118,8 @@ export const WizardLayout = ({
   const canContinue = step.canContinue !== false
 
   return (
-    <div className={clsx('flex flex-1 flex-col', className)}>
+    <div className={clsx('flex flex-1 min-h-0 flex-col', className)}>
+      {/* Top bar — spans the full width above the rail + content. */}
       <header className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-6">
         <div className="flex items-center gap-4">
           <h1 className="flex-1 min-w-0 truncate text-2xl font-semibold leading-9 text-text-primary">
@@ -130,7 +131,7 @@ export const WizardLayout = ({
                 Cancel
               </Button>
             ) : null}
-            {onSaveAndQuit ? (
+            {onSaveAndQuit && !isFirst ? (
               <Button variant="secondary" onClick={onSaveAndQuit}>
                 Save and quit
               </Button>
@@ -139,43 +140,59 @@ export const WizardLayout = ({
         </div>
       </header>
 
-      <div className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-4">
-        <WizardStepper
-          steps={steps.map(({ id, label, number }) => ({ id, label, number }))}
-          current={currentIndex}
-          furthest={furthestIndex}
-          onStepClick={(i) => goToStep(i)}
-        />
-      </div>
+      {/* Body — left rail stepper alongside the main step content. */}
+      <div className="flex flex-1 min-h-0">
+        <aside className="flex w-64 shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary px-4 py-6">
+          <WizardStepper
+            steps={steps.map(({ id, label, number }) => ({
+              id,
+              label,
+              number,
+            }))}
+            current={currentIndex}
+            furthest={furthestIndex}
+            onStepClick={(i) => goToStep(i)}
+            direction="vertical"
+          />
+        </aside>
 
-      <main className="flex-1 flex flex-col gap-4 p-8">{step.content}</main>
+        <div className="flex flex-1 min-w-0 flex-col">
+          <main className="flex-1 flex flex-col gap-4 p-8">{step.content}</main>
 
-      <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => goToStep(currentIndex - 1)}
-            disabled={isFirst}
-          >
-            Back
-          </Button>
-          {step.hideContinue ? null : (
-            <Button
-              variant="primary"
-              disabled={!canContinue}
-              onClick={async () => {
-                if (step.onContinue) {
-                  const result = await step.onContinue()
-                  // Explicit `false` means "I handled it, don't advance".
-                  if (result === false) return
-                }
-                if (isLast) onComplete?.()
-                else goToStep(currentIndex + 1)
-              }}
-            >
-              {step.continueLabel ?? (isLast ? finishLabel : 'Continue')}
-            </Button>
-          )}
+          <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
+            <div className="flex items-center justify-between gap-2">
+              {/* Spacer keeps Continue right-aligned when Back is hidden. */}
+              {isFirst ? (
+                <span />
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={() => goToStep(currentIndex - 1)}
+                >
+                  Back
+                </Button>
+              )}
+              {step.hideContinue ? (
+                <span />
+              ) : (
+                <Button
+                  variant="primary"
+                  disabled={!canContinue}
+                  onClick={async () => {
+                    if (step.onContinue) {
+                      const result = await step.onContinue()
+                      // Explicit `false` means "I handled it, don't advance".
+                      if (result === false) return
+                    }
+                    if (isLast) onComplete?.()
+                    else goToStep(currentIndex + 1)
+                  }}
+                >
+                  {step.continueLabel ?? (isLast ? finishLabel : 'Continue')}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

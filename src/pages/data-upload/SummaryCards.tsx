@@ -93,6 +93,8 @@ export type SummaryBarProps = {
   totalRecords: number
   totalRecordsDescription?: string
   years: number[]
+  /** File names successfully ingested — rendered as a green-tick list. */
+  fileNames?: string[]
 }
 
 const SummaryBlock = ({
@@ -130,12 +132,58 @@ const Divider = () => (
   />
 )
 
+/** Tiny green check used to mark each successfully ingested file. */
+const GreenTick = () => (
+  // biome-ignore lint/a11y/noSvgWithoutTitle: decorative — sibling text owns the label
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+    className="shrink-0 text-support-fg-green"
+  >
+    <path
+      d="M5 12.5l4.5 4.5L19 7"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 export const SummaryBar = ({
   totalRecords,
   totalRecordsDescription,
   years,
+  fileNames,
 }: SummaryBarProps) => (
   <Card className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-6">
+    {fileNames && fileNames.length > 0 ? (
+      <>
+        <div className="flex flex-1 flex-col gap-2 min-w-0">
+          <p className="text-sm font-semibold text-text-secondary">
+            {fileNames.length} {fileNames.length === 1 ? 'file' : 'files'}{' '}
+            ingested
+          </p>
+          <ul className="flex flex-col gap-1">
+            {fileNames.map((name) => (
+              <li
+                key={name}
+                className="flex items-center gap-2 text-md text-text-primary min-w-0"
+              >
+                <GreenTick />
+                <span className="truncate">{name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Divider />
+      </>
+    ) : null}
+
     <SummaryBlock
       eyebrow="Total records"
       value={
@@ -156,7 +204,7 @@ export const SummaryBar = ({
             ) : null}
           </span>
         ))}
-        caption={`${years.length} ${years.length === 1 ? 'season' : 'seasons'} of observed data.`}
+        caption=""
         eyebrowClass="text-text-brand-dark"
         valueClass="text-text-brand-dark"
       />
@@ -276,6 +324,58 @@ export const FarmsTable = ({
         </tbody>
       </table>
     </div>
+  </Card>
+)
+
+/* -------------------------------------------------------------------------- */
+/* Simplified farms list — used by the Review step                             */
+/* -------------------------------------------------------------------------- */
+
+export type FarmListRow = {
+  id: string
+  name: string
+  kind?: 'matched' | 'unrecognised'
+  /** Field names to render comma-joined under the farm. */
+  fieldNames: string[]
+  /** Total field count (may exceed the displayed names). */
+  fieldCount: number
+}
+
+export const FarmsList = ({ farms }: { farms: FarmListRow[] }) => (
+  <Card className="flex flex-col p-0 overflow-hidden">
+    <header className="px-5 py-4 border-b-2 border-border-tertiary">
+      <h3 className="text-lg font-semibold text-text-primary">
+        {farms.length} {farms.length === 1 ? 'farm' : 'farms'}
+      </h3>
+    </header>
+    <ul className="flex flex-col">
+      {farms.map((farm) => {
+        const missing = farm.kind === 'unrecognised'
+        return (
+          <li
+            key={farm.id}
+            className={clsx(
+              'flex items-center justify-between gap-4 border-b-2 border-border-tertiary px-5 py-3 last:border-0',
+              missing && 'bg-support-bg-red',
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="text-md font-semibold text-text-primary truncate">
+                {farm.name}
+              </p>
+              {missing ? (
+                <Badge tone="red" size="sm">
+                  Not recognised
+                </Badge>
+              ) : null}
+            </div>
+            <p className="text-sm text-text-secondary tabular-nums shrink-0">
+              {farm.fieldCount} {farm.fieldCount === 1 ? 'field' : 'fields'}
+            </p>
+          </li>
+        )
+      })}
+    </ul>
   </Card>
 )
 

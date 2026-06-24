@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
-import { Outlet, useNavigate, useParams } from 'react-router-dom'
+import { Link, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from '../../components/shell'
-import { Select, type SelectOption } from '../../components/ui'
-import { CENTRAL_USER, ORGANISATIONS } from '../../data'
+import {
+  Button,
+  IconChevronRight,
+  Select,
+  type SelectOption,
+} from '../../components/ui'
+import { CENTRAL_USER, getOrganisation, ORGANISATIONS } from '../../data'
 import { isCentralAccount } from '../../types'
 
 type MyFarmsParams = {
@@ -34,11 +39,51 @@ export const MyFarmsLayout = () => {
     [],
   )
 
+  const organisation = orgId ? getOrganisation(orgId) : undefined
+
+  const breadcrumb = (
+    <nav
+      aria-label="Breadcrumb"
+      className="flex items-center gap-1 text-md text-text-secondary"
+    >
+      {organisation ? (
+        <>
+          <Link
+            to="/my-farms"
+            className="hover:text-text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+          >
+            My farms
+          </Link>
+          <IconChevronRight size={16} className="text-icon-secondary" />
+          <span
+            aria-current="page"
+            className="font-semibold text-text-primary truncate"
+          >
+            {organisation.name}
+          </span>
+        </>
+      ) : (
+        <span
+          aria-current="page"
+          className="font-semibold text-text-primary truncate"
+        >
+          My farms
+        </span>
+      )}
+    </nav>
+  )
+
   return (
     <AppShell
       header={{
-        title: 'My farms',
+        title: breadcrumb,
+        titleVariant: 'breadcrumb',
         showBack: false,
+        actions: (
+          <Button variant="primary" onClick={() => navigate('/data-upload')}>
+            Create data upload
+          </Button>
+        ),
       }}
     >
       {central ? (
