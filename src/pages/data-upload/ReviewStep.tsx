@@ -1,6 +1,6 @@
 import type { IssueState } from './IssueResolverModal'
-import { IssuesInbox } from './IssuesInbox'
 import type { Issue } from './issues'
+import { RefinePage } from './refine/RefinePage'
 
 export type ReviewStepProps = {
   issues: Issue[]
@@ -8,17 +8,13 @@ export type ReviewStepProps = {
   onIssueStateChange: (next: Record<string, IssueState>) => void
 }
 
-/**
- * Refine step — full-bleed inbox layout. The wizard step renders this
- * bare (no outer padding / gap) so the inbox can run flush against the
- * wizard chrome on every side.
- */
+/** Refine step — vertically stacked categorised issue cards. */
 export const ReviewStep = ({
   issues,
   issueState,
   onIssueStateChange,
 }: ReviewStepProps) => (
-  <IssuesInbox
+  <RefinePage
     issues={issues}
     state={issueState}
     onStateChange={onIssueStateChange}
