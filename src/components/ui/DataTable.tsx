@@ -152,6 +152,20 @@ const tableSx = {
   '& .MuiDataGrid-row.Mui-selected:hover': {
     backgroundColor: 'var(--color-sandy-100)',
   },
+  // Severity-tinted rows. Consumers opt in via `getRowClassName` returning
+  // `row-issue-blocking` / `row-issue-warning`. Hover states preserved.
+  '& .MuiDataGrid-row.row-issue-blocking': {
+    backgroundColor: 'var(--color-support-bg-red)',
+  },
+  '& .MuiDataGrid-row.row-issue-blocking:hover': {
+    backgroundColor: 'var(--color-support-bg-red)',
+  },
+  '& .MuiDataGrid-row.row-issue-warning': {
+    backgroundColor: 'var(--color-support-bg-amber)',
+  },
+  '& .MuiDataGrid-row.row-issue-warning:hover': {
+    backgroundColor: 'var(--color-support-bg-amber)',
+  },
   '& .MuiDataGrid-cell.MuiDataGrid-cell': {
     paddingInline: '24px',
     paddingBlock: '10px',

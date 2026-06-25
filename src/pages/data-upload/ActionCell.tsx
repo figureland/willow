@@ -3,12 +3,6 @@ import { Badge } from '../../components/ui'
 /** Action kinds shown in the Refine / Summary tables. */
 export type ActionKind = 'add' | 'edit' | 'delete'
 
-export const ACTION_TONE: Record<ActionKind, 'green' | 'orange' | 'red'> = {
-  add: 'green',
-  edit: 'orange',
-  delete: 'red',
-}
-
 export const ACTION_LABEL: Record<ActionKind, string> = {
   add: 'Add',
   edit: 'Edit',
@@ -16,7 +10,6 @@ export const ACTION_LABEL: Record<ActionKind, string> = {
 }
 
 export const ActionGlyph = ({ kind }: { kind: ActionKind }) => (
-  // biome-ignore lint/a11y/noSvgWithoutTitle: badge label provides the meaning
   <svg
     width="12"
     height="12"
@@ -63,11 +56,7 @@ export const ActionGlyph = ({ kind }: { kind: ActionKind }) => (
 )
 
 export const ActionCell = ({ action }: { action: ActionKind }) => (
-  <Badge
-    tone={ACTION_TONE[action]}
-    size="sm"
-    icon={<ActionGlyph kind={action} />}
-  >
+  <Badge tone="neutral" size="sm" icon={<ActionGlyph kind={action} />}>
     {ACTION_LABEL[action]}
   </Badge>
 )

@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
 import { CategoriseFilesModal } from './CategoriseFilesModal'
-import { CheckDataStep } from './CheckDataStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
+import { FixIssuesPage } from './fix/FixIssuesPage'
 import { IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
@@ -200,7 +200,8 @@ export const DataUploadWizard = () => {
       {
         id: 'fix',
         label: 'Fix issues',
-        content: <CheckDataStep />,
+        content: <FixIssuesPage />,
+        bare: true,
       },
       {
         id: 'completeness',

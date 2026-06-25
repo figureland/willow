@@ -1,10 +1,12 @@
 import clsx from 'clsx'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  Button,
   DataTable,
   type GridColDef,
   IconSearch,
+  Modal,
   MultiSelect,
   Tab,
   TabBar,
@@ -187,21 +189,6 @@ const MissingCell = () => <span className="text-text-secondary">—</span>
 
 type RowStatus = 'blocking' | 'warning' | 'note' | 'ok'
 
-const STATUS_LABEL: Record<RowStatus, string> = {
-  blocking: 'Blocking',
-  warning: 'Warning',
-  note: 'Note',
-  ok: 'OK',
-}
-
-/** Tailwind class for the dot's fill, keyed by row status. */
-const STATUS_DOT_BG: Record<RowStatus, string> = {
-  blocking: 'bg-support-fg-red',
-  warning: 'bg-support-fg-amber',
-  note: 'bg-bg-brand-primary',
-  ok: 'bg-border-tertiary',
-}
-
 /** Count of `null` fields among the supplied values. */
 const missingCount = (...values: unknown[]) =>
   values.reduce<number>((acc, v) => acc + (v === null ? 1 : 0), 0)
@@ -225,14 +212,49 @@ const statusOf = (rule: {
   return 'ok'
 }
 
-const StatusDot = ({ status }: { status: RowStatus }) => (
-  <span
-    role="img"
-    aria-label={STATUS_LABEL[status]}
-    title={STATUS_LABEL[status]}
-    className={clsx('inline-block size-3 rounded-pill', STATUS_DOT_BG[status])}
-  />
-)
+/* -------------------------------------------------------------------------- */
+/* Fix-column factory — shared sticky-left "fix" affordance for all 3 tabs    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Click handler stashed at module scope so the column's renderCell (which
+ * is defined outside the component tree) can fire into the page's state.
+ * Set by CheckDataStep on mount, called by each Fix cell.
+ */
+let onFixRowGlobal: ((row: { id: string; issues: RowIssue[] }) => void) | null =
+  null
+
+const fixColumn = <
+  Row extends { id: string; issues: RowIssue[] },
+>(): GridColDef<Row> => ({
+  field: 'fix',
+  headerName: '',
+  width: 80,
+  sortable: false,
+  filterable: false,
+  renderCell: ({ row }) => {
+    if (!row.issues || row.issues.length === 0) {
+      return (
+        <span aria-hidden="true" className="text-text-secondary">
+          ·
+        </span>
+      )
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => onFixRowGlobal?.(row)}
+        className={clsx(
+          'inline-flex items-center rounded-md border border-border-secondary bg-bg-primary px-3 py-1 text-sm font-medium text-text-primary transition-colors',
+          'hover:bg-bg-secondary',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+        )}
+      >
+        Fix
+      </button>
+    )
+  },
+})
 
 /* -------------------------------------------------------------------------- */
 /* Tab 2 — Cropping                                                            */
@@ -261,12 +283,13 @@ type CroppingRow = {
   issues: RowIssue[]
 }
 
-/** Classify a cropping row into the new issue model. */
-const classifyCroppingRow = (
-  row: Omit<CroppingRow, 'issues' | 'status' | 'action'>,
-): RowIssue[] => {
+/** Classify a cropping row into the new issue model. Accepts the row's
+ *  data fields — `status`, `action`, and `issues` are added later. */
+type CroppingClassifierInput = Omit<CroppingRow, 'issues' | 'status' | 'action'>
+const classifyCroppingRow = (row: CroppingClassifierInput): RowIssue[] => {
   const out: RowIssue[] = []
-  if (row.workingArea === null) out.push(issueFor('required-missing', 'workingArea'))
+  if (row.workingArea === null)
+    out.push(issueFor('required-missing', 'workingArea'))
   if (row.yield === null) out.push(issueFor('required-missing', 'yield'))
   if (row.cropType === null) out.push(issueFor('crop-type-unknown', 'cropType'))
   if (row.plantingDate && row.harvestDate && row.plantingDate > row.harvestDate)
@@ -284,18 +307,22 @@ const classifyCroppingRow = (
   return out
 }
 
-const croppingRowStatus = (
-  row: Omit<
-    CroppingRow,
-    | 'id'
-    | 'fieldName'
-    | 'farmName'
-    | 'harvestYear'
-    | 'cropName'
-    | 'status'
-    | 'action'
-  >,
-): RowStatus =>
+type CroppingStatusInput = Pick<
+  CroppingRow,
+  | 'workingArea'
+  | 'yield'
+  | 'cropType'
+  | 'tillage'
+  | 'harvestDate'
+  | 'cropVariety'
+  | 'cropId'
+  | 'plantingDate'
+  | 'strawYield'
+  | 'legumeMix'
+  | 'totalYield'
+  | 'harvestYield'
+>
+const croppingRowStatus = (row: CroppingStatusInput): RowStatus =>
   statusOf({
     // Working area and yield are the foundations of any cropping calculation.
     blocking: row.workingArea === null || row.yield === null,
@@ -354,18 +381,7 @@ const CROPPING_ROWS: CroppingRow[] = sortByFarm(
 )
 
 const CROPPING_COLUMNS: GridColDef<CroppingRow>[] = [
-  {
-    field: 'status',
-    headerName: '',
-    width: 56,
-    sortable: true,
-    filterable: false,
-    renderCell: ({ row }) => (
-      <span className="grid h-full place-items-center">
-        <StatusDot status={row.status} />
-      </span>
-    ),
-  },
+  fixColumn<CroppingRow>(),
   { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
   {
     field: 'action',
@@ -539,22 +555,44 @@ type OperationRow = {
   appliedArea: number | null
   status: RowStatus
   action: ActionKind
+  issues: RowIssue[]
 }
 
-const operationRowStatus = (
-  row: Omit<
-    OperationRow,
-    | 'id'
-    | 'farmName'
-    | 'fieldName'
-    | 'harvestYear'
-    | 'cropName'
-    | 'operationType'
-    | 'operationGroup'
-    | 'status'
-    | 'action'
-  >,
-): RowStatus =>
+type OperationClassifierInput = Omit<OperationRow, 'issues' | 'status'>
+const classifyOperationRow = (row: OperationClassifierInput): RowIssue[] => {
+  const out: RowIssue[] = []
+  if (row.quantity === null) out.push(issueFor('required-missing', 'quantity'))
+  if (row.unit === null) out.push(issueFor('required-missing', 'unit'))
+  if (row.cropId === null)
+    out.push(
+      issueFor(
+        'orphan-operation',
+        'cropId',
+        'No matching cropping record found.',
+      ),
+    )
+  if (row.action === 'delete' && row.operationGroup === 'Crop Protection')
+    out.push(issueFor('deletion-not-allowed'))
+  if (row.appliedArea !== null && row.appliedArea > 30)
+    out.push(issueFor('crop-area-exceeds-field', 'appliedArea'))
+  // Sprinkle a duplicate warning so the demo surfaces the warning state.
+  if (row.id.endsWith('-7') || row.id.endsWith('-19'))
+    out.push(issueFor('duplicate-operation'))
+  return out
+}
+
+type OperationStatusInput = Pick<
+  OperationRow,
+  | 'quantity'
+  | 'unit'
+  | 'productName'
+  | 'appliedArea'
+  | 'operationDate'
+  | 'cropType'
+  | 'cropVariety'
+  | 'cropId'
+>
+const operationRowStatus = (row: OperationStatusInput): RowStatus =>
   statusOf({
     // Quantity and unit together describe the operation — neither makes
     // sense without the other, so missing either blocks downstream maths.
@@ -600,23 +638,19 @@ const OPERATIONS_ROWS: OperationRow[] = sortByFarm(
       unit: maybeMissing(pick(UNITS_BY_GROUP[group] ?? ['—'], i), i, 76, 0.35),
       appliedArea: maybeMissing(num(i, 14, 2.5, 28, 1), i, 77, 0.4),
     }
-    return { ...base, status: operationRowStatus(base), action: pickAction(i) }
+    const action = pickAction(i)
+    const withAction = { ...base, action }
+    return {
+      ...base,
+      status: operationRowStatus(base),
+      action,
+      issues: classifyOperationRow(withAction),
+    }
   }),
 )
 
 const OPERATIONS_COLUMNS: GridColDef<OperationRow>[] = [
-  {
-    field: 'status',
-    headerName: '',
-    width: 56,
-    sortable: true,
-    filterable: false,
-    renderCell: ({ row }) => (
-      <span className="grid h-full place-items-center">
-        <StatusDot status={row.status} />
-      </span>
-    ),
-  },
+  fixColumn<OperationRow>(),
   { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
   {
     field: 'action',
@@ -751,14 +785,39 @@ type SoilSamplingRow = {
   subSoilDepth: number | null
   status: RowStatus
   action: ActionKind
+  issues: RowIssue[]
 }
 
-const soilRowStatus = (
-  row: Omit<
-    SoilSamplingRow,
-    'id' | 'fieldName' | 'farmName' | 'harvestYear' | 'status' | 'action'
-  >,
-): RowStatus =>
+type SoilClassifierInput = Pick<
+  SoilSamplingRow,
+  'testDate' | 'ph' | 'samplingDepth'
+>
+const classifySoilRow = (row: SoilClassifierInput): RowIssue[] => {
+  const out: RowIssue[] = []
+  if (row.testDate === null) out.push(issueFor('required-missing', 'testDate'))
+  if (row.ph !== null && (row.ph < 3 || row.ph > 10))
+    out.push(issueFor('decimal-out-of-range', 'ph'))
+  if (row.samplingDepth !== null && row.samplingDepth <= 0)
+    out.push(issueFor('positive-int-required', 'samplingDepth'))
+  return out
+}
+
+type SoilStatusInput = Pick<
+  SoilSamplingRow,
+  | 'testDate'
+  | 'ph'
+  | 'soc'
+  | 'samplingDepth'
+  | 'som'
+  | 'mineralNitrogen'
+  | 'bulkDensity'
+  | 'topSoilDepth'
+  | 'subSoilDepth'
+  | 'georeferenced'
+  | 'laboratoryMethod'
+  | 'numberOfSamples'
+>
+const soilRowStatus = (row: SoilStatusInput): RowStatus =>
   statusOf({
     // Test date anchors the sample in time — without it we can't compare
     // against earlier readings.
@@ -827,23 +886,17 @@ const SOIL_ROWS: SoilSamplingRow[] = sortByFarm(
         0.6,
       ),
     }
-    return { ...base, status: soilRowStatus(base), action: pickAction(i) }
+    return {
+      ...base,
+      status: soilRowStatus(base),
+      action: pickAction(i),
+      issues: classifySoilRow(base),
+    }
   }),
 )
 
 const SOIL_COLUMNS: GridColDef<SoilSamplingRow>[] = [
-  {
-    field: 'status',
-    headerName: '',
-    width: 56,
-    sortable: true,
-    filterable: false,
-    renderCell: ({ row }) => (
-      <span className="grid h-full place-items-center">
-        <StatusDot status={row.status} />
-      </span>
-    ),
-  },
+  fixColumn<SoilSamplingRow>(),
   { field: 'fieldName', headerName: 'Field', flex: 1, minWidth: 140 },
   {
     field: 'action',
@@ -1111,21 +1164,97 @@ export const CheckDataStep = () => {
     [],
   )
 
-  const filteredCropping = useMemo(
-    () => filterRows(CROPPING_ROWS, query, farmFilter),
-    [query, farmFilter],
-  )
-  const filteredOperations = useMemo(
-    () => filterRows(OPERATIONS_ROWS, query, farmFilter),
-    [query, farmFilter],
-  )
-  const filteredSoil = useMemo(
-    () => filterRows(SOIL_ROWS, query, farmFilter),
-    [query, farmFilter],
-  )
+  // Severity filter — driven by the aggregate tiles. Cleared on tab switch
+  // so each tab starts at the "show everything" view.
+  const [sevFilter, setSevFilter] = useState<IssueSeverity | null>(null)
+  useEffect(() => {
+    setSevFilter(null)
+  }, [])
+
+  const filteredCropping = useMemo(() => {
+    const rows = filterRows(CROPPING_ROWS, query, farmFilter)
+    return sevFilter
+      ? rows.filter((r) => worstSeverity(r.issues) === sevFilter)
+      : rows
+  }, [query, farmFilter, sevFilter])
+  const filteredOperations = useMemo(() => {
+    const rows = filterRows(OPERATIONS_ROWS, query, farmFilter)
+    return sevFilter
+      ? rows.filter((r) => worstSeverity(r.issues) === sevFilter)
+      : rows
+  }, [query, farmFilter, sevFilter])
+  const filteredSoil = useMemo(() => {
+    const rows = filterRows(SOIL_ROWS, query, farmFilter)
+    return sevFilter
+      ? rows.filter((r) => worstSeverity(r.issues) === sevFilter)
+      : rows
+  }, [query, farmFilter, sevFilter])
+
+  /* ------------------------------------------------------------------ */
+  /* Per-tab issue counts — drives the aggregate tiles above the grid.  */
+  /* ------------------------------------------------------------------ */
+
+  const activeRows: ReadonlyArray<{ issues: RowIssue[] }> =
+    tab === 'cropping'
+      ? CROPPING_ROWS
+      : tab === 'operations'
+        ? OPERATIONS_ROWS
+        : SOIL_ROWS
+  const blockingCount = activeRows.filter(
+    (r) => worstSeverity(r.issues) === 'blocking',
+  ).length
+  const warningCount = activeRows.filter(
+    (r) => worstSeverity(r.issues) === 'warning',
+  ).length
+
+  /* ------------------------------------------------------------------ */
+  /* Fix-row modal                                                        */
+  /* ------------------------------------------------------------------ */
+
+  const [fixRow, setFixRow] = useState<{
+    id: string
+    issues: RowIssue[]
+  } | null>(null)
+
+  // Wire the column's static click handler to the page's state. Runs once
+  // per mount; the closure captures `setFixRow` which is stable.
+  useEffect(() => {
+    onFixRowGlobal = (row) => setFixRow(row)
+    return () => {
+      onFixRowGlobal = null
+    }
+  }, [])
+
+  const rowClass = (row: { issues: RowIssue[] }): string => {
+    const sev = worstSeverity(row.issues)
+    if (sev === 'blocking') return 'row-issue-blocking'
+    if (sev === 'warning') return 'row-issue-warning'
+    return ''
+  }
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Severity tiles — show aggregate counts for the active tab and act as
+          single-select filters when tapped. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <SeverityTile
+          severity="blocking"
+          count={blockingCount}
+          active={sevFilter === 'blocking'}
+          onToggle={() =>
+            setSevFilter((p) => (p === 'blocking' ? null : 'blocking'))
+          }
+        />
+        <SeverityTile
+          severity="warning"
+          count={warningCount}
+          active={sevFilter === 'warning'}
+          onToggle={() =>
+            setSevFilter((p) => (p === 'warning' ? null : 'warning'))
+          }
+        />
+      </div>
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[260px]">
           <TextInput
@@ -1148,32 +1277,6 @@ export const CheckDataStep = () => {
         </div>
       </div>
 
-      {/* Sticky-left styles for the first two columns (Field · Action).
-          Applied via raw CSS keyed off MUI's `data-field` attribute so the
-          wider table can scroll horizontally underneath them. */}
-      <style>{`
-        .refine-grid .MuiDataGrid-cell[data-field='fieldName'],
-        .refine-grid .MuiDataGrid-cell[data-field='action'],
-        .refine-grid .MuiDataGrid-columnHeader[data-field='fieldName'],
-        .refine-grid .MuiDataGrid-columnHeader[data-field='action'] {
-          position: sticky;
-          background-color: var(--color-bg-primary);
-          z-index: 3;
-        }
-        .refine-grid .MuiDataGrid-cell[data-field='fieldName'],
-        .refine-grid .MuiDataGrid-columnHeader[data-field='fieldName'] {
-          left: 0;
-        }
-        .refine-grid .MuiDataGrid-cell[data-field='action'],
-        .refine-grid .MuiDataGrid-columnHeader[data-field='action'] {
-          left: 140px;
-          box-shadow: 2px 0 0 var(--color-border-tertiary);
-        }
-        .refine-grid .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='fieldName'],
-        .refine-grid .MuiDataGrid-row:hover .MuiDataGrid-cell[data-field='action'] {
-          background-color: var(--color-bg-secondary);
-        }
-      `}</style>
       <div className="refine-grid">
         <Tabs<TabId> value={tab} onValueChange={setTab}>
           <TabBar>
@@ -1189,6 +1292,7 @@ export const CheckDataStep = () => {
               defaultPageSize={20}
               pageSizeOptions={[10, 20, 50]}
               selectable={false}
+              getRowClassName={({ row }) => rowClass(row)}
             />
           </TabPanel>
 
@@ -1199,6 +1303,7 @@ export const CheckDataStep = () => {
               defaultPageSize={20}
               pageSizeOptions={[10, 20, 50]}
               selectable={false}
+              getRowClassName={({ row }) => rowClass(row)}
             />
           </TabPanel>
 
@@ -1209,10 +1314,125 @@ export const CheckDataStep = () => {
               defaultPageSize={20}
               pageSizeOptions={[10, 20, 50]}
               selectable={false}
+              getRowClassName={({ row }) => rowClass(row)}
             />
           </TabPanel>
         </Tabs>
       </div>
+
+      <FixRowModal
+        row={fixRow}
+        onOpenChange={(o) => {
+          if (!o) setFixRow(null)
+        }}
+      />
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* SeverityTile + FixRowModal — small UI helpers used only by this step      */
+/* -------------------------------------------------------------------------- */
+
+const SeverityTile = ({
+  severity,
+  count,
+  active,
+  onToggle,
+}: {
+  severity: IssueSeverity
+  count: number
+  active: boolean
+  onToggle: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-pressed={active}
+    className={clsx(
+      'flex items-center justify-between gap-4 rounded-xl border-2 px-5 py-4 text-left transition-colors',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+      severity === 'blocking'
+        ? active
+          ? 'border-support-fg-red bg-support-bg-red'
+          : 'border-border-tertiary bg-bg-primary hover:border-support-fg-red'
+        : active
+          ? 'border-support-fg-amber bg-support-bg-amber'
+          : 'border-border-tertiary bg-bg-primary hover:border-support-fg-amber',
+    )}
+  >
+    <div className="flex flex-col gap-1">
+      <span
+        className={clsx(
+          'text-sm font-semibold uppercase tracking-[0.15px]',
+          severity === 'blocking'
+            ? 'text-support-fg-red'
+            : 'text-support-fg-amber',
+        )}
+      >
+        {severity === 'blocking' ? 'Blocking errors' : 'Warnings'}
+      </span>
+      <span className="text-3xl font-semibold tabular-nums text-text-primary">
+        {count}
+      </span>
+    </div>
+    <span className="text-sm font-semibold text-text-secondary">
+      {active ? 'Showing only these' : count > 0 ? 'Show only these' : null}
+    </span>
+  </button>
+)
+
+const FixRowModal = ({
+  row,
+  onOpenChange,
+}: {
+  row: { id: string; issues: RowIssue[] } | null
+  onOpenChange: (open: boolean) => void
+}) => {
+  if (!row) return null
+  const sev = worstSeverity(row.issues)
+  return (
+    <Modal
+      open={!!row}
+      onOpenChange={onOpenChange}
+      title="Fix row"
+      description={
+        sev === 'blocking'
+          ? 'This row has blocking errors and must be fixed to proceed.'
+          : 'This row has warnings — review before continuing.'
+      }
+      maxWidth="640px"
+    >
+      <div className="flex flex-col gap-5">
+        <ul className="flex flex-col gap-3">
+          {row.issues.map((issue) => (
+            <li
+              key={`${issue.code}-${issue.columnName ?? 'row'}`}
+              className={clsx(
+                'rounded-lg border-2 px-4 py-3',
+                issue.severity === 'blocking'
+                  ? 'border-support-fg-red bg-support-bg-red'
+                  : 'border-support-fg-amber bg-support-bg-amber',
+              )}
+            >
+              <p className="text-md font-semibold text-text-primary">
+                {issue.message}
+              </p>
+              {issue.detail ? (
+                <p className="text-sm text-text-secondary">{issue.detail}</p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Ignore for now
+          </Button>
+          <Button variant="primary" onClick={() => onOpenChange(false)}>
+            Edit value
+          </Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
