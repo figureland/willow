@@ -78,18 +78,19 @@ Every record is `<Schema>.parse(...)`-validated at module load so a malformed ed
 
 ## Design system rules
 
-- Use only the type tokens defined in `src/index.css`: `text-xs | text-sm | text-md | text-lg | text-xl | text-2xl`. Never raw px or Tailwind defaults (`text-base`, `text-3xl`, `text-neutral-*`, etc.).
+- Use only the type tokens defined in `src/index.css`: `text-xs | text-sm | text-md | text-lg | text-xl | text-2xl | text-3xl`. Never raw px or Tailwind defaults (`text-base`, `text-neutral-*`, etc.).
 - Use semantic colour tokens (`text-text-primary`, `bg-bg-primary`, `border-border-secondary`, `bg-button-primary`, `bg-support-*`, etc.). Raw ramps like `bg-sandy-100` are reserved for the active-nav highlight + brand swatches.
 - Body default is `text-md text-text-primary` — don't re-state it on `<p>` / `<div>`.
 - Components are arrow-function expressions: `export const Foo = () => …`. Never `function Foo()`.
 
 ## Scripts
 
-- `bun run dev`       — Vite dev server, with the `vite-plugins/api.ts` middleware mounting the `api/*.ts` Vercel functions locally.
-- `bun run build`     — typecheck + bundle.
-- `bun run lint`      — Biome check.
-- `bun run lint:fix`  — Biome check + autofix.
-- `bun run check`     — Biome + tsc, for CI.
+- `bun run dev`            — Vite dev server, with the `vite-plugins/api.ts` middleware mounting the `api/*.ts` Vercel functions locally.
+- `bun run dev:agentation` — Agentation MCP HTTP server on :4747 (writes to `~/.agentation/store.db`). Run in its own terminal alongside `dev` when you want the in-app annotation widget connected. The process lingers after Ctrl-C — kill any stragglers with `lsof -ti :4747 | xargs kill` if a fresh start fails to bind.
+- `bun run build`          — typecheck + bundle.
+- `bun run lint`           — Biome check.
+- `bun run lint:fix`       — Biome check + autofix.
+- `bun run check`          — Biome + tsc, for CI.
 
 ## Routes
 

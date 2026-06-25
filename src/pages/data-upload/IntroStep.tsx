@@ -7,8 +7,8 @@ import { Button } from '../../components/ui'
 /** Step the draft will resume on — must match a wizard step id. */
 export type DraftStepId =
   | 'upload'
-  | 'review'
-  | 'refine-data'
+  | 'refine'
+  | 'fix'
   | 'completeness'
   | 'anomaly-detection'
   | 'commit'
@@ -27,8 +27,8 @@ const DRAFTS: Draft[] = [
   {
     id: 'draft-1',
     title: 'Spring 2026 planning',
-    stepLabel: 'Refine data',
-    resumeAt: 'refine-data',
+    stepLabel: 'Refine',
+    resumeAt: 'refine',
     updatedAt: '2026-06-21',
   },
   {
@@ -82,7 +82,7 @@ export const IntroStep = ({
     {/* Left: title + minimal description + start CTA */}
     <div className="flex flex-col gap-6 max-w-[480px]">
       <div className="flex flex-col gap-4">
-        <h2 className="text-2xl font-semibold leading-9 text-text-primary">
+        <h2 className="text-3xl font-semibold text-text-primary">
           Upload your farm data
         </h2>
         <p className="text-md text-text-secondary">
@@ -110,29 +110,39 @@ export const IntroStep = ({
       ) : (
         <ul className="flex flex-col gap-2">
           {DRAFTS.map((draft) => (
-            <li
-              key={draft.id}
-              className="flex items-center gap-6 rounded-xl border-2 border-border-tertiary bg-bg-primary px-6 py-5"
-            >
-              <div className="flex flex-1 min-w-0 flex-col gap-2">
-                <p className="text-md font-semibold text-text-primary truncate">
-                  {draft.title}
-                </p>
-                <p className="text-sm text-text-secondary">
-                  {draft.stepLabel} · edited {formatRelative(draft.updatedAt)}
-                </p>
-              </div>
-              <Button
-                variant="secondary"
+            <li key={draft.id}>
+              {/* Whole card is the click target — the "Resume" pill is a
+                  decorative affordance only (a real <button> inside this
+                  one would be invalid HTML). */}
+              <button
+                type="button"
                 onClick={() => onResumeDraft(draft.resumeAt)}
+                className="group flex w-full items-center gap-6 rounded-xl border-2 border-border-tertiary bg-bg-primary px-6 py-5 text-left transition-colors hover:border-border-secondary-hover hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
               >
-                Resume
-              </Button>
+                <div className="flex flex-1 min-w-0 flex-col gap-2">
+                  <p className="text-md font-semibold text-text-primary truncate">
+                    {draft.title}
+                  </p>
+                  <p className="text-sm text-text-secondary">
+                    <span>{draft.stepLabel}</span>
+                    <span aria-hidden="true" className="mx-2">
+                      ·
+                    </span>
+                    <span>edited {formatRelative(draft.updatedAt)}</span>
+                  </p>
+                </div>
+                <span
+                  className="inline-flex items-center gap-2 rounded-md border-2 border-border-secondary bg-bg-primary px-3 py-2 text-md font-semibold text-text-primary tracking-[0.15px] transition-colors group-hover:border-button-primary group-hover:bg-button-primary group-hover:text-text-primary-inverse"
+                  aria-hidden="true"
+                >
+                  Resume
+                </span>
+              </button>
             </li>
           ))}
         </ul>
       )}
-      <div className="flex justify-end pt-1">
+      <div className="flex justify-start pt-1">
         <button
           type="button"
           onClick={onViewPastUploads}

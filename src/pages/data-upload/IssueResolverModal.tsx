@@ -234,7 +234,12 @@ type IssueBodyProps = {
   onResolve: () => void
 }
 
-const IssueBody = ({ issue, state, onChange, onResolve }: IssueBodyProps) => {
+export const IssueBody = ({
+  issue,
+  state,
+  onChange,
+  onResolve,
+}: IssueBodyProps) => {
   if (issue.type === 'farm-missing') {
     return (
       <FarmMissingBody

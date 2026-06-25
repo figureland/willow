@@ -23,9 +23,9 @@
     "Overpass Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Canonical type scale — the ONLY sizes that should appear in code.
-     Use `text-xs … text-2xl`, never raw px / rem values, never Tailwind's
-     defaults like `text-base` or `text-3xl`. Each step carries its own
-     line-height so callers don't pick one ad-hoc. */
+     Use `text-xs … text-3xl`, never raw px / rem values, never Tailwind's
+     ad-hoc defaults like `text-base`. Each step carries its own line-height
+     so callers don't pick one ad-hoc. */
   --text-xs: 12px;
   --text-xs--line-height: 16px;
   --text-sm: 14px;
@@ -38,6 +38,8 @@
   --text-xl--line-height: 28px;
   --text-2xl: 26px;
   --text-2xl--line-height: 36px;
+  --text-3xl: 32px;
+  --text-3xl--line-height: 40px;
 
   /* --------------------------- Radii ---------------------------------- */
   --radius-sm: 4px;

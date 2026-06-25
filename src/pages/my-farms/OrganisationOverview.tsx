@@ -1,4 +1,3 @@
-import clsx from 'clsx'
 import { Link, useParams } from 'react-router-dom'
 import { Badge, type BadgeTone, Card } from '../../components/ui'
 import { getFarmsForOrganisation, getOrganisation } from '../../data'
@@ -27,12 +26,6 @@ const tierForScore = (pct: number): Tier => {
   if (pct >= 80) return 'green'
   if (pct >= 50) return 'amber'
   return 'red'
-}
-
-const TIER_TILE: Record<Tier, string> = {
-  green: 'bg-support-bg-green text-text-brand-dark',
-  amber: 'bg-support-bg-amber text-support-fg-amber',
-  red: 'bg-support-bg-red text-support-fg-red',
 }
 
 const TIER_BADGE: Record<Tier, BadgeTone> = {
@@ -221,16 +214,11 @@ const StatCard = ({
 /* Score tile                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const ScoreTile = ({ score }: { score: number }) => {
-  const tier = tierForScore(score)
-  return (
-    <span
-      className={clsx(
-        'inline-flex h-8 min-w-[56px] items-center justify-center rounded-md text-sm font-semibold tabular-nums',
-        TIER_TILE[tier],
-      )}
-    >
-      {score}%
-    </span>
-  )
-}
+/** Per-service readiness chip. Uses the design-system `<Badge>` with the
+ *  tier-tone mapping so it stays visually paired with the average-score
+ *  badge at the row end and elsewhere on the page. */
+const ScoreTile = ({ score }: { score: number }) => (
+  <Badge tone={TIER_BADGE[tierForScore(score)]} size="sm">
+    <span className="tabular-nums">{score}%</span>
+  </Badge>
+)

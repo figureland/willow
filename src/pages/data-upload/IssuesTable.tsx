@@ -52,7 +52,7 @@ export const statusForIssue = (
 /* Tri-state checkbox                                                          */
 /* -------------------------------------------------------------------------- */
 
-const StatusGlyph = ({ status }: { status: IssueStatus }) => (
+export const StatusGlyph = ({ status }: { status: IssueStatus }) => (
   <span
     aria-hidden="true"
     className={clsx(
@@ -98,10 +98,46 @@ const StatusGlyph = ({ status }: { status: IssueStatus }) => (
 )
 
 /* -------------------------------------------------------------------------- */
+/* Issue categories — drive the inbox grouping                                 */
+/* -------------------------------------------------------------------------- */
+
+export type IssueCategory = 'farms-and-fields' | 'file-structure' | 'data-types'
+
+export const ISSUE_CATEGORY_LABEL: Record<IssueCategory, string> = {
+  'farms-and-fields': 'Farms and Fields',
+  'file-structure': 'File structure',
+  'data-types': 'Data types',
+}
+
+export const CATEGORY_ORDER: IssueCategory[] = [
+  'farms-and-fields',
+  'file-structure',
+  'data-types',
+]
+
+export const categoryForIssue = (issue: Issue): IssueCategory => {
+  switch (issue.type) {
+    case 'farm-missing':
+    case 'field-missing':
+    case 'field-missing-batch':
+      return 'farms-and-fields'
+    case 'schema-transformation':
+      return 'file-structure'
+    case 'value-mapping':
+      return 'data-types'
+    default:
+      // Generic mapping-style issues sit alongside value mappings.
+      return 'data-types'
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Issue summary copy                                                          */
 /* -------------------------------------------------------------------------- */
 
-const issueLine = (issue: Issue): { headline: string; context: string } => {
+export const issueLine = (
+  issue: Issue,
+): { headline: string; context: string } => {
   if (issue.type === 'farm-missing') {
     return {
       headline: `Unknown farm "${issue.sourceName}"`,

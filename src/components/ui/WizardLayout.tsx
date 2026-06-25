@@ -31,6 +31,12 @@ export type WizardStepConfig = WizardStep & {
    * generic Continue would be redundant. Back stays visible.
    */
   hideContinue?: boolean
+  /**
+   * Render the step's content full-bleed — no padding around the body and
+   * no inter-element gap. Use for steps that own their own outer chrome
+   * (e.g. the inbox on the Refine step).
+   */
+  bare?: boolean
 }
 
 export type WizardLayoutProps = {
@@ -140,24 +146,32 @@ export const WizardLayout = ({
         </div>
       </header>
 
-      {/* Body — left rail stepper alongside the main step content. */}
-      <div className="flex flex-1 min-h-0">
-        <aside className="flex w-64 shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary px-4 py-6">
-          <WizardStepper
-            steps={steps.map(({ id, label, number }) => ({
-              id,
-              label,
-              number,
-            }))}
-            current={currentIndex}
-            furthest={furthestIndex}
-            onStepClick={(i) => goToStep(i)}
-            direction="vertical"
-          />
-        </aside>
+      {/* Horizontal stepper — sits in its own thin row directly below the
+          title bar so the main step body gets the full page width. */}
+      <div className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
+        <WizardStepper
+          steps={steps.map(({ id, label, number }) => ({
+            id,
+            label,
+            number,
+          }))}
+          current={currentIndex}
+          furthest={furthestIndex}
+          onStepClick={(i) => goToStep(i)}
+        />
+      </div>
 
+      {/* Body — main step content fills the rest of the column. */}
+      <div className="flex flex-1 min-h-0 flex-col">
         <div className="flex flex-1 min-w-0 flex-col">
-          <main className="flex-1 flex flex-col gap-4 p-8">{step.content}</main>
+          <main
+            className={clsx(
+              'flex flex-1 flex-col',
+              step.bare ? 'min-h-0' : 'gap-4 p-8',
+            )}
+          >
+            {step.content}
+          </main>
 
           <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
             <div className="flex items-center justify-between gap-2">

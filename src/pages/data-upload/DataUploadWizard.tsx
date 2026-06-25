@@ -8,7 +8,6 @@ import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import { IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
-import { IssueResolverModal } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
 import { generateSummary } from './summary'
@@ -17,8 +16,8 @@ import { CANONICAL_VOCAB, MOCK_VALUE_MAPPING_FIXTURES } from './value-mapping'
 
 const BASE_STEP_IDS = [
   'upload',
-  'review',
-  'refine-data',
+  'refine',
+  'fix',
   'completeness',
   'anomaly-detection',
   'commit',
@@ -41,15 +40,6 @@ export const DATA_UPLOAD_STEP_IDS = [
 export const DataUploadWizard = () => {
   const navigate = useNavigate()
   const { stepId } = useParams<{ stepId?: string }>()
-
-  // The issue-resolver modal is owned here so the Review step's "Review N
-  // issues" Continue button can open it without the step needing direct
-  // access to the wizard's navigation. When the user finishes the modal we
-  // advance to the next step automatically.
-  const [issuesOpen, setIssuesOpen] = useState(false)
-  const advanceFromReview = () => {
-    navigate(`${DATA_UPLOAD_BASE}/refine-data`)
-  }
 
   // Generate the detection summary once for the wizard's lifetime. Drives
   // both the Review step's display and the issue resolver — counts and
@@ -138,10 +128,9 @@ export const DataUploadWizard = () => {
     return out
   }, [summary])
 
-  // Lifted resolver state lets the IssuesTable show resolved/ignored marks
-  // outside the modal. The modal writes to this map; the table reads from it.
+  // Per-issue resolution state, owned by the wizard so it persists across
+  // step navigation. The inbox in the Refine step is the only writer.
   const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
-  const [focusIssueId, setFocusIssueId] = useState<string | null>(null)
 
   const resolvedCount = issues.filter((i) => {
     const s = issueState[i.id]
@@ -193,33 +182,24 @@ export const DataUploadWizard = () => {
         },
       },
       {
-        id: 'review',
-        label: 'Review',
+        id: 'refine',
+        label: 'Refine',
         content: (
           <ReviewStep
-            summary={summary}
-            fileNames={uploadedFiles.map((f) => f.name)}
             issues={issues}
             issueState={issueState}
-            onIssueClick={(id) => {
-              setFocusIssueId(id)
-              setIssuesOpen(true)
-            }}
+            onIssueStateChange={setIssueState}
           />
         ),
-        continueLabel,
-        onContinue: () => {
-          // If everything is already resolved/ignored, let the wizard advance
-          // normally. Otherwise open the resolver so the user can finish.
-          if (remaining === 0) return
-          setFocusIssueId(null)
-          setIssuesOpen(true)
-          return false
-        },
+        // The inbox is the resolver — the wizard footer's Continue just
+        // advances when everything's been addressed.
+        canContinue: remaining === 0,
+        continueLabel: continueLabel,
+        bare: true,
       },
       {
-        id: 'refine-data',
-        label: 'Refine data',
+        id: 'fix',
+        label: 'Fix issues',
         content: <CheckDataStep />,
       },
       {
@@ -240,10 +220,8 @@ export const DataUploadWizard = () => {
       },
     ],
     [
-      summary,
       continueLabel,
       canContinueUpload,
-      uploadedFiles,
       uploadContinueLabel,
       issues,
       issueState,
@@ -268,7 +246,7 @@ export const DataUploadWizard = () => {
   // or resumes a draft.
   if (!known || stepId === START_STEP_ID) {
     return (
-      <div className="flex flex-1 flex-col p-8">
+      <div className="flex flex-1 flex-col justify-center p-16">
         <IntroStep
           onStartNew={() => navigate(`${DATA_UPLOAD_BASE}/${steps[0].id}`)}
           onResumeDraft={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
@@ -290,27 +268,13 @@ export const DataUploadWizard = () => {
         onComplete={exit}
         finishLabel="Finish upload"
       />
-      <IssueResolverModal
-        open={issuesOpen}
-        onOpenChange={setIssuesOpen}
-        issues={issues}
-        state={issueState}
-        onStateChange={setIssueState}
-        focusIssueId={focusIssueId}
-        onComplete={() => {
-          setIssuesOpen(false)
-          // Only auto-advance when the user came in via the wizard footer
-          // (i.e. they want to push forward). Per-row clicks just close.
-          if (focusIssueId === null) advanceFromReview()
-        }}
-      />
       <CategoriseFilesModal
         open={categoriseOpen}
         onOpenChange={setCategoriseOpen}
         files={uploadedFiles}
         onConfirm={() => {
           setCategoriseOpen(false)
-          navigate(`${DATA_UPLOAD_BASE}/review`)
+          navigate(`${DATA_UPLOAD_BASE}/refine`)
         }}
       />
     </>

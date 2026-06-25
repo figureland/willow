@@ -74,6 +74,10 @@ export const Badge = ({
     <span
       className={clsx(
         'inline-flex items-center rounded-md font-semibold tracking-[0.15px] whitespace-nowrap',
+        // `self-start` keeps the badge shrink-wrapped to its content when
+        // it's a direct child of a flex column (whose default
+        // align-items: stretch otherwise blows it out to full width).
+        'self-start',
         sizeClasses[size],
         toneClasses[tone],
         className,

@@ -1,6 +1,5 @@
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
-import { IconChevronRight } from './icons'
 
 export type WizardStepStatus = 'upcoming' | 'current' | 'complete'
 
@@ -92,9 +91,9 @@ export const WizardStepper = ({
               disabled={!clickable}
               aria-current={status === 'current' ? 'step' : undefined}
               className={clsx(
-                'group/wizard-step inline-flex items-center gap-3 rounded-md px-2 py-1.5',
+                'group/wizard-step inline-flex items-center gap-2 rounded-md px-1.5 py-1',
                 vertical && 'w-full',
-                'text-md font-medium tracking-[0.15px] transition-colors',
+                'text-sm font-medium tracking-[0.15px] transition-colors',
                 clickable
                   ? 'cursor-pointer hover:bg-bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40'
                   : 'cursor-default',
@@ -106,7 +105,7 @@ export const WizardStepper = ({
               <span
                 aria-hidden="true"
                 className={clsx(
-                  'inline-flex size-6 items-center justify-center rounded-pill text-sm font-semibold tracking-[0.15px] shrink-0',
+                  'inline-flex size-5 items-center justify-center rounded-pill text-xs font-semibold tracking-[0.15px] shrink-0',
                   status === 'current' &&
                     'bg-bg-brand-primary text-text-primary-inverse',
                   status === 'complete' && 'bg-sandy-100 text-text-brand-dark',
@@ -115,13 +114,8 @@ export const WizardStepper = ({
               >
                 {number}
               </span>
-              <span className="pt-[2px] text-left truncate">{step.label}</span>
+              <span className="text-left truncate">{step.label}</span>
             </button>
-            {!vertical && i < steps.length - 1 ? (
-              <span aria-hidden="true" className="text-icon-secondary shrink-0">
-                <IconChevronRight size={16} />
-              </span>
-            ) : null}
           </li>
         )
       })}

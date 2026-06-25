@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import { Button, Select, TextInput } from '../../components/ui'
 import { SheetSnippet, SNIPPET_VISIBLE_ROWS } from './SheetSnippet'
 import {
-  describeExpression,
   EXAMPLE_WORKBOOK,
   type Expression,
   OPERATION_CANONICAL_FIELDS,
@@ -474,11 +473,6 @@ export const SchemaRuleEditor = ({
           allSheets={allSheets}
           onChange={updateExpression}
         />
-        {expr.kind !== 'empty' ? (
-          <p className="mt-3 text-sm text-text-secondary">
-            Reads as: <span className="italic">{describeExpression(expr)}</span>
-          </p>
-        ) : null}
       </div>
 
       {/* Sheet snippet — first 5 rows of the active sheet with column tints

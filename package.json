@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:agentation": "npx -y agentation-mcp server",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "biome check",
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19.2.3",
     "@vercel/node": "^5.8.17",
     "@vitejs/plugin-react": "^6.0.1",
+    "agentation": "^3.0.2",
     "typescript": "~6.0.2",
     "vite": "^8.0.12"
   }
