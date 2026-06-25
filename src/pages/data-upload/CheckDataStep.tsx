@@ -13,6 +13,12 @@ import {
   TextInput,
 } from '../../components/ui'
 import { ActionCell, type ActionKind } from './ActionCell'
+import {
+  type IssueSeverity,
+  issueFor,
+  type RowIssue,
+  worstSeverity,
+} from './fix/row-issues'
 
 /* -------------------------------------------------------------------------- */
 /* Tab state                                                                   */
@@ -252,6 +258,30 @@ type CroppingRow = {
   legumeMix: string | null
   status: RowStatus
   action: ActionKind
+  issues: RowIssue[]
+}
+
+/** Classify a cropping row into the new issue model. */
+const classifyCroppingRow = (
+  row: Omit<CroppingRow, 'issues' | 'status' | 'action'>,
+): RowIssue[] => {
+  const out: RowIssue[] = []
+  if (row.workingArea === null) out.push(issueFor('required-missing', 'workingArea'))
+  if (row.yield === null) out.push(issueFor('required-missing', 'yield'))
+  if (row.cropType === null) out.push(issueFor('crop-type-unknown', 'cropType'))
+  if (row.plantingDate && row.harvestDate && row.plantingDate > row.harvestDate)
+    out.push(issueFor('planting-after-harvest', 'plantingDate'))
+  if (
+    row.harvestYield !== null &&
+    row.totalYield !== null &&
+    row.harvestYield > row.totalYield
+  )
+    out.push(issueFor('harvest-gt-total', 'harvestYield'))
+  if (row.yield === 0) out.push(issueFor('yield-zero', 'yield'))
+  // Deterministic "duplicate cropping" — every 11th row.
+  if (row.id.endsWith('-10') || row.id.endsWith('-21'))
+    out.push(issueFor('duplicate-cropping'))
+  return out
 }
 
 const croppingRowStatus = (
@@ -314,7 +344,12 @@ const CROPPING_ROWS: CroppingRow[] = sortByFarm(
       harvestYield: maybeMissing(harvestYield, i, 60, 0.4),
       legumeMix: maybeMissing(i % 5 === 0 ? 'Yes' : 'No', i, 61, 0.6),
     }
-    return { ...base, status: croppingRowStatus(base), action: pickAction(i) }
+    return {
+      ...base,
+      status: croppingRowStatus(base),
+      action: pickAction(i),
+      issues: classifyCroppingRow(base),
+    }
   }),
 )
 

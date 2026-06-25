@@ -1,13 +1,10 @@
 import clsx from 'clsx'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Button, Select, TextInput } from '../../components/ui'
-import { SheetSnippet, SNIPPET_VISIBLE_ROWS } from './SheetSnippet'
 import {
   EXAMPLE_WORKBOOK,
   type Expression,
   OPERATION_CANONICAL_FIELDS,
-  referencedColumns,
-  resolveExpression,
   type SchemaRuleProgram,
   type Sheet,
 } from './schema-transformation'

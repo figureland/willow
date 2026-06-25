@@ -94,40 +94,40 @@ export const SheetSnippet = ({
             {visibleRows.map((row, rowIdx) => {
               const isRowHighlighted = highlightedRowIndices.has(rowIdx)
               return (
-              <tr
-                key={`${sheet.name}-${row[sheet.columns[0]?.name ?? ''] ?? rowIdx}`}
-                className={clsx(
-                  rowIdx === visibleRows.length - 1
-                    ? ''
-                    : 'border-b border-border-tertiary',
-                  // Soft row tint when any cell in this row is highlighted.
-                  isRowHighlighted && 'bg-sandy-100/40',
-                )}
-              >
-                {sheet.columns.map((col) => {
-                  const tint = tintByColumn.get(col.name)
-                  const isCellHit = cellSet.has(`${rowIdx}|${col.name}`)
-                  return (
-                    <td
-                      key={col.name}
-                      className={clsx(
-                        'px-3 py-2 text-text-primary whitespace-nowrap tabular-nums',
-                        tint && HIGHLIGHT_TINT[tint],
-                        // Cell-level hit wins over the column tint so the
-                        // user can pinpoint the exact value flagged.
-                        isCellHit && 'bg-sandy-100 font-semibold',
-                      )}
-                    >
-                      {row[col.name] ?? '—'}
+                <tr
+                  key={`${sheet.name}-${row[sheet.columns[0]?.name ?? ''] ?? rowIdx}`}
+                  className={clsx(
+                    rowIdx === visibleRows.length - 1
+                      ? ''
+                      : 'border-b border-border-tertiary',
+                    // Soft row tint when any cell in this row is highlighted.
+                    isRowHighlighted && 'bg-sandy-100/40',
+                  )}
+                >
+                  {sheet.columns.map((col) => {
+                    const tint = tintByColumn.get(col.name)
+                    const isCellHit = cellSet.has(`${rowIdx}|${col.name}`)
+                    return (
+                      <td
+                        key={col.name}
+                        className={clsx(
+                          'px-3 py-2 text-text-primary whitespace-nowrap tabular-nums',
+                          tint && HIGHLIGHT_TINT[tint],
+                          // Cell-level hit wins over the column tint so the
+                          // user can pinpoint the exact value flagged.
+                          isCellHit && 'bg-sandy-100 font-semibold',
+                        )}
+                      >
+                        {row[col.name] ?? '—'}
+                      </td>
+                    )
+                  })}
+                  {hasResolved ? (
+                    <td className="px-3 py-2 whitespace-nowrap bg-support-bg-green text-text-brand-dark font-semibold">
+                      {resolvedValues?.[rowIdx] ?? '—'}
                     </td>
-                  )
-                })}
-                {hasResolved ? (
-                  <td className="px-3 py-2 whitespace-nowrap bg-support-bg-green text-text-brand-dark font-semibold">
-                    {resolvedValues?.[rowIdx] ?? '—'}
-                  </td>
-                ) : null}
-              </tr>
+                  ) : null}
+                </tr>
               )
             })}
           </tbody>
