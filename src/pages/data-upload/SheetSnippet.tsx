@@ -13,10 +13,20 @@ const HIGHLIGHT_TINT: Record<HighlightRef['role'], string> = {
   'lookup-return': 'bg-support-bg-green',
 }
 
+/** Specific cell highlights — used to light individual source-value cells
+ *  alongside the column tints. Rows that contain a highlighted cell also
+ *  get a softer row tint so the user can spot them at a glance. */
+export type CellHighlight = {
+  rowIndex: number
+  column: string
+}
+
 export type SheetSnippetProps = {
   sheet: Sheet
   /** Columns to tint as "source" / "lookup-return". */
   highlights: HighlightRef[]
+  /** Per-cell tints (sandy-100 cell + soft row tint). */
+  cellHighlights?: CellHighlight[]
   /**
    * Optional per-row preview of what the active rule resolves to. When any
    * entry is non-null a "→ resolves to" column is appended.
@@ -27,6 +37,7 @@ export type SheetSnippetProps = {
 export const SheetSnippet = ({
   sheet,
   highlights,
+  cellHighlights = [],
   resolvedValues,
 }: SheetSnippetProps) => {
   // Map column -> first matching role so each col can take at most one tint.
@@ -39,6 +50,14 @@ export const SheetSnippet = ({
     ) {
       tintByColumn.set(ref.column, ref.role)
     }
+  }
+
+  // Build a "row, col -> cell highlight?" lookup for quick per-cell checks.
+  const cellSet = new Set<string>()
+  const highlightedRowIndices = new Set<number>()
+  for (const c of cellHighlights) {
+    cellSet.add(`${c.rowIndex}|${c.column}`)
+    highlightedRowIndices.add(c.rowIndex)
   }
 
   const visibleRows = sheet.sampleRows.slice(0, SNIPPET_VISIBLE_ROWS)
@@ -72,23 +91,31 @@ export const SheetSnippet = ({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((row, rowIdx) => (
+            {visibleRows.map((row, rowIdx) => {
+              const isRowHighlighted = highlightedRowIndices.has(rowIdx)
+              return (
               <tr
                 key={`${sheet.name}-${row[sheet.columns[0]?.name ?? ''] ?? rowIdx}`}
-                className={
+                className={clsx(
                   rowIdx === visibleRows.length - 1
                     ? ''
-                    : 'border-b border-border-tertiary'
-                }
+                    : 'border-b border-border-tertiary',
+                  // Soft row tint when any cell in this row is highlighted.
+                  isRowHighlighted && 'bg-sandy-100/40',
+                )}
               >
                 {sheet.columns.map((col) => {
                   const tint = tintByColumn.get(col.name)
+                  const isCellHit = cellSet.has(`${rowIdx}|${col.name}`)
                   return (
                     <td
                       key={col.name}
                       className={clsx(
                         'px-3 py-2 text-text-primary whitespace-nowrap tabular-nums',
                         tint && HIGHLIGHT_TINT[tint],
+                        // Cell-level hit wins over the column tint so the
+                        // user can pinpoint the exact value flagged.
+                        isCellHit && 'bg-sandy-100 font-semibold',
                       )}
                     >
                       {row[col.name] ?? '—'}
@@ -101,7 +128,8 @@ export const SheetSnippet = ({
                   </td>
                 ) : null}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

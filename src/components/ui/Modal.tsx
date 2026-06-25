@@ -6,8 +6,10 @@ import { IconClose } from './icons'
 export type ModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Accessible title (announced by screen readers, rendered in the header). */
-  title: ReactNode
+  /** Accessible title (announced by screen readers, rendered in the header).
+   *  Required unless `unstyled` is true (in which case the title is only
+   *  used as an ARIA announcement and isn't rendered visually). */
+  title?: ReactNode
   /** Optional eyebrow rendered above the title. */
   eyebrow?: ReactNode
   /** Optional descriptive line under the title. */
@@ -24,6 +26,12 @@ export type ModalProps = {
    * for a thin progress indicator that should sit above the header.
    */
   topBar?: ReactNode
+  /**
+   * When true, drops the bordered header strip and the title/description.
+   * A grey-bg close button sits absolutely in the top-right corner instead.
+   * Use when the modal body owns its own visual structure (headlines, etc).
+   */
+  unstyled?: boolean
   children: ReactNode
 }
 
@@ -42,6 +50,7 @@ export const Modal = ({
   maxWidth = '640px',
   footer,
   topBar,
+  unstyled = false,
   children,
 }: ModalProps) => (
   <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -65,41 +74,69 @@ export const Modal = ({
         style={{ width: '92vw', maxWidth }}
       >
         {topBar}
-        <header className="flex items-start gap-4 px-6 py-5 border-b-2 border-border-tertiary">
-          <div className="flex flex-1 min-w-0 flex-col gap-1">
-            {eyebrow ? (
-              <span className="text-sm font-semibold text-text-secondary">
-                {eyebrow}
-              </span>
+        {unstyled ? (
+          <>
+            {/* Title still exists for accessibility but is rendered
+                visually hidden — screen readers announce it. */}
+            {title ? (
+              <BaseDialog.Title className="sr-only">{title}</BaseDialog.Title>
             ) : null}
-            <BaseDialog.Title className="text-xl font-semibold leading-7 text-text-primary">
-              {title}
-            </BaseDialog.Title>
             {description ? (
-              <BaseDialog.Description className="text-md text-text-secondary">
+              <BaseDialog.Description className="sr-only">
                 {description}
               </BaseDialog.Description>
             ) : null}
-          </div>
-          <BaseDialog.Close
-            aria-label="Close"
-            className={clsx(
-              'mt-1 grid size-8 shrink-0 place-items-center rounded-md',
-              'text-icon-secondary hover:bg-bg-secondary hover:text-text-primary',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-            )}
-          >
-            <IconClose size={18} />
-          </BaseDialog.Close>
-        </header>
+            <BaseDialog.Close
+              aria-label="Close"
+              className={clsx(
+                'absolute right-4 top-4 z-10 grid size-9 place-items-center rounded-lg',
+                'bg-bg-tertiary text-text-primary hover:bg-bg-secondary transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+              )}
+            >
+              <IconClose size={18} />
+            </BaseDialog.Close>
+            <div className="flex-1 overflow-y-auto">{children}</div>
+          </>
+        ) : (
+          <>
+            <header className="flex items-start gap-4 px-6 py-5 border-b-2 border-border-tertiary">
+              <div className="flex flex-1 min-w-0 flex-col gap-1">
+                {eyebrow ? (
+                  <span className="text-sm font-semibold text-text-secondary">
+                    {eyebrow}
+                  </span>
+                ) : null}
+                <BaseDialog.Title className="text-xl font-semibold leading-7 text-text-primary">
+                  {title}
+                </BaseDialog.Title>
+                {description ? (
+                  <BaseDialog.Description className="text-md text-text-secondary">
+                    {description}
+                  </BaseDialog.Description>
+                ) : null}
+              </div>
+              <BaseDialog.Close
+                aria-label="Close"
+                className={clsx(
+                  'mt-1 grid size-8 shrink-0 place-items-center rounded-md',
+                  'text-icon-secondary hover:bg-bg-secondary hover:text-text-primary',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+                )}
+              >
+                <IconClose size={18} />
+              </BaseDialog.Close>
+            </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
+            <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
 
-        {footer ? (
-          <footer className="border-t-2 border-border-tertiary px-6 py-4 flex items-center justify-end gap-2">
-            {footer}
-          </footer>
-        ) : null}
+            {footer ? (
+              <footer className="border-t-2 border-border-tertiary px-6 py-4 flex items-center justify-end gap-2">
+                {footer}
+              </footer>
+            ) : null}
+          </>
+        )}
       </BaseDialog.Popup>
     </BaseDialog.Portal>
   </BaseDialog.Root>

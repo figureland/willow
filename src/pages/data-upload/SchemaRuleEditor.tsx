@@ -426,18 +426,6 @@ export const SchemaRuleEditor = ({
   const allSheets = EXAMPLE_WORKBOOK.sheets
   const activeSheet = findSheet(allSheets, sheetName) ?? allSheets[0]
 
-  // Drive the snippet's highlights + resolved-value preview from the active
-  // expression. Join rules show their resolved lookup value inline so the
-  // user can see "field F-1024 -> Brookside Leys" right next to the source.
-  const highlights = referencedColumns(expr)
-  const resolvedValues = useMemo(
-    () =>
-      activeSheet.sampleRows
-        .slice(0, SNIPPET_VISIBLE_ROWS)
-        .map((row) => resolveExpression(expr, row, EXAMPLE_WORKBOOK)),
-    [activeSheet, expr],
-  )
-
   const updateExpression = (next: Expression) => {
     onChange({
       ...program,
@@ -474,14 +462,6 @@ export const SchemaRuleEditor = ({
           onChange={updateExpression}
         />
       </div>
-
-      {/* Sheet snippet — first 5 rows of the active sheet with column tints
-          tracking the current rule. Sits below the editor as live preview. */}
-      <SheetSnippet
-        sheet={activeSheet}
-        highlights={highlights}
-        resolvedValues={resolvedValues}
-      />
 
       {/* Walker controls. "Confirm" once the current step has a rule
           (either Sandy's auto-suggestion or the user's pick); plain "Next"
