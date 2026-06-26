@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Modal, Select } from '../../components/ui'
+import { Button, Modal, MultiSelect } from '../../components/ui'
 import type { AcceptedFileKind, UploadedFile } from './UploadStep'
 
 /* -------------------------------------------------------------------------- */
@@ -15,15 +15,18 @@ const CATEGORY_OPTIONS: { value: DataCategory; label: string }[] = [
 ]
 
 /**
- * Guess a sensible default category for a file. Falls back to Operational
- * when no keywords match — covers the long tail of FMS exports.
+ * Guess a sensible default set of categories for a file. A file can cover
+ * more than one type (e.g. cropping + operations exports) so this returns
+ * an array. Falls back to Operational when no keywords match.
  */
-const defaultCategoryFor = (name: string): DataCategory => {
+const defaultCategoriesFor = (name: string): DataCategory[] => {
   const lower = name.toLowerCase()
-  if (/(soil|nrm|sample|ph\b)/.test(lower)) return 'soil-sampling'
+  const out: DataCategory[] = []
+  if (/(soil|nrm|sample|ph\b)/.test(lower)) out.push('soil-sampling')
   if (/(crop|sow|sowing|harvest|yield|variety|cropping)/.test(lower))
-    return 'cropping'
-  return 'operational'
+    out.push('cropping')
+  if (out.length === 0) out.push('operational')
+  return out
 }
 
 /** Human label for the underlying source-file type. CSV and Excel collapse
@@ -65,8 +68,8 @@ export type CategoriseFilesModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   files: UploadedFile[]
-  /** Fired when the user confirms — receives the file-id → category map. */
-  onConfirm: (categories: Record<string, DataCategory>) => void
+  /** Fired when the user confirms — receives the file-id → categories map. */
+  onConfirm: (categories: Record<string, DataCategory[]>) => void
 }
 
 export const CategoriseFilesModal = ({
@@ -79,13 +82,13 @@ export const CategoriseFilesModal = ({
   // with a new set of files. We key on file id so the dropdown state survives
   // re-renders within a single modal session.
   const seed = useMemo(() => {
-    const out: Record<string, DataCategory> = {}
-    for (const f of files) out[f.id] = defaultCategoryFor(f.name)
+    const out: Record<string, DataCategory[]> = {}
+    for (const f of files) out[f.id] = defaultCategoriesFor(f.name)
     return out
   }, [files])
 
   const [categories, setCategories] =
-    useState<Record<string, DataCategory>>(seed)
+    useState<Record<string, DataCategory[]>>(seed)
 
   // Re-seed whenever the file list itself changes (open → close → reopen
   // with different files). Without this the dropdown would keep the stale
@@ -94,7 +97,7 @@ export const CategoriseFilesModal = ({
     setCategories(seed)
   }, [seed])
 
-  const setCategory = (id: string, next: DataCategory) => {
+  const setCategory = (id: string, next: DataCategory[]) => {
     setCategories((curr) => ({ ...curr, [id]: next }))
   }
 
@@ -111,48 +114,36 @@ export const CategoriseFilesModal = ({
         </Button>
       }
     >
-      <div className="flex flex-col gap-2">
-        {/* Column headers — widths mirror the rows below. */}
-        <div className="flex items-center gap-4 px-4">
-          <div className="flex-1 min-w-0 text-sm font-semibold text-text-secondary">
-            File
-          </div>
-          <div className="w-[180px] shrink-0 text-sm font-semibold text-text-secondary">
-            File type
-          </div>
-          <div className="w-[200px] shrink-0 text-sm font-semibold text-text-secondary">
-            Type of data
-          </div>
-        </div>
-
-        <ul className="flex flex-col gap-3">
-          {files.map((file) => (
-            <li
-              key={file.id}
-              className="flex items-center gap-4 rounded-lg border-2 border-border-tertiary px-4 py-3"
-            >
-              <div className="flex flex-1 min-w-0 items-center gap-3">
-                <FileGlyph />
-                <p className="text-md font-semibold text-text-primary truncate">
+      <ul className="flex flex-col gap-3">
+        {files.map((file) => (
+          <li
+            key={file.id}
+            className="flex items-center justify-between gap-4 rounded-lg border-2 border-border-tertiary px-4 py-3"
+          >
+            <div className="flex min-w-0 basis-1/2 items-center gap-3">
+              <FileGlyph />
+              <div className="flex min-w-0 flex-col">
+                <p className="truncate text-md font-semibold text-text-primary">
                   {file.name}
                 </p>
+                <p className="truncate text-xs text-text-secondary">
+                  {FILE_KIND_LABEL[file.kind]}
+                </p>
               </div>
-              <div className="w-[180px] shrink-0 text-md text-text-secondary">
-                {FILE_KIND_LABEL[file.kind]}
-              </div>
-              <div className="w-[200px] shrink-0">
-                <Select<DataCategory>
-                  aria-label={`Type of data for ${file.name}`}
-                  value={categories[file.id] ?? 'operational'}
-                  onValueChange={(next) => next && setCategory(file.id, next)}
-                  items={CATEGORY_OPTIONS}
-                  clearable={false}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+            </div>
+            <div className="min-w-0 basis-1/2">
+              <MultiSelect<DataCategory>
+                aria-label={`Type of data for ${file.name}`}
+                value={categories[file.id] ?? []}
+                onValueChange={(next) => setCategory(file.id, next)}
+                items={CATEGORY_OPTIONS}
+                variant="pills"
+                placeholder="Select types…"
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
     </Modal>
   )
 }

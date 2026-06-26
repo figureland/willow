@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 
 export type WizardStepStatus = 'upcoming' | 'current' | 'complete'
 
@@ -65,13 +65,27 @@ export const WizardStepper = ({
 }: WizardStepperProps) => {
   const furthestIdx = furthest ?? current
   const vertical = direction === 'vertical'
+
+  // Horizontal stepper scrolls when it overflows. Keep the active step
+  // pinned to the left edge so the user can always see what's next.
+  const activeRef = useRef<HTMLLIElement | null>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-fire on step change
+  useEffect(() => {
+    if (vertical) return
+    activeRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'start',
+      block: 'nearest',
+    })
+  }, [current, vertical])
+
   return (
     <ol
       aria-label="Progress"
       className={clsx(
         vertical
           ? 'flex flex-col gap-1'
-          : 'flex flex-wrap items-center gap-x-3 gap-y-2',
+          : 'flex flex-nowrap items-center gap-x-3 overflow-x-auto',
         className,
       )}
     >
@@ -80,10 +94,14 @@ export const WizardStepper = ({
         const clickable =
           !!onStepClick && (status === 'complete' || status === 'current')
         const number = step.number ?? i + 1
+        const isActive = status === 'current'
         return (
           <li
             key={step.id}
-            className={clsx(vertical ? 'flex' : 'flex items-center gap-3')}
+            ref={isActive ? activeRef : undefined}
+            className={clsx(
+              vertical ? 'flex' : 'flex shrink-0 items-center gap-3',
+            )}
           >
             <button
               type="button"

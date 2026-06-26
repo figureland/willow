@@ -1,7 +1,8 @@
+import { Popover as BasePopover } from '@base-ui/react/popover'
 import clsx from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './Button'
-import { type WizardStep, WizardStepper } from './WizardStepper'
+import type { WizardStep } from './WizardStepper'
 
 export type WizardStepConfig = WizardStep & {
   /** Content rendered when the step is active. */
@@ -125,12 +126,27 @@ export const WizardLayout = ({
 
   return (
     <div className={clsx('flex flex-1 min-h-0 flex-col', className)}>
-      {/* Top bar — spans the full width above the rail + content. */}
+      {/* Top bar — title + step picker on the left, secondary actions on
+          the right. The dedicated stepper row below has been collapsed
+          into the StepPicker popover so the body gets more vertical
+          space. */}
       <header className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-6">
         <div className="flex items-center gap-4">
-          <h1 className="flex-1 min-w-0 truncate text-2xl font-semibold leading-9 text-text-primary">
-            {title}
-          </h1>
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <h1 className="min-w-0 truncate text-2xl font-semibold leading-9 text-text-primary">
+              {title}
+            </h1>
+            <StepPicker
+              steps={steps.map(({ id, label, number }) => ({
+                id,
+                label,
+                number,
+              }))}
+              currentIndex={currentIndex}
+              furthestIndex={furthestIndex}
+              onSelect={(i) => goToStep(i)}
+            />
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             {onCancel ? (
               <Button variant="ghost" onClick={onCancel}>
@@ -145,21 +161,6 @@ export const WizardLayout = ({
           </div>
         </div>
       </header>
-
-      {/* Horizontal stepper — sits in its own thin row directly below the
-          title bar so the main step body gets the full page width. */}
-      <div className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
-        <WizardStepper
-          steps={steps.map(({ id, label, number }) => ({
-            id,
-            label,
-            number,
-          }))}
-          current={currentIndex}
-          furthest={furthestIndex}
-          onStepClick={(i) => goToStep(i)}
-        />
-      </div>
 
       {/* Body — main step content fills the rest of the column. */}
       <div className="flex flex-1 min-h-0 flex-col">
@@ -212,3 +213,127 @@ export const WizardLayout = ({
     </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* StepPicker — single button + popover replacing the inline stepper           */
+/* -------------------------------------------------------------------------- */
+
+type StepPickerProps = {
+  steps: WizardStep[]
+  currentIndex: number
+  furthestIndex: number
+  onSelect: (index: number) => void
+}
+
+const StepPicker = ({
+  steps,
+  currentIndex,
+  furthestIndex,
+  onSelect,
+}: StepPickerProps) => {
+  const [open, setOpen] = useState(false)
+  const current = steps[currentIndex]
+  const number = current.number ?? currentIndex + 1
+  return (
+    <BasePopover.Root open={open} onOpenChange={setOpen}>
+      <BasePopover.Trigger
+        className={clsx(
+          'inline-flex min-w-0 items-center gap-2 rounded-md border-2 border-border-tertiary bg-bg-primary px-3 py-1.5',
+          'text-md font-medium text-text-primary transition-colors',
+          'hover:bg-bg-tertiary',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+          'data-[popup-open]:bg-bg-tertiary',
+        )}
+      >
+        <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-pill bg-bg-brand-primary text-xs font-semibold tracking-[0.15px] text-text-primary-inverse">
+          {number}
+        </span>
+        <span className="min-w-0 truncate">{current.label}</span>
+        <ChevronDown />
+      </BasePopover.Trigger>
+
+      <BasePopover.Portal>
+        <BasePopover.Positioner
+          sideOffset={6}
+          align="start"
+          className="z-30 outline-none"
+        >
+          <BasePopover.Popup
+            className={clsx(
+              'z-30 min-w-[260px] overflow-hidden rounded-md border-2 border-border-secondary bg-bg-primary p-1',
+              'shadow-[0_8px_8px_-2px_rgba(0,0,0,0.05)]',
+              'origin-[var(--transform-origin)] transition-opacity duration-150 ease-out',
+              'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
+            )}
+          >
+            <ol aria-label="Steps" className="flex flex-col">
+              {steps.map((s, i) => {
+                const isCurrent = i === currentIndex
+                const isComplete = i <= furthestIndex && !isCurrent
+                const isReachable = i <= furthestIndex || isCurrent
+                const n = s.number ?? i + 1
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      aria-current={isCurrent ? 'step' : undefined}
+                      disabled={!isReachable}
+                      onClick={() => {
+                        onSelect(i)
+                        setOpen(false)
+                      }}
+                      className={clsx(
+                        'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-md transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+                        isReachable
+                          ? 'cursor-pointer hover:bg-bg-tertiary'
+                          : 'cursor-not-allowed text-text-secondary',
+                        isCurrent && 'bg-bg-tertiary font-medium',
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={clsx(
+                          'inline-flex size-5 shrink-0 items-center justify-center rounded-pill text-xs font-semibold tracking-[0.15px]',
+                          isCurrent &&
+                            'bg-bg-brand-primary text-text-primary-inverse',
+                          isComplete && 'bg-sandy-100 text-text-brand-dark',
+                          !isCurrent &&
+                            !isComplete &&
+                            'bg-bg-tertiary text-text-secondary',
+                        )}
+                      >
+                        {n}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{s.label}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </BasePopover.Popup>
+        </BasePopover.Positioner>
+      </BasePopover.Portal>
+    </BasePopover.Root>
+  )
+}
+
+const ChevronDown = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+    className="shrink-0 text-icon-primary"
+  >
+    <path
+      d="M6 9l6 6 6-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)

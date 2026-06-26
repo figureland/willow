@@ -66,8 +66,8 @@ export const DataTable = <Row extends Record<string, unknown>>({
        * outer one.
        */
       autoHeight
-      columnHeaderHeight={56}
-      rowHeight={52}
+      columnHeaderHeight={40}
+      rowHeight={36}
       initialState={{
         pagination: { paginationModel: { pageSize: defaultPageSize, page: 0 } },
         ...initialState,
@@ -115,13 +115,14 @@ const tableSx = {
    * element, double specificity, no need for `!important`.
    */
   '& .MuiDataGrid-columnHeader.MuiDataGrid-columnHeader': {
-    paddingInline: '24px',
+    paddingInline: '12px',
     color: 'var(--color-text-secondary)',
     fontFamily: 'inherit',
     fontWeight: 500,
-    fontSize: '16px',
-    lineHeight: '24px',
+    fontSize: '12px',
+    lineHeight: '16px',
     letterSpacing: '0.15px',
+    textTransform: 'uppercase',
     outline: 'none',
   },
   '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 500 },
@@ -167,12 +168,12 @@ const tableSx = {
     backgroundColor: 'var(--color-support-bg-amber)',
   },
   '& .MuiDataGrid-cell.MuiDataGrid-cell': {
-    paddingInline: '24px',
-    paddingBlock: '10px',
+    paddingInline: '12px',
+    paddingBlock: '6px',
     color: 'var(--color-text-primary)',
     fontFamily: 'inherit',
-    fontSize: '16px',
-    lineHeight: '24px',
+    fontSize: '14px',
+    lineHeight: '20px',
     borderTop: 'none',
     borderBottom: 'none',
     outline: 'none !important',

@@ -71,10 +71,10 @@ const ChevronTail = () => (
     aria-hidden="true"
     className={clsx(
       'absolute top-1/2 -translate-y-1/2 right-3 pointer-events-none',
-      'size-5 grid place-items-center text-icon-primary',
+      'size-4 grid place-items-center text-icon-primary',
     )}
   >
-    <ChevronIcon />
+    <ChevronIcon size={14} />
   </span>
 )
 
@@ -85,9 +85,9 @@ const ClearTail = ({
   ariaLabel: string
   onClear: () => void
 }) => (
-  // Right offset = trigger right pad (12px) + chevron (20px) + 8px breathing
-  // room = 40px.
-  <div className="absolute top-1/2 -translate-y-1/2 right-[40px] flex items-center gap-2">
+  // Right offset = trigger right pad (12px) + chevron (16px) + 6px breathing
+  // room = 34px. No divider — the gap alone separates the two glyphs.
+  <div className="absolute top-1/2 -translate-y-1/2 right-[34px] flex items-center">
     <button
       type="button"
       aria-label={ariaLabel}
@@ -96,15 +96,14 @@ const ClearTail = ({
         onClear()
       }}
       className={clsx(
-        'size-5 grid place-items-center rounded-sm',
+        'size-4 grid place-items-center rounded-sm',
         'text-icon-secondary hover:text-icon-primary',
         'hover:bg-bg-tertiary transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
       )}
     >
-      <ClearIcon />
+      <ClearIcon size={14} />
     </button>
-    <span aria-hidden="true" className="h-5 w-px bg-border-secondary" />
   </div>
 )
 
@@ -177,8 +176,15 @@ export type MultiSelectProps<Value extends string = string> =
     defaultValue?: Value[]
     onValueChange?: (value: Value[]) => void
     /**
+     * Trigger visual:
+     * - `'compact'` (default): single-line label, "N selected" when many.
+     * - `'pills'`: each selection rendered as a removable pill that wraps
+     *   inside the trigger and pushes its height down.
+     */
+    variant?: 'compact' | 'pills'
+    /**
      * Label rendered in the trigger when one or more options are selected.
-     * Defaults to "N selected".
+     * Defaults to "N selected". Ignored when `variant === 'pills'`.
      */
     formatSelected?: (selected: SelectOption<Value>[]) => ReactNode
     /**
@@ -252,8 +258,8 @@ const triggerSurface = ({
   clsx(
     'group/select-trigger relative w-full flex items-center gap-2',
     // Right padding reserves room for the absolutely-positioned chevron
-    // (always rendered, 20px box + 12px from edge = 32px). When the clear
-    // tail is also shown the trigger gets `pr-[80px]` from the call site.
+    // (always rendered, 16px box + 12px from edge = 28px). When the clear
+    // tail is also shown the trigger gets `pr-[64px]` from the call site.
     'pl-3.5 pr-9 py-2 rounded-md border-2 bg-bg-primary',
     'text-md tracking-[0.25px] outline-none transition-colors',
     isPlaceholder ? 'text-text-placeholder' : 'text-text-primary',
@@ -456,7 +462,7 @@ export const Select = <Value extends string = string>({
               triggerSurface({ state, isPlaceholder: !selected }),
               // Reserve room for the clear tail (button + divider) sitting
               // between the text and the always-rendered chevron.
-              showClear && 'pr-[80px]',
+              showClear && 'pr-[64px]',
             )}
           >
             <span className="flex-1 min-w-0 text-left truncate">
@@ -546,6 +552,58 @@ const SingleItem = <V extends string>({
 )
 
 /* -------------------------------------------------------------------------- */
+/* Pill — used by the MultiSelect `pills` variant                              */
+/* -------------------------------------------------------------------------- */
+
+type SelectionPillProps = {
+  label: ReactNode
+  onRemove: () => void
+  removeAriaLabel: string
+  disabled?: boolean
+}
+
+const SelectionPill = ({
+  label,
+  onRemove,
+  removeAriaLabel,
+  disabled,
+}: SelectionPillProps) => (
+  <span
+    className={clsx(
+      'inline-flex items-center gap-1 max-w-full rounded-full',
+      'bg-bg-tertiary text-text-primary',
+      'pl-2 pr-0.5 py-0.5 text-xs font-medium tracking-[0.25px]',
+      disabled && 'opacity-60',
+    )}
+  >
+    <span className="truncate">{label}</span>
+    {disabled ? null : (
+      <button
+        type="button"
+        aria-label={removeAriaLabel}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove()
+        }}
+        onPointerDown={(e) => {
+          // Prevent Base UI's trigger from receiving the pointerdown and
+          // toggling the popup before our click handler runs.
+          e.stopPropagation()
+        }}
+        className={clsx(
+          'size-4 grid place-items-center rounded-full',
+          'text-icon-secondary hover:text-icon-primary',
+          'hover:bg-bg-secondary transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+        )}
+      >
+        <ClearIcon />
+      </button>
+    )}
+  </span>
+)
+
+/* -------------------------------------------------------------------------- */
 /* Multi-value Select (Base UI Select with multiple=true + checkboxes)         */
 /* -------------------------------------------------------------------------- */
 
@@ -568,6 +626,7 @@ export const MultiSelect = <Value extends string = string>({
   className,
   width,
   ref,
+  variant = 'compact',
   formatSelected,
   selectableGroups = false,
   clearable = true,
@@ -606,6 +665,7 @@ export const MultiSelect = <Value extends string = string>({
       ? 'error'
       : 'default'
 
+  const isPills = variant === 'pills'
   const triggerLabel: ReactNode =
     selectedOptions.length === 0
       ? placeholder
@@ -614,6 +674,13 @@ export const MultiSelect = <Value extends string = string>({
         : selectedOptions.length === 1
           ? selectedOptions[0].label
           : `${selectedOptions.length} selected`
+
+  const removeValue = (target: Value) =>
+    commitValue(currentValue.filter((v) => v !== target))
+
+  // Controlled open state so we can expand the popup on focus or as soon as
+  // the user starts typing a printable character into the trigger.
+  const [open, setOpen] = useState(false)
 
   return (
     <FieldShell
@@ -628,8 +695,10 @@ export const MultiSelect = <Value extends string = string>({
         multiple
         value={currentValue}
         onValueChange={(next) => commitValue(next as Value[])}
-        onOpenChange={(open) => {
-          if (!open) setQuery('')
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setQuery('')
         }}
         disabled={disabled}
         required={required}
@@ -639,20 +708,61 @@ export const MultiSelect = <Value extends string = string>({
         <div className="relative">
           <BaseSelect.Trigger
             ref={ref}
+            onFocus={() => {
+              if (!disabled) setOpen(true)
+            }}
+            onKeyDown={(e) => {
+              // Open the popup as soon as the user starts typing, so the
+              // first character also lands in the in-popup search filter.
+              if (
+                !open &&
+                !disabled &&
+                e.key.length === 1 &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+              ) {
+                setOpen(true)
+                if (searchable) setQuery(e.key)
+                e.preventDefault()
+              }
+            }}
             className={clsx(
               triggerSurface({
                 state,
                 isPlaceholder: selectedOptions.length === 0,
               }),
+              // Pills can grow vertically — align contents to the top so the
+              // chevron + clear tail (absolutely centred) sit nicely against
+              // the first row of pills.
+              isPills && selectedOptions.length > 0 && 'items-start py-1.5',
               clearable &&
                 selectedOptions.length > 0 &&
                 !disabled &&
-                'pr-[80px]',
+                'pr-[64px]',
             )}
           >
-            <span className="flex-1 min-w-0 text-left truncate">
-              {triggerLabel}
-            </span>
+            {isPills && selectedOptions.length > 0 ? (
+              <span className="flex flex-1 min-w-0 flex-wrap items-center gap-1.5 text-left">
+                {selectedOptions.map((option) => (
+                  <SelectionPill
+                    key={option.value}
+                    label={option.label}
+                    onRemove={() => removeValue(option.value)}
+                    removeAriaLabel={`Remove ${
+                      typeof option.label === 'string'
+                        ? option.label
+                        : option.value
+                    }`}
+                    disabled={disabled}
+                  />
+                ))}
+              </span>
+            ) : (
+              <span className="flex-1 min-w-0 text-left truncate">
+                {triggerLabel}
+              </span>
+            )}
           </BaseSelect.Trigger>
 
           <ChevronTail />
