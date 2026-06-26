@@ -24,7 +24,7 @@ export type WizardStepConfig = WizardStep & {
    * then open a modal, run a side-effect, etc. Return `true` or `undefined`
    * to let the layout advance normally.
    */
-  onContinue?: () => boolean | void | Promise<boolean | void>
+  onContinue?: () => boolean | undefined | Promise<boolean | undefined>
   /**
    * Hide the layout's Continue button entirely on this step. Use when the
    * step owns its own primary CTA (e.g. a "Save to Sandy" button) and the

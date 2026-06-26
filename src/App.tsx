@@ -19,6 +19,7 @@ import {
   OrganisationOverview,
 } from './pages/my-farms'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ValidationErrorsPage } from './pages/validation-errors/ValidationErrorsPage'
 
 export const App = () => (
   <PasscodeGate>
@@ -91,6 +92,7 @@ export const App = () => (
         <Route path="/data-upload/:stepId" element={<DataUploadWizard />} />
         <Route path="/design-system" element={<DesignSystemPage />} />
       </Route>
+      <Route path="/validation-errors" element={<ValidationErrorsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </PasscodeGate>
