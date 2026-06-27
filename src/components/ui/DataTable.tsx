@@ -167,6 +167,24 @@ const tableSx = {
   '& .MuiDataGrid-row.row-issue-warning:hover': {
     backgroundColor: 'var(--color-support-bg-amber)',
   },
+  // Severity-tinted cells. Consumers opt in via `cellClassName` returning
+  // `cell-issue-blocking` / `cell-issue-warning`. Used by Fix-issue cards to
+  // highlight the specific column(s) driving an issue.
+  '& .MuiDataGrid-cell.cell-issue-blocking': {
+    backgroundColor: 'var(--color-support-bg-red)',
+    fontWeight: 500,
+  },
+  '& .MuiDataGrid-cell.cell-issue-warning': {
+    backgroundColor: 'var(--color-support-bg-amber)',
+    fontWeight: 500,
+  },
+  // Severity-tinted column headers. Consumers opt in via `headerClassName`.
+  '& .MuiDataGrid-columnHeader.header-issue-blocking': {
+    backgroundColor: 'var(--color-support-bg-red)',
+  },
+  '& .MuiDataGrid-columnHeader.header-issue-warning': {
+    backgroundColor: 'var(--color-support-bg-amber)',
+  },
   '& .MuiDataGrid-cell.MuiDataGrid-cell': {
     paddingInline: '12px',
     paddingBlock: '6px',

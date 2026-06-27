@@ -1,24 +1,22 @@
 import clsx from 'clsx'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Badge } from '../../components/ui'
 import {
-  Badge,
-  DataTable,
-  type GridColDef,
-  IconSearch,
-  TextInput,
-} from '../../components/ui'
-import {
+  areaOf,
+  VALIDATION_AREA_LABEL,
+  VALIDATION_AREA_ORDER,
   VALIDATION_ERRORS,
   VALIDATION_SCOPE_LABEL,
   VALIDATION_SEVERITY_LABEL,
   VALIDATION_TYPE_LABEL,
+  type ValidationArea,
   type ValidationError,
   type ValidationSeverity,
   type ValidationType,
 } from './validation-errors'
 
 /* -------------------------------------------------------------------------- */
-/* ValidationErrorsPage — standalone reference of every validation Sandy fires*/
+/* ValidationPage — categories rail + sidebar list + detail panel             */
 /* -------------------------------------------------------------------------- */
 
 const SEVERITY_TONE: Record<ValidationSeverity, 'red' | 'orange'> = {
@@ -39,7 +37,7 @@ const TypeBadge = ({ type }: { type: ValidationType }) => (
 )
 
 /* -------------------------------------------------------------------------- */
-/* Filter pill row                                                             */
+/* Filter pills                                                                */
 /* -------------------------------------------------------------------------- */
 
 const FilterPills = <T extends string>({
@@ -94,165 +92,270 @@ const PillButton = ({
   </button>
 )
 
-/* -------------------------------------------------------------------------- */
-/* Column model                                                                */
-/* -------------------------------------------------------------------------- */
-
-type Row = ValidationError & { id: string }
-
-const COLUMNS: GridColDef<Row>[] = [
-  {
-    field: 'severity',
-    headerName: 'Severity',
-    width: 120,
-    renderCell: ({ row }) => <SeverityBadge severity={row.severity} />,
-    sortable: true,
-  },
-  {
-    field: 'type',
-    headerName: 'Validation type',
-    width: 160,
-    renderCell: ({ row }) => <TypeBadge type={row.type} />,
-    sortable: true,
-  },
-  {
-    field: 'scope',
-    headerName: 'Scope',
-    width: 130,
-    valueFormatter: (value: ValidationError['scope']) =>
-      VALIDATION_SCOPE_LABEL[value],
-  },
-  {
-    field: 'code',
-    headerName: 'Code',
-    width: 240,
-    renderCell: ({ row }) => (
-      <code className="font-mono text-xs text-text-secondary">{row.code}</code>
-    ),
-  },
-  {
-    field: 'title',
-    headerName: 'Title',
-    flex: 1,
-    minWidth: 200,
-  },
-  {
-    field: 'uxCopy',
-    headerName: 'UX copy',
-    flex: 1.5,
-    minWidth: 280,
-    renderCell: ({ row }) => (
-      <span className="block whitespace-normal text-sm leading-snug text-text-primary">
-        {row.uxCopy}
-      </span>
-    ),
-  },
-  {
-    field: 'messageTemplate',
-    headerName: 'Message template',
-    flex: 1,
-    minWidth: 240,
-    renderCell: ({ row }) => (
-      <code className="block whitespace-normal font-mono text-xs text-text-secondary">
-        {row.messageTemplate}
-      </code>
-    ),
-  },
-  {
-    field: 'trigger',
-    headerName: 'Trigger',
-    flex: 1.2,
-    minWidth: 240,
-    renderCell: ({ row }) => (
-      <span className="block whitespace-normal text-sm leading-snug text-text-secondary">
-        {row.trigger}
-      </span>
-    ),
-  },
-  {
-    field: 'actions',
-    headerName: 'Suggested actions',
-    flex: 1,
-    minWidth: 220,
-    sortable: false,
-    renderCell: ({ row }) => (
-      <div className="flex flex-wrap items-center gap-1">
-        {row.actions.map((action) => (
-          <Badge key={action.kind} tone="neutral" size="sm">
-            {action.label}
-          </Badge>
-        ))}
-      </div>
-    ),
-  },
-]
-
 const ALL_TYPES = Object.keys(VALIDATION_TYPE_LABEL) as ValidationType[]
 const ALL_SEVERITIES = Object.keys(
   VALIDATION_SEVERITY_LABEL,
 ) as ValidationSeverity[]
 
 /* -------------------------------------------------------------------------- */
+/* Categories rail (far left)                                                  */
+/* -------------------------------------------------------------------------- */
+
+const CategoriesRail = ({
+  areas,
+  active,
+  countByArea,
+  onSelect,
+}: {
+  areas: ValidationArea[]
+  active: ValidationArea
+  countByArea: Record<ValidationArea, number>
+  onSelect: (next: ValidationArea) => void
+}) => (
+  <nav
+    aria-label="Validation categories"
+    className="flex w-[200px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary"
+  >
+    <header className="border-b-2 border-border-tertiary px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        Categories
+      </p>
+    </header>
+    <ol className="flex flex-col gap-0.5 p-2">
+      {areas.map((area) => {
+        const count = countByArea[area]
+        const isActive = area === active
+        return (
+          <li key={area}>
+            <button
+              type="button"
+              onClick={() => onSelect(area)}
+              aria-current={isActive ? 'true' : undefined}
+              className={clsx(
+                'flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-md transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+                isActive
+                  ? 'bg-sandy-100 font-medium text-text-brand-dark'
+                  : 'text-text-primary hover:bg-bg-tertiary',
+              )}
+            >
+              <span>{VALIDATION_AREA_LABEL[area]}</span>
+              <span
+                className={clsx(
+                  'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                  isActive
+                    ? 'bg-bg-primary text-text-brand-dark'
+                    : 'bg-bg-tertiary text-text-secondary',
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ol>
+  </nav>
+)
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar list item                                                           */
+/* -------------------------------------------------------------------------- */
+
+type SidebarItemProps = {
+  error: ValidationError
+  active: boolean
+  onSelect: () => void
+}
+
+const SidebarItem = ({ error, active, onSelect }: SidebarItemProps) => (
+  <button
+    type="button"
+    onClick={onSelect}
+    aria-current={active ? 'true' : undefined}
+    className={clsx(
+      'flex w-full flex-col items-start gap-1.5 rounded-lg border-2 px-3 py-3 text-left transition-colors',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+      active
+        ? 'border-border-primary bg-bg-tertiary'
+        : 'border-transparent bg-bg-primary hover:border-border-tertiary hover:bg-bg-secondary',
+    )}
+  >
+    <span className="text-md font-medium leading-snug text-text-primary">
+      {error.title}
+    </span>
+    <code className="font-mono text-xs text-text-secondary">{error.code}</code>
+    <SeverityBadge severity={error.severity} />
+  </button>
+)
+
+/* -------------------------------------------------------------------------- */
+/* Detail panel                                                                */
+/* -------------------------------------------------------------------------- */
+
+const DetailRow = ({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+      {label}
+    </span>
+    {children}
+  </div>
+)
+
+const DetailPanel = ({ error }: { error: ValidationError }) => (
+  <article className="flex flex-col gap-6 rounded-xl bg-bg-primary p-6 shadow-sm">
+    <header className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <SeverityBadge severity={error.severity} />
+        <TypeBadge type={error.type} />
+        <Badge tone="neutral" size="sm">
+          {VALIDATION_SCOPE_LABEL[error.scope]}
+        </Badge>
+      </div>
+      <h2 className="text-2xl font-semibold text-text-primary">
+        {error.title}
+      </h2>
+      <code className="font-mono text-xs text-text-secondary">
+        {error.code}
+      </code>
+    </header>
+
+    <DetailRow label="UX copy">
+      <p className="text-md leading-relaxed text-text-primary">
+        {error.uxCopy}
+      </p>
+    </DetailRow>
+
+    <DetailRow label="Message template">
+      <code className="block whitespace-pre-wrap rounded-md border-2 border-border-tertiary bg-bg-secondary px-3 py-2 font-mono text-sm text-text-primary">
+        {error.messageTemplate}
+      </code>
+    </DetailRow>
+
+    <DetailRow label="Trigger">
+      <p className="text-md leading-relaxed text-text-secondary">
+        {error.trigger}
+      </p>
+    </DetailRow>
+
+    {error.example ? (
+      <DetailRow label="Example">
+        <p className="text-md leading-relaxed text-text-secondary">
+          {error.example}
+        </p>
+      </DetailRow>
+    ) : null}
+
+    <DetailRow label="Suggested actions">
+      <div className="flex flex-wrap items-center gap-2">
+        {error.actions.map((action) => (
+          <Badge key={action.kind} tone="neutral" size="md">
+            {action.label}
+          </Badge>
+        ))}
+      </div>
+    </DetailRow>
+
+    {error.tags && error.tags.length > 0 ? (
+      <DetailRow label="Tags">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {error.tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center rounded-full bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      </DetailRow>
+    ) : null}
+  </article>
+)
+
+/* -------------------------------------------------------------------------- */
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
 export const ValidationErrorsPage = () => {
-  const [query, setQuery] = useState('')
+  // Counts per area drive the badges on the categories rail.
+  const countByArea = useMemo(() => {
+    const counts: Record<ValidationArea, number> = {
+      refinement: 0,
+      fixes: 0,
+      completeness: 0,
+      anomalies: 0,
+    }
+    for (const e of VALIDATION_ERRORS) counts[areaOf(e)] += 1
+    return counts
+  }, [])
+
+  // Default to the first area that has any validations (Fixes, today).
+  const [activeArea, setActiveArea] = useState<ValidationArea>(
+    () =>
+      VALIDATION_AREA_ORDER.find((a) => countByArea[a] > 0) ??
+      VALIDATION_AREA_ORDER[0],
+  )
+
   const [typeFilter, setTypeFilter] = useState<ValidationType | 'all'>('all')
   const [severityFilter, setSeverityFilter] = useState<
     ValidationSeverity | 'all'
   >('all')
 
-  const rows: Row[] = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return VALIDATION_ERRORS.filter((e) => {
-      if (typeFilter !== 'all' && e.type !== typeFilter) return false
-      if (severityFilter !== 'all' && e.severity !== severityFilter)
-        return false
-      if (!q) return true
-      return (
-        e.code.toLowerCase().includes(q) ||
-        e.title.toLowerCase().includes(q) ||
-        e.uxCopy.toLowerCase().includes(q) ||
-        e.messageTemplate.toLowerCase().includes(q) ||
-        e.trigger.toLowerCase().includes(q) ||
-        (e.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
-      )
-    }).map((e) => ({ ...e, id: e.code }))
-  }, [query, typeFilter, severityFilter])
+  const filtered = useMemo(
+    () =>
+      VALIDATION_ERRORS.filter((e) => {
+        if (areaOf(e) !== activeArea) return false
+        if (typeFilter !== 'all' && e.type !== typeFilter) return false
+        if (severityFilter !== 'all' && e.severity !== severityFilter)
+          return false
+        return true
+      }),
+    [activeArea, typeFilter, severityFilter],
+  )
+
+  // Selection state — defaults to the first item in the (filtered) list.
+  // When the active code falls out of the filter (e.g. user changed area),
+  // snap to the new first item so the detail pane never shows a hidden
+  // record.
+  const [activeCode, setActiveCode] = useState<string>(
+    () => filtered[0]?.code ?? '',
+  )
+  useEffect(() => {
+    if (filtered.length === 0) return
+    if (!filtered.some((e) => e.code === activeCode)) {
+      setActiveCode(filtered[0].code)
+    }
+  }, [filtered, activeCode])
+
+  const active = filtered.find((e) => e.code === activeCode)
 
   return (
-    <div className="min-h-screen bg-bg-secondary">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-8 py-10">
-        <header className="flex flex-col gap-2">
-          <p className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
-            Reference
-          </p>
-          <h1 className="text-3xl font-semibold text-text-primary">
-            Data-onboarding validation errors
-          </h1>
-          <p className="max-w-[820px] text-md text-text-secondary">
-            Every validation Sandy fires during upload, normalised onto one
-            envelope. Use this catalogue to wire new UI states, align server
-            messages, or look up the suggested action for a given code.
-          </p>
-        </header>
+    <div className="flex h-screen min-h-0 bg-bg-secondary">
+      <CategoriesRail
+        areas={VALIDATION_AREA_ORDER}
+        active={activeArea}
+        countByArea={countByArea}
+        onSelect={setActiveArea}
+      />
 
-        <section className="flex flex-col gap-3 rounded-xl bg-bg-primary p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="w-full max-w-[360px]">
-              <TextInput
-                value={query}
-                onValueChange={setQuery}
-                placeholder="Search code, title, copy, trigger…"
-                leadingIcon={<IconSearch />}
-                aria-label="Search validation errors"
-              />
-            </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <section className="flex flex-col gap-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-4">
+          <header className="flex items-baseline gap-3">
+            <h1 className="text-xl font-semibold text-text-primary">
+              {VALIDATION_AREA_LABEL[activeArea]}
+            </h1>
             <p className="text-sm text-text-secondary">
-              Showing {rows.length} of {VALIDATION_ERRORS.length} errors
+              {filtered.length}{' '}
+              {filtered.length === 1 ? 'validation' : 'validations'}
             </p>
-          </div>
+          </header>
           <div className="flex flex-col gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Validation type
@@ -277,15 +380,41 @@ export const ValidationErrorsPage = () => {
           </div>
         </section>
 
-        <DataTable
-          rows={rows}
-          columns={COLUMNS}
-          selectable={false}
-          defaultPageSize={rows.length || 1}
-          pageSizeOptions={[rows.length || 1]}
-          hideFooter
-          getRowHeight={() => 'auto'}
-        />
+        <div className="flex flex-1 min-h-0">
+          <aside className="flex w-[340px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary">
+            <ol className="flex-1 overflow-y-auto px-2 py-2">
+              {filtered.length === 0 ? (
+                <li className="px-3 py-6 text-sm text-text-secondary">
+                  No validations defined in {VALIDATION_AREA_LABEL[activeArea]}{' '}
+                  yet.
+                </li>
+              ) : (
+                filtered.map((e) => (
+                  <li key={e.code} className="py-0.5">
+                    <SidebarItem
+                      error={e}
+                      active={e.code === active?.code}
+                      onSelect={() => setActiveCode(e.code)}
+                    />
+                  </li>
+                ))
+              )}
+            </ol>
+          </aside>
+
+          <main className="flex-1 overflow-y-auto px-8 py-8">
+            {active ? (
+              <div className="mx-auto w-full max-w-[820px]">
+                <DetailPanel error={active} />
+              </div>
+            ) : (
+              <p className="text-md text-text-secondary">
+                No validations defined in {VALIDATION_AREA_LABEL[activeArea]}{' '}
+                yet.
+              </p>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   )

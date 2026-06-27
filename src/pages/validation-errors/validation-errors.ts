@@ -11,6 +11,38 @@
 export type ValidationSeverity = 'blocking' | 'warning'
 
 /**
+ * Top-level area of Sandy's onboarding flow this validation belongs to.
+ * Each area maps onto a step in the data-upload wizard:
+ *   - `refinement`  — Refine step (file structure, value mapping, unknown
+ *                     farms/fields).
+ *   - `fixes`       — Fix-issues step (row-level attribute, cross-field and
+ *                     cross-record rules — what this catalogue grew out of).
+ *   - `completeness`— Completeness step (missing optional data Sandy will
+ *                     otherwise have to assume).
+ *   - `anomalies`   — Anomaly-detection step (statistical / outlier checks
+ *                     against historical baselines).
+ */
+export type ValidationArea =
+  | 'refinement'
+  | 'fixes'
+  | 'completeness'
+  | 'anomalies'
+
+export const VALIDATION_AREA_ORDER: ValidationArea[] = [
+  'refinement',
+  'fixes',
+  'completeness',
+  'anomalies',
+]
+
+export const VALIDATION_AREA_LABEL: Record<ValidationArea, string> = {
+  refinement: 'Refinement',
+  fixes: 'Fixes',
+  completeness: 'Completeness',
+  anomalies: 'Anomalies',
+}
+
+/**
  * Where in Sandy's validation stack the rule lives. Mirrors Milad's
  * "business validation" vs "data point validation" qualification from the
  * brief, with a third bucket for purely structural / attribute checks.
@@ -51,6 +83,8 @@ export type ValidationAction =
 export type ValidationError = {
   /** Stable code — `<scope>.<rule>` so they're greppable and sortable. */
   code: string
+  /** Wizard area the validation lives in. Omit to default to `'fixes'`. */
+  area?: ValidationArea
   type: ValidationType
   severity: ValidationSeverity
   scope: ValidationScope
@@ -375,6 +409,10 @@ export const VALIDATION_ERRORS: ValidationError[] = [
 
 export const VALIDATION_BY_CODE: Record<string, ValidationError> =
   Object.fromEntries(VALIDATION_ERRORS.map((e) => [e.code, e]))
+
+/** Resolved area for an error — defaults to `'fixes'` when omitted. */
+export const areaOf = (error: ValidationError): ValidationArea =>
+  error.area ?? 'fixes'
 
 export const VALIDATION_TYPE_LABEL: Record<ValidationType, string> = {
   attribute: 'Attribute',

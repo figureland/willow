@@ -245,8 +245,8 @@ const StepPicker = ({
           'data-[popup-open]:bg-bg-tertiary',
         )}
       >
-        <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-pill bg-bg-brand-primary text-xs font-semibold tracking-[0.15px] text-text-primary-inverse">
-          {number}
+        <span className="inline-flex shrink-0 items-center rounded-pill bg-bg-brand-primary px-2 py-0.5 text-xs font-semibold tracking-[0.15px] text-text-primary-inverse">
+          Step {number}
         </span>
         <span className="min-w-0 truncate">{current.label}</span>
         <ChevronDown />
