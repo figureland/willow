@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { DataTable, type GridColDef } from '../../../components/ui'
 import { CROPPING_RECORDS, type CroppingRecord } from './fix-records'
 import { worstSeverity } from './row-issues'
+import { rowMatchesSeverity, useSeverityFilter } from './use-severity-filter'
 
 /* -------------------------------------------------------------------------- */
 /* Dense cropping grid — shows every cropping record in the upload            */
@@ -111,20 +113,27 @@ const COLUMNS: GridColDef<CroppingRecord>[] = [
   },
 ]
 
-export const CroppingTableView = () => (
-  <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-8 py-10">
-    <DataTable<CroppingRecord>
-      rows={CROPPING_RECORDS}
-      columns={COLUMNS}
-      selectable={false}
-      defaultPageSize={25}
-      pageSizeOptions={[25, 50, 100]}
-      getRowClassName={({ row }) => {
-        const sev = worstSeverity(row.issues)
-        if (sev === 'blocking') return 'row-issue-blocking'
-        if (sev === 'warning') return 'row-issue-warning'
-        return ''
-      }}
-    />
-  </div>
-)
+export const CroppingTableView = () => {
+  const filter = useSeverityFilter()
+  const rows = useMemo(
+    () => CROPPING_RECORDS.filter((r) => rowMatchesSeverity(r.issues, filter)),
+    [filter],
+  )
+  return (
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-8 py-10">
+      <DataTable<CroppingRecord>
+        rows={rows}
+        columns={COLUMNS}
+        selectable={false}
+        defaultPageSize={25}
+        pageSizeOptions={[25, 50, 100]}
+        getRowClassName={({ row }) => {
+          const sev = worstSeverity(row.issues)
+          if (sev === 'blocking') return 'row-issue-blocking'
+          if (sev === 'warning') return 'row-issue-warning'
+          return ''
+        }}
+      />
+    </div>
+  )
+}

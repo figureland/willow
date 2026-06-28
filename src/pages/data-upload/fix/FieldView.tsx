@@ -10,6 +10,7 @@ import {
   type OperationRecord,
 } from './fix-records'
 import { ISSUE_DEFAULTS, type RowIssue, worstSeverity } from './row-issues'
+import { rowMatchesSeverity, useSeverityFilter } from './use-severity-filter'
 
 /* -------------------------------------------------------------------------- */
 /* Status pill                                                                 */
@@ -397,20 +398,59 @@ const FieldList = ({
 /* FieldView                                                                   */
 /* -------------------------------------------------------------------------- */
 
+const countIssuesInRows = (rows: { issues: RowIssue[] }[]): number =>
+  rows.reduce((sum, r) => sum + r.issues.length, 0)
+
+/**
+ * Apply the severity filter to a field: keep only records whose worst issue
+ * matches, then recompute issue counts so headers + sidebar reflect what the
+ * user is actually looking at. Returns null if nothing in the field matches.
+ */
+const filterField = (
+  field: FieldSummary,
+  filter: ReturnType<typeof useSeverityFilter>,
+): FieldSummary | null => {
+  if (filter === 'all') return field
+  const croppingRecords = field.croppingRecords.filter((r) =>
+    rowMatchesSeverity(r.issues, filter),
+  )
+  const operationRecords = field.operationRecords.filter((r) =>
+    rowMatchesSeverity(r.issues, filter),
+  )
+  if (croppingRecords.length === 0 && operationRecords.length === 0) return null
+  return {
+    ...field,
+    croppingRecords,
+    operationRecords,
+    croppingIssueCount: countIssuesInRows(croppingRecords),
+    operationIssueCount: countIssuesInRows(operationRecords),
+  }
+}
+
 export const FieldView = () => {
+  const filter = useSeverityFilter()
+  const fields = useMemo(() => {
+    const out: FieldSummary[] = []
+    for (const f of FIELD_SUMMARIES) {
+      const filtered = filterField(f, filter)
+      if (filtered) out.push(filtered)
+    }
+    return out
+  }, [filter])
+
   const [activeName, setActiveName] = useState<string | null>(
     FIELD_SUMMARIES[0]?.name ?? null,
   )
   const activeField =
-    FIELD_SUMMARIES.find((f) => f.name === activeName) ?? FIELD_SUMMARIES[0]
+    fields.find((f) => f.name === activeName) ?? fields[0] ?? null
 
   return (
     <div className="flex flex-1 min-h-0">
       <aside className="flex w-[30%] min-w-[260px] max-w-[420px] flex-col border-r-2 border-border-tertiary bg-bg-primary">
         <div className="flex-1 overflow-y-auto">
           <FieldList
-            fields={FIELD_SUMMARIES}
-            activeName={activeName}
+            fields={fields}
+            activeName={activeField?.name ?? null}
             onSelect={setActiveName}
           />
         </div>
@@ -419,7 +459,9 @@ export const FieldView = () => {
         {activeField ? (
           <FieldDetails field={activeField} />
         ) : (
-          <p className="text-md text-text-secondary">No fields available.</p>
+          <p className="text-md text-text-secondary">
+            No fields match the current filter.
+          </p>
         )}
       </section>
     </div>

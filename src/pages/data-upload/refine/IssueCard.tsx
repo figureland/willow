@@ -198,6 +198,7 @@ export const IssueCard = ({
           placeholder={describe.placeholder}
           hint={describe.hint}
           onApply={() => onCommit(describe.apply(state))}
+          portal
         />
       ) : null}
     </article>
