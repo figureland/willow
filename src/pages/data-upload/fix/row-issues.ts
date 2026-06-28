@@ -3,42 +3,22 @@
 /* -------------------------------------------------------------------------- */
 
 /**
- * Severity tiers. `blocking` issues must be fixed before the upload can
- * commit; `warning` issues are advisory and don't gate progress.
+ * Issue codes + their default severity/label come from the central
+ * validation catalogue (`src/validations`). The `fixDefaults` lookup is a
+ * derived projection — keeping copy in sync without duplication.
  */
-export type IssueSeverity = 'blocking' | 'warning'
 
-/**
- * Static catalogue of issue codes. Each entry pairs a stable code with a
- * default severity and a sentence template; templates accept `{col}` and
- * `{value}` placeholders that the formatter substitutes at render time.
- *
- * Keep the codes stable — they're persisted with the row and drive the
- * fix-modal's per-code adapter (later batch).
- */
-export type IssueCode =
-  // Attribute-level
-  | 'required-missing'
-  | 'max-length-exceeded'
-  | 'year-invalid'
-  | 'date-invalid'
-  | 'positive-int-required'
-  | 'decimal-out-of-range'
-  // Reference-table
-  | 'crop-type-unknown'
-  // Cross-field (data-point logic)
-  | 'planting-after-harvest'
-  | 'harvest-gt-total'
-  | 'yield-zero'
-  // Cross-area
-  | 'crop-area-exceeds-field'
-  // Cross-record (business logic)
-  | 'duplicate-cropping'
-  | 'duplicate-operation'
-  | 'duplicate-fertiliser'
-  | 'duplicate-farm'
-  | 'orphan-operation'
-  | 'deletion-not-allowed'
+import {
+  type FixIssueCode,
+  fixDefaults,
+} from '../../../validations/fixes/code-mapping'
+import type { ValidationSeverity } from '../../../validations/types'
+
+/** Severity tiers — re-exported from the central catalogue. */
+export type IssueSeverity = ValidationSeverity
+
+/** Stable, short Fix-step issue code. Mirrors `FixIssueCode` 1:1. */
+export type IssueCode = FixIssueCode
 
 export type RowIssue = {
   code: IssueCode
@@ -51,76 +31,12 @@ export type RowIssue = {
   detail?: string
 }
 
-/* -------------------------------------------------------------------------- */
-/* Catalogue — default severity per code                                       */
-/* -------------------------------------------------------------------------- */
-
-export const ISSUE_DEFAULTS: Record<
-  IssueCode,
-  { severity: IssueSeverity; label: string }
-> = {
-  'required-missing': {
-    severity: 'blocking',
-    label: 'Required value missing',
-  },
-  'max-length-exceeded': {
-    severity: 'blocking',
-    label: 'Value too long',
-  },
-  'year-invalid': { severity: 'blocking', label: 'Invalid year' },
-  'date-invalid': { severity: 'blocking', label: 'Invalid date format' },
-  'positive-int-required': {
-    severity: 'blocking',
-    label: 'Number must be greater than 0',
-  },
-  'decimal-out-of-range': {
-    severity: 'blocking',
-    label: 'Value out of allowed range',
-  },
-  'crop-type-unknown': {
-    severity: 'blocking',
-    label: 'Crop type not recognised',
-  },
-  'planting-after-harvest': {
-    severity: 'blocking',
-    label: 'Planting date after harvest',
-  },
-  'harvest-gt-total': {
-    severity: 'blocking',
-    label: 'Harvest yield greater than total',
-  },
-  'yield-zero': { severity: 'warning', label: 'Yield recorded as zero' },
-  'crop-area-exceeds-field': {
-    severity: 'warning',
-    label: 'Crop area exceeds field area',
-  },
-  // Cropping duplicates are blocking; operations / fertiliser dupes are
-  // warnings (Sandy accepts but flags them).
-  'duplicate-cropping': {
-    severity: 'blocking',
-    label: 'Duplicate cropping record',
-  },
-  'duplicate-operation': {
-    severity: 'warning',
-    label: 'Duplicate operation record',
-  },
-  'duplicate-fertiliser': {
-    severity: 'warning',
-    label: 'Duplicate fertiliser record',
-  },
-  'duplicate-farm': {
-    severity: 'blocking',
-    label: 'Farm already exists in Sandy',
-  },
-  'orphan-operation': {
-    severity: 'blocking',
-    label: 'No matching cropping record',
-  },
-  'deletion-not-allowed': {
-    severity: 'blocking',
-    label: 'Deletion is not allowed for this record',
-  },
-}
+/**
+ * Default severity + label per code — projected from the central catalogue
+ * via `FIX_CODE_TO_CATALOGUE`. Editing copy in the catalogue automatically
+ * flows through here.
+ */
+export const ISSUE_DEFAULTS = fixDefaults
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
@@ -136,8 +52,7 @@ export const worstSeverity = (
 
 /**
  * Build a single RowIssue from a code + column. Sentence templates here
- * are intentionally short — full plain-English copy lives in the fix
- * modal adapter.
+ * are intentionally short — full plain-English copy lives in the catalogue.
  */
 export const issueFor = (
   code: IssueCode,

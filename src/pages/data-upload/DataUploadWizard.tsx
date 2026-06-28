@@ -32,6 +32,17 @@ export const DATA_UPLOAD_STEP_IDS = [
 ] as readonly string[]
 
 /**
+ * Names coming out of the (mock) upload are deliberately typo'd so the demo
+ * surfaces the "did you mean…" suggestion path. The clean reference name
+ * still lives on EXISTING_FARMS / EXISTING_FIELDS for the suggestion.
+ */
+const typo = (name: string): string => {
+  const cleaned = name.trimEnd()
+  const drop = Math.min(cleaned.length - 1, 2 + (cleaned.length % 3))
+  return cleaned.slice(0, cleaned.length - drop).replace(/\s+$/, '')
+}
+
+/**
  * /data-upload/:stepId — six-step data upload flow. Each step is a real
  * route segment, so browser back/forward, history scrubbing and deep
  * links work natively. The bare `/data-upload` URL redirects to the first
@@ -51,6 +62,7 @@ export const DataUploadWizard = () => {
   // with 2+ entries into a single field-missing-batch issue (demonstrates
   // the "one decision for many fields" flow); single field errors stay as
   // standalone field-missing issues.
+  //
   const issues: Issue[] = useMemo(() => {
     const out: Issue[] = []
     for (const farm of summary.farmRows) {
@@ -65,7 +77,7 @@ export const DataUploadWizard = () => {
             id: `${farm.id}-farm`,
             type: 'farm-missing',
             title: 'Farm not recognised',
-            sourceName,
+            sourceName: typo(sourceName),
             existingFarms: EXISTING_FARMS,
           })
         } else {
@@ -77,7 +89,7 @@ export const DataUploadWizard = () => {
           id: `${farm.id}-fields-batch`,
           type: 'field-missing-batch',
           title: 'Fields not recognised',
-          sourceNames: fieldNames,
+          sourceNames: fieldNames.map(typo),
           suggestedFarmName: farm.name,
           existingFarms: EXISTING_FARMS,
         })
@@ -87,7 +99,7 @@ export const DataUploadWizard = () => {
             id: `${farm.id}-err-${i}`,
             type: 'field-missing',
             title: 'Field not recognised',
-            sourceName: fieldNames[i],
+            sourceName: typo(fieldNames[i]),
             farmName: farm.name,
             existingFields: EXISTING_FIELDS,
           })
@@ -132,20 +144,6 @@ export const DataUploadWizard = () => {
   // step navigation. The inbox in the Refine step is the only writer.
   const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
 
-  const resolvedCount = issues.filter((i) => {
-    const s = issueState[i.id]
-    if (!s) return false
-    const k = s.resolution.kind
-    if (k === 'pending' || k === 'ignore') return false
-    if (k === 'match-existing' && !s.resolution.value) return false
-    return true
-  }).length
-  const remaining = issues.length - resolvedCount
-  const continueLabel =
-    remaining === 0
-      ? 'Continue'
-      : `Fix ${remaining} ${remaining === 1 ? 'issue' : 'issues'}`
-
   // Lifted out of UploadStep so the wizard footer can gate Continue on at
   // least one file having been added and finished analysing.
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
@@ -186,16 +184,16 @@ export const DataUploadWizard = () => {
         label: 'Refine',
         content: (
           <ReviewStep
+            summary={summary}
             issues={issues}
             issueState={issueState}
             onIssueStateChange={setIssueState}
           />
         ),
-        // The inbox is the resolver — the wizard footer's Continue just
-        // advances when everything's been addressed.
-        canContinue: remaining === 0,
-        continueLabel: continueLabel,
+        // The Refine step renders its own carousel chrome + advance buttons,
+        // so hide the wizard footer entirely.
         bare: true,
+        hideFooter: true,
       },
       {
         id: 'fix',
@@ -220,14 +218,7 @@ export const DataUploadWizard = () => {
         hideContinue: true,
       },
     ],
-    [
-      continueLabel,
-      canContinueUpload,
-      uploadContinueLabel,
-      issues,
-      issueState,
-      remaining,
-    ],
+    [canContinueUpload, uploadContinueLabel, summary, issues, issueState],
   )
 
   // Redirect missing or unknown step ids to the start step. We do this in an

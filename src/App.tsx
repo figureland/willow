@@ -90,9 +90,21 @@ export const App = () => (
           element={<UploadSummaryPage />}
         />
         <Route path="/data-upload/:stepId" element={<DataUploadWizard />} />
+        <Route
+          path="/data-upload/:stepId/:panelId"
+          element={<DataUploadWizard />}
+        />
         <Route path="/design-system" element={<DesignSystemPage />} />
       </Route>
-      <Route path="/validation-errors" element={<ValidationErrorsPage />} />
+      <Route
+        path="/validation"
+        element={<Navigate to="/validation/list" replace />}
+      />
+      <Route path="/validation/:viewId" element={<ValidationErrorsPage />} />
+      <Route
+        path="/validation-errors"
+        element={<Navigate to="/validation/list" replace />}
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </PasscodeGate>

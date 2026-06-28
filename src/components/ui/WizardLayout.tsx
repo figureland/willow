@@ -33,6 +33,12 @@ export type WizardStepConfig = WizardStep & {
    */
   hideContinue?: boolean
   /**
+   * Hide the entire footer (Back + Continue) on this step. Use when the
+   * step renders its own navigation chrome (e.g. a carousel with its own
+   * advance buttons).
+   */
+  hideFooter?: boolean
+  /**
    * Render the step's content full-bleed — no padding around the body and
    * no inter-element gap. Use for steps that own their own outer chrome
    * (e.g. the inbox on the Refine step).
@@ -174,40 +180,42 @@ export const WizardLayout = ({
             {step.content}
           </main>
 
-          <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
-            <div className="flex items-center justify-between gap-2">
-              {/* Spacer keeps Continue right-aligned when Back is hidden. */}
-              {isFirst ? (
-                <span />
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => goToStep(currentIndex - 1)}
-                >
-                  Back
-                </Button>
-              )}
-              {step.hideContinue ? (
-                <span />
-              ) : (
-                <Button
-                  variant="primary"
-                  disabled={!canContinue}
-                  onClick={async () => {
-                    if (step.onContinue) {
-                      const result = await step.onContinue()
-                      // Explicit `false` means "I handled it, don't advance".
-                      if (result === false) return
-                    }
-                    if (isLast) onComplete?.()
-                    else goToStep(currentIndex + 1)
-                  }}
-                >
-                  {step.continueLabel ?? (isLast ? finishLabel : 'Continue')}
-                </Button>
-              )}
+          {step.hideFooter ? null : (
+            <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
+              <div className="flex items-center justify-between gap-2">
+                {/* Spacer keeps Continue right-aligned when Back is hidden. */}
+                {isFirst ? (
+                  <span />
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={() => goToStep(currentIndex - 1)}
+                  >
+                    Back
+                  </Button>
+                )}
+                {step.hideContinue ? (
+                  <span />
+                ) : (
+                  <Button
+                    variant="primary"
+                    disabled={!canContinue}
+                    onClick={async () => {
+                      if (step.onContinue) {
+                        const result = await step.onContinue()
+                        // Explicit `false` means "I handled it, don't advance".
+                        if (result === false) return
+                      }
+                      if (isLast) onComplete?.()
+                      else goToStep(currentIndex + 1)
+                    }}
+                  >
+                    {step.continueLabel ?? (isLast ? finishLabel : 'Continue')}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -245,7 +253,7 @@ const StepPicker = ({
           'data-[popup-open]:bg-bg-tertiary',
         )}
       >
-        <span className="inline-flex shrink-0 items-center rounded-pill bg-bg-brand-primary px-2 py-0.5 text-xs font-semibold tracking-[0.15px] text-text-primary-inverse">
+        <span className="inline-flex shrink-0 items-center rounded-pill bg-sandy-100 px-2 py-0.5 text-xs font-semibold tracking-[0.15px] text-text-brand-dark">
           Step {number}
         </span>
         <span className="min-w-0 truncate">{current.label}</span>

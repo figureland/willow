@@ -1,19 +1,22 @@
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
-import { Badge } from '../../components/ui'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Badge, SegmentedControl } from '../../components/ui'
 import {
   areaOf,
+  DATA_CATEGORY_LABEL,
+  REFINEMENT_TASK_LABEL,
   VALIDATION_AREA_LABEL,
   VALIDATION_AREA_ORDER,
+  VALIDATION_BY_CODE,
   VALIDATION_ERRORS,
-  VALIDATION_SCOPE_LABEL,
   VALIDATION_SEVERITY_LABEL,
   VALIDATION_TYPE_LABEL,
   type ValidationArea,
   type ValidationError,
   type ValidationSeverity,
-  type ValidationType,
 } from './validation-errors'
+import { KanbanView } from './views/KanbanView'
 
 /* -------------------------------------------------------------------------- */
 /* ValidationPage — categories rail + sidebar list + detail panel             */
@@ -29,73 +32,6 @@ const SeverityBadge = ({ severity }: { severity: ValidationSeverity }) => (
     {VALIDATION_SEVERITY_LABEL[severity]}
   </Badge>
 )
-
-const TypeBadge = ({ type }: { type: ValidationType }) => (
-  <Badge tone="neutral" size="sm">
-    {VALIDATION_TYPE_LABEL[type]}
-  </Badge>
-)
-
-/* -------------------------------------------------------------------------- */
-/* Filter pills                                                                */
-/* -------------------------------------------------------------------------- */
-
-const FilterPills = <T extends string>({
-  options,
-  value,
-  onChange,
-  labelFor,
-}: {
-  options: T[]
-  value: T | 'all'
-  onChange: (next: T | 'all') => void
-  labelFor: (option: T) => string
-}) => (
-  <div className="flex flex-wrap items-center gap-2">
-    <PillButton
-      active={value === 'all'}
-      onClick={() => onChange('all')}
-      label="All"
-    />
-    {options.map((option) => (
-      <PillButton
-        key={option}
-        active={value === option}
-        onClick={() => onChange(option)}
-        label={labelFor(option)}
-      />
-    ))}
-  </div>
-)
-
-const PillButton = ({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={clsx(
-      'inline-flex items-center rounded-full border-2 px-3 py-1 text-sm font-medium transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-      active
-        ? 'border-button-primary bg-button-primary text-text-primary-inverse'
-        : 'border-border-tertiary bg-bg-primary text-text-secondary hover:bg-bg-secondary',
-    )}
-  >
-    {label}
-  </button>
-)
-
-const ALL_TYPES = Object.keys(VALIDATION_TYPE_LABEL) as ValidationType[]
-const ALL_SEVERITIES = Object.keys(
-  VALIDATION_SEVERITY_LABEL,
-) as ValidationSeverity[]
 
 /* -------------------------------------------------------------------------- */
 /* Categories rail (far left)                                                  */
@@ -116,11 +52,6 @@ const CategoriesRail = ({
     aria-label="Validation categories"
     className="flex w-[200px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary"
   >
-    <header className="border-b-2 border-border-tertiary px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-        Categories
-      </p>
-    </header>
     <ol className="flex flex-col gap-0.5 p-2">
       {areas.map((area) => {
         const count = countByArea[area]
@@ -184,7 +115,6 @@ const SidebarItem = ({ error, active, onSelect }: SidebarItemProps) => (
     <span className="text-md font-medium leading-snug text-text-primary">
       {error.title}
     </span>
-    <code className="font-mono text-xs text-text-secondary">{error.code}</code>
     <SeverityBadge severity={error.severity} />
   </button>
 )
@@ -208,82 +138,287 @@ const DetailRow = ({
   </div>
 )
 
-const DetailPanel = ({ error }: { error: ValidationError }) => (
-  <article className="flex flex-col gap-6 rounded-xl bg-bg-primary p-6 shadow-sm">
-    <header className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <SeverityBadge severity={error.severity} />
-        <TypeBadge type={error.type} />
-        <Badge tone="neutral" size="sm">
-          {VALIDATION_SCOPE_LABEL[error.scope]}
-        </Badge>
-      </div>
-      <h2 className="text-2xl font-semibold text-text-primary">
-        {error.title}
-      </h2>
-      <code className="font-mono text-xs text-text-secondary">
-        {error.code}
-      </code>
-    </header>
+const DetailPanel = ({ error }: { error: ValidationError }) => {
+  const isRefinement = error.area === 'refinement'
+  const metaRows: Array<{ label: string; value: ReactNode }> = [
+    { label: 'Severity', value: <SeverityBadge severity={error.severity} /> },
+    { label: 'Type', value: VALIDATION_TYPE_LABEL[error.type] },
+  ]
+  if (error.dataCategories && error.dataCategories.length > 0) {
+    metaRows.push({
+      label:
+        error.dataCategories.length === 1 ? 'Data category' : 'Data categories',
+      value: error.dataCategories.map((c) => DATA_CATEGORY_LABEL[c]).join(', '),
+    })
+  }
+  if (error.refinementTask) {
+    metaRows.push({
+      label: 'Refinement task',
+      value: REFINEMENT_TASK_LABEL[error.refinementTask],
+    })
+  }
+  metaRows.push({
+    label: 'Code',
+    value: (
+      <code className="font-mono text-xs text-text-primary">{error.code}</code>
+    ),
+  })
+  return (
+    <article className="flex flex-col gap-6 rounded-xl bg-bg-primary p-6 shadow-sm">
+      <header className="flex flex-col gap-4">
+        <h2 className="text-2xl font-semibold text-text-primary">
+          {error.title}
+        </h2>
+        <table className="w-full border-collapse text-sm">
+          <tbody>
+            {metaRows.map((row, idx) => (
+              <tr
+                key={row.label}
+                className={clsx(
+                  'align-middle',
+                  idx > 0 && 'border-t border-border-tertiary',
+                )}
+              >
+                <th
+                  scope="row"
+                  className="w-[160px] py-2 pr-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-text-secondary"
+                >
+                  {row.label}
+                </th>
+                <td className="py-2 align-middle text-md text-text-primary">
+                  {row.value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </header>
 
-    <DetailRow label="UX copy">
-      <p className="text-md leading-relaxed text-text-primary">
-        {error.uxCopy}
-      </p>
-    </DetailRow>
-
-    <DetailRow label="Message template">
-      <code className="block whitespace-pre-wrap rounded-md border-2 border-border-tertiary bg-bg-secondary px-3 py-2 font-mono text-sm text-text-primary">
-        {error.messageTemplate}
-      </code>
-    </DetailRow>
-
-    <DetailRow label="Trigger">
-      <p className="text-md leading-relaxed text-text-secondary">
-        {error.trigger}
-      </p>
-    </DetailRow>
-
-    {error.example ? (
-      <DetailRow label="Example">
-        <p className="text-md leading-relaxed text-text-secondary">
-          {error.example}
+      <DetailRow label="Description">
+        <p className="text-md leading-relaxed text-text-primary">
+          {error.uxCopy}
         </p>
       </DetailRow>
-    ) : null}
 
-    <DetailRow label="Suggested actions">
-      <div className="flex flex-wrap items-center gap-2">
-        {error.actions.map((action) => (
-          <Badge key={action.kind} tone="neutral" size="md">
-            {action.label}
-          </Badge>
-        ))}
-      </div>
-    </DetailRow>
+      {error.source ? (
+        <DetailRow label="Source">
+          <div className="flex flex-col gap-1 rounded-md border-2 border-border-tertiary bg-bg-secondary px-3 py-2.5 text-sm">
+            <p className="leading-relaxed text-text-primary">
+              <span className="text-text-secondary">Sheet </span>
+              <code className="font-mono text-text-primary">
+                {error.source.sheet}
+              </code>
+              <span className="text-text-secondary"> · column </span>
+              <code className="font-mono text-text-primary">
+                {error.source.column}
+              </code>
+            </p>
+            {error.source.join ? (
+              <p className="leading-relaxed text-text-secondary">
+                Joined via{' '}
+                <code className="font-mono text-text-primary">
+                  {error.source.join.viaColumn}
+                </code>
+                {', returning '}
+                <code className="font-mono text-text-primary">
+                  {error.source.join.lookupSheet}.
+                  {error.source.join.returnColumn}
+                </code>
+              </p>
+            ) : null}
+            {error.source.transform ? (
+              <p className="leading-relaxed text-text-secondary">
+                Transform: {error.source.transform}
+              </p>
+            ) : null}
+          </div>
+        </DetailRow>
+      ) : null}
 
-    {error.tags && error.tags.length > 0 ? (
-      <DetailRow label="Tags">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {error.tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center rounded-full bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
+      {error.messageTemplate ? (
+        <DetailRow label="Message template">
+          <code className="block whitespace-pre-wrap rounded-md border-2 border-border-tertiary bg-bg-secondary px-3 py-2 font-mono text-sm text-text-primary">
+            {error.messageTemplate}
+          </code>
+        </DetailRow>
+      ) : null}
+
+      <DetailRow label={isRefinement ? 'How Sandy reads it' : 'Trigger'}>
+        <p className="text-md leading-relaxed text-text-secondary">
+          {error.trigger}
+        </p>
       </DetailRow>
-    ) : null}
-  </article>
-)
+
+      {error.example ? (
+        <DetailRow label="Example">
+          <p className="text-md leading-relaxed text-text-secondary">
+            {error.example}
+          </p>
+        </DetailRow>
+      ) : null}
+
+      {error.properties && error.properties.length > 0 ? (
+        <DetailRow
+          label={
+            error.refinementTask === 'value-mapping'
+              ? 'Controlled-vocab properties'
+              : 'Properties Sandy needs to find'
+          }
+        >
+          <div className="overflow-hidden rounded-lg border-2 border-border-tertiary">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-bg-secondary text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                <tr>
+                  <th className="px-3 py-2 text-left">Property</th>
+                  <th className="w-[100px] px-3 py-2 text-left">Required</th>
+                  <th className="px-3 py-2 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {error.properties.map((p, idx) => (
+                  <tr
+                    key={p.property}
+                    className={clsx(
+                      'align-middle',
+                      idx > 0 && 'border-t border-border-tertiary',
+                    )}
+                  >
+                    <td className="px-3 py-2 text-md font-medium text-text-primary">
+                      {p.label}
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      {p.required ? (
+                        <Badge tone="red" size="sm">
+                          Required
+                        </Badge>
+                      ) : (
+                        <Badge tone="neutral" size="sm">
+                          Optional
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-text-secondary">
+                      {p.note ?? ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DetailRow>
+      ) : null}
+
+      <DetailRow label="Actions">
+        <ol className="flex flex-col gap-2">
+          {error.actions.map((path, idx) => (
+            <li
+              key={path.kind}
+              className="flex flex-col gap-1 rounded-lg border-2 border-border-tertiary bg-bg-secondary px-4 py-3"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-md font-medium text-text-primary">
+                  {path.label}
+                </span>
+                {idx === 0 ? (
+                  <Badge tone="green" size="sm">
+                    Recommended
+                  </Badge>
+                ) : null}
+                {!path.resolves ? (
+                  <Badge tone="neutral" size="sm">
+                    Informational
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="text-sm leading-snug text-text-secondary">
+                {path.outcome}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </DetailRow>
+    </article>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Refinement sidebar — flat, ordered by data category then step               */
+/* -------------------------------------------------------------------------- */
+
+const RefinementSidebar = ({
+  entries,
+  activeCode,
+  onSelect,
+}: {
+  entries: ValidationError[]
+  activeCode: string | null
+  onSelect: (code: string) => void
+}) => {
+  // Sort by data category, then step. Categories appear in the order they
+  // first surface in the entry list (matches the catalogue's declaration
+  // order — Operations first, then Cropping, then anything else).
+  const categoryFirstSeen = new Map<string, number>()
+  for (let i = 0; i < entries.length; i++) {
+    const cat = entries[i].dataCategories?.[0] ?? 'zz-unspecified'
+    if (!categoryFirstSeen.has(cat)) categoryFirstSeen.set(cat, i)
+  }
+  const sorted = [...entries].sort((a, b) => {
+    const ca = a.dataCategories?.[0] ?? 'zz-unspecified'
+    const cb = b.dataCategories?.[0] ?? 'zz-unspecified'
+    const da =
+      (categoryFirstSeen.get(ca) ?? 0) - (categoryFirstSeen.get(cb) ?? 0)
+    if (da !== 0) return da
+    return (a.step ?? 0) - (b.step ?? 0)
+  })
+  return (
+    <ol className="flex flex-col">
+      {sorted.map((e) => (
+        <li key={e.code} className="py-0.5">
+          <SidebarItem
+            error={e}
+            active={e.code === activeCode}
+            onSelect={() => onSelect(e.code)}
+          />
+        </li>
+      ))}
+    </ol>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
+type ViewMode = 'list' | 'kanban'
+
+const VIEW_OPTIONS = [
+  { value: 'list' as const, label: 'List' },
+  { value: 'kanban' as const, label: 'Kanban' },
+]
+
+const isViewMode = (v: string | null | undefined): v is ViewMode =>
+  v === 'list' || v === 'kanban'
+
 export const ValidationErrorsPage = () => {
+  const navigate = useNavigate()
+  const { viewId } = useParams<{ viewId?: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view: ViewMode = isViewMode(viewId) ? viewId : 'list'
+  const setView = (next: ViewMode) => {
+    // Preserve current query (active code selection) on navigation.
+    const search = searchParams.toString()
+    navigate(`/validation/${next}${search ? `?${search}` : ''}`, {
+      replace: true,
+    })
+  }
+
+  // If somebody lands on a bogus view id, snap to list.
+  useEffect(() => {
+    if (viewId && !isViewMode(viewId)) {
+      navigate('/validation/list', { replace: true })
+    }
+  }, [viewId, navigate])
+
   // Counts per area drive the badges on the categories rail.
   const countByArea = useMemo(() => {
     const counts: Record<ValidationArea, number> = {
@@ -303,119 +438,119 @@ export const ValidationErrorsPage = () => {
       VALIDATION_AREA_ORDER[0],
   )
 
-  const [typeFilter, setTypeFilter] = useState<ValidationType | 'all'>('all')
-  const [severityFilter, setSeverityFilter] = useState<
-    ValidationSeverity | 'all'
-  >('all')
-
   const filtered = useMemo(
-    () =>
-      VALIDATION_ERRORS.filter((e) => {
-        if (areaOf(e) !== activeArea) return false
-        if (typeFilter !== 'all' && e.type !== typeFilter) return false
-        if (severityFilter !== 'all' && e.severity !== severityFilter)
-          return false
-        return true
-      }),
-    [activeArea, typeFilter, severityFilter],
+    () => VALIDATION_ERRORS.filter((e) => areaOf(e) === activeArea),
+    [activeArea],
   )
 
-  // Selection state — defaults to the first item in the (filtered) list.
-  // When the active code falls out of the filter (e.g. user changed area),
-  // snap to the new first item so the detail pane never shows a hidden
-  // record.
-  const [activeCode, setActiveCode] = useState<string>(
-    () => filtered[0]?.code ?? '',
-  )
+  // Selection state — kept across views via URL so back/forward works and
+  // the detail pane never shows a hidden record.
+  const activeCode = searchParams.get('code') ?? filtered[0]?.code ?? ''
+  const setActiveCode = (code: string | null) => {
+    const params = new URLSearchParams(searchParams)
+    if (code) params.set('code', code)
+    else params.delete('code')
+    setSearchParams(params, { replace: true })
+  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setSearchParams is stable
   useEffect(() => {
-    if (filtered.length === 0) return
+    // When the user switches area in List view, snap to the first entry of
+    // the new area so the detail panel always has something to render.
+    if (view !== 'list' || filtered.length === 0) return
     if (!filtered.some((e) => e.code === activeCode)) {
-      setActiveCode(filtered[0].code)
+      const params = new URLSearchParams(searchParams)
+      params.set('code', filtered[0].code)
+      setSearchParams(params, { replace: true })
     }
-  }, [filtered, activeCode])
+  }, [view, filtered, activeCode])
 
-  const active = filtered.find((e) => e.code === activeCode)
+  const activeInList = filtered.find((e) => e.code === activeCode)
+  const activeAnywhere = activeCode
+    ? (VALIDATION_BY_CODE[activeCode] ?? null)
+    : null
 
   return (
-    <div className="flex h-screen min-h-0 bg-bg-secondary">
-      <CategoriesRail
-        areas={VALIDATION_AREA_ORDER}
-        active={activeArea}
-        countByArea={countByArea}
-        onSelect={setActiveArea}
-      />
+    <div className="flex h-screen min-h-0 flex-col bg-bg-secondary">
+      <header className="flex items-center justify-between gap-4 border-b-2 border-border-tertiary bg-bg-primary px-6 py-3">
+        <h1 className="text-md font-semibold text-text-primary">Validation</h1>
+        <SegmentedControl<ViewMode>
+          ariaLabel="View mode"
+          options={VIEW_OPTIONS}
+          value={view}
+          onValueChange={setView}
+        />
+      </header>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <section className="flex flex-col gap-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-4">
-          <header className="flex items-baseline gap-3">
-            <h1 className="text-xl font-semibold text-text-primary">
-              {VALIDATION_AREA_LABEL[activeArea]}
-            </h1>
-            <p className="text-sm text-text-secondary">
-              {filtered.length}{' '}
-              {filtered.length === 1 ? 'validation' : 'validations'}
-            </p>
-          </header>
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Validation type
-            </span>
-            <FilterPills
-              options={ALL_TYPES}
-              value={typeFilter}
-              onChange={setTypeFilter}
-              labelFor={(t) => VALIDATION_TYPE_LABEL[t]}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Severity
-            </span>
-            <FilterPills
-              options={ALL_SEVERITIES}
-              value={severityFilter}
-              onChange={setSeverityFilter}
-              labelFor={(s) => VALIDATION_SEVERITY_LABEL[s]}
-            />
-          </div>
-        </section>
-
+      {view === 'list' ? (
         <div className="flex flex-1 min-h-0">
-          <aside className="flex w-[340px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary">
-            <ol className="flex-1 overflow-y-auto px-2 py-2">
-              {filtered.length === 0 ? (
-                <li className="px-3 py-6 text-sm text-text-secondary">
-                  No validations defined in {VALIDATION_AREA_LABEL[activeArea]}{' '}
-                  yet.
-                </li>
-              ) : (
-                filtered.map((e) => (
-                  <li key={e.code} className="py-0.5">
-                    <SidebarItem
-                      error={e}
-                      active={e.code === active?.code}
-                      onSelect={() => setActiveCode(e.code)}
-                    />
-                  </li>
-                ))
-              )}
-            </ol>
-          </aside>
+          <CategoriesRail
+            areas={VALIDATION_AREA_ORDER}
+            active={activeArea}
+            countByArea={countByArea}
+            onSelect={setActiveArea}
+          />
 
-          <main className="flex-1 overflow-y-auto px-8 py-8">
-            {active ? (
-              <div className="mx-auto w-full max-w-[820px]">
-                <DetailPanel error={active} />
-              </div>
-            ) : (
-              <p className="text-md text-text-secondary">
-                No validations defined in {VALIDATION_AREA_LABEL[activeArea]}{' '}
-                yet.
-              </p>
-            )}
-          </main>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex flex-1 min-h-0">
+              <aside className="flex w-[340px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary">
+                <div className="flex-1 overflow-y-auto px-2 py-2">
+                  {filtered.length === 0 ? (
+                    <p className="px-3 py-6 text-sm text-text-secondary">
+                      No validations defined in{' '}
+                      {VALIDATION_AREA_LABEL[activeArea]} yet.
+                    </p>
+                  ) : activeArea === 'refinement' ? (
+                    <RefinementSidebar
+                      entries={filtered}
+                      activeCode={activeInList?.code ?? null}
+                      onSelect={setActiveCode}
+                    />
+                  ) : (
+                    <ol className="flex flex-col">
+                      {filtered.map((e) => (
+                        <li key={e.code} className="py-0.5">
+                          <SidebarItem
+                            error={e}
+                            active={e.code === activeInList?.code}
+                            onSelect={() => setActiveCode(e.code)}
+                          />
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              </aside>
+
+              <main className="flex-1 overflow-y-auto px-8 py-8">
+                {activeInList ? (
+                  <div className="mx-auto w-full max-w-[820px]">
+                    <DetailPanel error={activeInList} />
+                  </div>
+                ) : (
+                  <p className="text-md text-text-secondary">
+                    No validations defined in{' '}
+                    {VALIDATION_AREA_LABEL[activeArea]} yet.
+                  </p>
+                )}
+              </main>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {view === 'kanban' ? (
+        <div className="flex flex-1 min-h-0">
+          <KanbanView
+            activeCode={activeAnywhere?.code ?? null}
+            onSelect={setActiveCode}
+          />
+          {activeAnywhere ? (
+            <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-l-2 border-border-tertiary bg-bg-primary p-6">
+              <DetailPanel error={activeAnywhere} />
+            </aside>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
