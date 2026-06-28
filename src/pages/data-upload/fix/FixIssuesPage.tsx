@@ -57,12 +57,12 @@ export const FixIssuesPage = () => {
 type LoaderStep = { message: string; durationMs: number }
 
 const LOADER_STEPS: LoaderStep[] = [
-  { message: 'Processing your files…', durationMs: 2500 },
-  { message: 'Loading 5 farms…', durationMs: 2500 },
-  { message: 'Loading 781 fields…', durationMs: 3000 },
-  { message: 'Reading 26,211 records…', durationMs: 4000 },
-  { message: 'Resolving 17 issues…', durationMs: 4000 },
-  { message: 'Preparing your data…', durationMs: 2000 },
+  { message: 'Processing your files…', durationMs: 900 },
+  { message: 'Loading 5 farms…', durationMs: 900 },
+  { message: 'Loading 781 fields…', durationMs: 1100 },
+  { message: 'Reading 26,211 records…', durationMs: 1400 },
+  { message: 'Resolving 17 issues…', durationMs: 1400 },
+  { message: 'Preparing your data…', durationMs: 800 },
 ]
 
 const FixLoader = ({ onDone }: { onDone: () => void }) => {
@@ -173,28 +173,63 @@ const DEFAULT_VIEW: FixView = 'issue'
 const isFixView = (v: string | null): v is FixView =>
   v === 'issue' || v === 'cropping' || v === 'field'
 
+type SeverityFilter = 'all' | 'blocking' | 'warning'
+
+const SEVERITY_OPTIONS = [
+  { value: 'all' as const, label: 'All' },
+  { value: 'blocking' as const, label: 'Blocking' },
+  { value: 'warning' as const, label: 'Warning' },
+]
+
+const isSeverityFilter = (v: string | null): v is SeverityFilter =>
+  v === 'all' || v === 'blocking' || v === 'warning'
+
 const FixPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const raw = searchParams.get('view')
-  const view: FixView = isFixView(raw) ? raw : DEFAULT_VIEW
+  const rawView = searchParams.get('view')
+  const view: FixView = isFixView(rawView) ? rawView : DEFAULT_VIEW
   const setView = (next: FixView) => {
     const params = new URLSearchParams(searchParams)
     params.set('view', next)
     setSearchParams(params, { replace: true })
   }
 
+  const rawSeverity = searchParams.get('severity')
+  const severity: SeverityFilter = isSeverityFilter(rawSeverity)
+    ? rawSeverity
+    : 'all'
+  const setSeverity = (next: SeverityFilter) => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'all') params.delete('severity')
+    else params.set('severity', next)
+    setSearchParams(params, { replace: true })
+  }
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className="flex items-center gap-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
-        <span className="text-sm font-medium text-text-secondary">
-          Group issues by:
-        </span>
-        <SegmentedControl<FixView>
-          ariaLabel="Group issues by"
-          options={VIEW_OPTIONS}
-          value={view}
-          onValueChange={setView}
-        />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-secondary">
+            Group issues by:
+          </span>
+          <SegmentedControl<FixView>
+            ariaLabel="Group issues by"
+            options={VIEW_OPTIONS}
+            value={view}
+            onValueChange={setView}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-secondary">
+            Severity:
+          </span>
+          <SegmentedControl<SeverityFilter>
+            ariaLabel="Filter by severity"
+            options={SEVERITY_OPTIONS}
+            value={severity}
+            onValueChange={setSeverity}
+          />
+        </div>
       </div>
       <div className="flex flex-1 min-h-0 flex-col">
         {view === 'issue' ? (

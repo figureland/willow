@@ -60,7 +60,12 @@ type FixInputSpec =
       unit?: string
     }
   | { kind: 'date'; label: string; suggestion?: string }
-  | { kind: 'choice'; label: string; options: ChoiceSpec[]; suggestion?: string }
+  | {
+      kind: 'choice'
+      label: string
+      options: ChoiceSpec[]
+      suggestion?: string
+    }
   | { kind: 'suggestion-only' }
 
 /**
@@ -296,8 +301,7 @@ const FixInput = ({
         />
         {spec.min !== undefined || spec.max !== undefined ? (
           <p className="text-xs text-text-secondary">
-            Allowed range:{' '}
-            {spec.min !== undefined ? spec.min : '−∞'} –{' '}
+            Allowed range: {spec.min !== undefined ? spec.min : '−∞'} –{' '}
             {spec.max !== undefined ? spec.max : '∞'}
           </p>
         ) : null}
@@ -488,6 +492,7 @@ export const FixIssueModal = ({
           placeholder={`e.g. The harvest year should be 2024 — the file has a typo. Apply to all ${records ? records.before.length : ''} affected rows.`}
           hint="Sandy will read your hint and propose a fix."
           onApply={handleDescribeApply}
+          portal
         />
       </div>
     </Modal>

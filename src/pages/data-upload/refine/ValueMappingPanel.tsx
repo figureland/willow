@@ -270,6 +270,7 @@ export const ValueMappingPanel = ({
         placeholder={`e.g. These are abbreviations for ${issue.targetLabel.toLowerCase()} — match them to the closest Sandy option, even if the spelling differs.`}
         hint="Sandy will read your hint and map the remaining values."
         onApply={applyAssistGuess}
+        portal
       />
     </div>
   )

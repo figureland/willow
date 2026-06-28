@@ -342,6 +342,7 @@ export const SchemaMappingPanel = ({
         placeholder="e.g. Each row is one fertiliser application. The crop variety lives in the 'variety' column — it's a code that maps to the master Fields_Crops sheet."
         hint="Sandy will read the sheet and try to fill in the gaps."
         onApply={applyAssistGuess}
+        portal
       />
 
       {/* Footer */}

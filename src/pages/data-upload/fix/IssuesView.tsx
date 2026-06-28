@@ -19,6 +19,7 @@ import {
   type AffectedRow,
   type Cell,
 } from './affected-records'
+import { FixIssueModal } from './FixIssueModal'
 import {
   ISSUE_DEFAULTS,
   type IssueCode,
@@ -497,6 +498,7 @@ const FixIssueCard = ({
   onFocus,
   onCommit,
 }: FixIssueCardProps) => {
+  const [modalOpen, setModalOpen] = useState(false)
   const records = AFFECTED_RECORDS[issue.id]
   const resolved = isResolved(resolution)
   const resolvedLabel =
@@ -560,19 +562,8 @@ const FixIssueCard = ({
           <SeverityPill severity={issue.severity} />
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <Button
-            variant="primary"
-            onClick={() => onCommit('fixed')}
-            disabled={resolution === 'fixed'}
-          >
-            Resolve
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => onCommit('ignored')}
-            disabled={resolution === 'ignored'}
-          >
-            Ignore
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
+            {resolved ? 'Change' : 'Resolve'}
           </Button>
           {resolvedLabel ? (
             <button
@@ -593,6 +584,22 @@ const FixIssueCard = ({
           records={records}
           severity={issue.severity}
           issueTitle={issue.headline}
+        />
+      ) : null}
+
+      {modalOpen ? (
+        <FixIssueModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          issue={issue}
+          onResolve={() => {
+            onCommit('fixed')
+            setModalOpen(false)
+          }}
+          onSkip={() => {
+            onCommit('ignored')
+            setModalOpen(false)
+          }}
         />
       ) : null}
     </article>
@@ -675,22 +682,33 @@ const SectionStatus = ({
 /* -------------------------------------------------------------------------- */
 
 export const IssuesView = () => {
+  const [resolutions, setResolutions] = useState<Record<string, Resolution>>({})
+  const [openCategory, setOpenCategory] = useState<FixCategory | null>(
+    'attribute',
+  )
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Severity filter — read from the URL so it survives view switches and
+  // round-trips. `all` is the default.
+  const severityFilter = (() => {
+    const raw = searchParams.get('severity')
+    return raw === 'blocking' || raw === 'warning' ? raw : 'all'
+  })()
+
   const grouped = useMemo(() => {
     const buckets: Record<FixCategory, FixIssue[]> = {
       attribute: [],
       'cross-field': [],
       'cross-record': [],
     }
-    for (const issue of EXAMPLES)
+    for (const issue of EXAMPLES) {
+      if (severityFilter !== 'all' && issue.severity !== severityFilter) {
+        continue
+      }
       buckets[CATEGORY_FOR_CODE[issue.code]].push(issue)
+    }
     return CATEGORY_ORDER.map((c) => [c, buckets[c]] as const)
-  }, [])
-
-  const [resolutions, setResolutions] = useState<Record<string, Resolution>>({})
-  const [openCategory, setOpenCategory] = useState<FixCategory | null>(
-    'attribute',
-  )
-  const [searchParams, setSearchParams] = useSearchParams()
+  }, [severityFilter])
   const rawIssue = searchParams.get('issue')
   const parsedIssue =
     rawIssue === null ? Number.NaN : Number.parseInt(rawIssue, 10)

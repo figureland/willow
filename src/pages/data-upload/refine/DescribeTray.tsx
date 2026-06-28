@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, Spinner } from '../../../components/ui'
 
 /* -------------------------------------------------------------------------- */
@@ -27,6 +28,13 @@ export type DescribeTrayProps = {
   hint?: string
   /** Called once the simulated assist finishes — applies the AI's guesses. */
   onApply: () => void
+  /**
+   * When true, portal the tray into `document.body` and pin it to the
+   * bottom of the viewport. When false (default), stay positioned
+   * relative to the nearest positioned ancestor — used by the card-level
+   * trigger so the tray slides up from the bottom of the card.
+   */
+  portal?: boolean
 }
 
 const ASSIST_STEPS = [
@@ -42,6 +50,7 @@ export const DescribeTray = ({
   placeholder,
   hint,
   onApply,
+  portal = false,
 }: DescribeTrayProps) => {
   const [mounted, setMounted] = useState(false)
   const [text, setText] = useState('')
@@ -97,14 +106,15 @@ export const DescribeTray = ({
     setPhase('thinking')
   }
 
-  return (
+  const tray = (
     <>
       <button
         type="button"
         aria-label="Close describe tray"
         onClick={() => phase === 'idle' && onClose()}
         className={clsx(
-          'absolute inset-0 z-10 cursor-default bg-bg-primary/40 transition-opacity duration-200',
+          'cursor-default bg-bg-primary/40 transition-opacity duration-200',
+          portal ? 'fixed inset-0 z-[100]' : 'absolute inset-0 z-10',
           mounted ? 'opacity-100' : 'opacity-0',
         )}
       />
@@ -112,7 +122,10 @@ export const DescribeTray = ({
         role="dialog"
         aria-label={title}
         className={clsx(
-          'absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[500px]',
+          'mx-auto w-full max-w-[500px]',
+          portal
+            ? 'fixed inset-x-0 bottom-0 z-[101]'
+            : 'absolute inset-x-0 bottom-0 z-20',
           'rounded-t-2xl border-2 border-b-0 border-border-secondary bg-bg-primary shadow-2xl',
           'transition-all duration-300 ease-out',
           mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
@@ -207,6 +220,10 @@ export const DescribeTray = ({
       </div>
     </>
   )
+
+  return portal && typeof document !== 'undefined'
+    ? createPortal(tray, document.body)
+    : tray
 }
 
 /* -------------------------------------------------------------------------- */
