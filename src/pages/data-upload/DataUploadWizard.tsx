@@ -78,7 +78,12 @@ export const DataUploadWizard = () => {
             type: 'farm-missing',
             title: 'Farm not recognised',
             sourceName: typo(sourceName),
-            existingFarms: EXISTING_FARMS,
+            // Pop the clean original name into the suggestion list so the
+            // "Did you mean" pick lands on something obviously similar.
+            existingFarms: [
+              { value: `synthetic-${farm.id}-farm`, label: sourceName },
+              ...EXISTING_FARMS,
+            ],
           })
         } else {
           fieldNames.push(sourceName)
@@ -95,13 +100,20 @@ export const DataUploadWizard = () => {
         })
       } else {
         for (let i = 0; i < fieldNames.length; i++) {
+          const original = fieldNames[i]
+          // Seed the suggestion list with the original (non-typo'd) name
+          // first so closestOption snaps to a realistic near-twin instead
+          // of grabbing whatever's lexicographically nearby in EXISTING_FIELDS.
           out.push({
             id: `${farm.id}-err-${i}`,
             type: 'field-missing',
             title: 'Field not recognised',
-            sourceName: typo(fieldNames[i]),
+            sourceName: typo(original),
             farmName: farm.name,
-            existingFields: EXISTING_FIELDS,
+            existingFields: [
+              { value: `synthetic-${farm.id}-${i}`, label: original },
+              ...EXISTING_FIELDS,
+            ],
           })
         }
       }
@@ -191,9 +203,9 @@ export const DataUploadWizard = () => {
           />
         ),
         // The Refine step renders its own carousel chrome + advance buttons,
-        // so hide the wizard footer entirely.
+        // and we now show Next in the wizard top bar — nothing to suppress
+        // at the layout level.
         bare: true,
-        hideFooter: true,
       },
       {
         id: 'fix',

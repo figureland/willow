@@ -58,6 +58,12 @@ export type IssueAdapter = {
    */
   solution: (issue: Issue) => ReactNode | null
   /**
+   * Optional supporting detail rendered only when the card is the active
+   * (focused) one — e.g. a small table of affected rows. Compact cards
+   * skip this so the inactive stack stays scannable.
+   */
+  details?: (issue: Issue) => ReactNode | null
+  /**
    * IssueState committed when the user taps Yes. Adapters return `null` to
    * signal "Yes isn't valid here" — in that case the modal omits the Yes
    * button and the optionsPanel becomes the only path.
@@ -69,6 +75,13 @@ export type IssueAdapter = {
    * confirms the user's choice.
    */
   optionsPanel: (issue: Issue, commit: (next: IssueState) => void) => IssuePanel
+  /**
+   * When true, the modal skips the default "Choose an action" root and
+   * mounts `optionsPanel` directly. Use for adapters where there's no
+   * Yes / No fork (e.g. schema transformation — the resolver IS the
+   * primary surface).
+   */
+  skipChooseAction?: boolean
   /**
    * Snippet preview config rendered in the root panel of the modal.
    * `null` skips the data table entirely.
@@ -85,4 +98,18 @@ export type IssueAdapter = {
    * re-opens the modal for re-do.
    */
   resolvedLabel: (state: IssueState, issue: Issue) => string | null
+  /**
+   * Optional "Describe …" affordance shown both on the card and inside the
+   * resolver panel. The DescribeTray UI is shared; adapters only need to
+   * supply the labels + a callback that produces the next IssueState from
+   * the user's description.
+   */
+  describe?: (issue: Issue) => {
+    triggerLabel: string
+    title: string
+    placeholder: string
+    hint?: string
+    /** Build the IssueState to commit when the simulated assist completes. */
+    apply: (currentState: IssueState | undefined) => IssueState
+  } | null
 }

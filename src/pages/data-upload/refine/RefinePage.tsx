@@ -186,8 +186,8 @@ const SummaryPanel = ({ summary }: { summary: DetectionSummary }) => {
         </p>
       </header>
 
-      <section className="grid max-h-[450px] grid-cols-1 overflow-hidden rounded-xl border-2 border-border-tertiary bg-bg-primary lg:grid-cols-[360px_1fr]">
-        <div className="flex min-h-0 flex-col border-b-2 border-border-tertiary lg:border-b-0 lg:border-r-2">
+      <section className="flex h-[450px] flex-col overflow-hidden rounded-xl border-2 border-border-tertiary bg-bg-primary lg:flex-row">
+        <div className="flex min-h-0 w-full flex-col border-b-2 border-border-tertiary lg:w-[360px] lg:shrink-0 lg:border-b-0 lg:border-r-2">
           <header className="px-5 pt-4 pb-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Farms ({farms.length})
@@ -206,7 +206,7 @@ const SummaryPanel = ({ summary }: { summary: DetectionSummary }) => {
           </ol>
         </div>
 
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="flex items-baseline justify-between px-5 pt-4 pb-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
               Fields on {activeFarm?.name ?? '—'} ({fields.length})
@@ -255,6 +255,50 @@ const SummaryPanel = ({ summary }: { summary: DetectionSummary }) => {
 }
 
 /* -------------------------------------------------------------------------- */
+/* CompletionToast — push-up tick announcement                                 */
+/* -------------------------------------------------------------------------- */
+
+const CompletionToast = ({
+  visible,
+  label,
+}: {
+  visible: boolean
+  label: string
+}) => (
+  <div
+    role="status"
+    aria-live="polite"
+    aria-hidden={!visible}
+    className={clsx(
+      'pointer-events-none fixed inset-x-0 bottom-[24px] z-30 flex justify-center px-4',
+      'transition-all duration-300 ease-out',
+      visible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
+    )}
+  >
+    <div className="flex items-center gap-3 rounded-full bg-support-fg-green px-5 py-3 text-text-primary-inverse shadow-lg">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <title>Complete</title>
+        <path
+          d="M5 12.5l4.5 4.5L19 7"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="text-md font-semibold">{label}</span>
+    </div>
+  </div>
+)
+
+/* -------------------------------------------------------------------------- */
 /* Issue panel                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -283,8 +327,14 @@ const IssuePanel = ({
     setActiveId(next?.id ?? null)
   }, [issues, state, activeId])
 
+  // When the panel transitions from "in progress" to "all resolved", show
+  // a brief celebration toast before handing control to the parent. The
+  // delay gives the progress-bar fill animation time to land and reads as
+  // a beat of acknowledgement.
+  const [celebrating, setCelebrating] = useState(false)
+
   // When the user resolves an issue, jump focus to the next unresolved one
-  // immediately. When everything's resolved, hand control back to the parent.
+  // immediately. When everything's resolved, kick the celebration sequence.
   const handleCommit = (issueId: string) => (next: IssueState) => {
     onCommit(issueId)(next)
     const after = { ...state, [issueId]: next }
@@ -300,14 +350,27 @@ const IssuePanel = ({
         return
       }
     }
-    onAllResolved()
+    setCelebrating(true)
   }
 
+  // Hide the toast + advance after a short beat once everything's resolved.
+  useEffect(() => {
+    if (!celebrating) return
+    const t = setTimeout(() => {
+      setCelebrating(false)
+      onAllResolved()
+    }, 1400)
+    return () => clearTimeout(t)
+  }, [celebrating, onAllResolved])
+
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col gap-6 px-8 py-10">
+    <div className="relative mx-auto flex w-full max-w-[860px] flex-col gap-6 px-8 py-10">
+      <CompletionToast visible={celebrating} label={`${title} — complete`} />
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold text-text-primary">{title}</h1>
-        <p className="max-w-[820px] text-md text-text-secondary">{blurb}</p>
+        {blurb ? (
+          <p className="max-w-[820px] text-md text-text-secondary">{blurb}</p>
+        ) : null}
       </header>
 
       {issues.length === 0 ? (
@@ -372,19 +435,6 @@ const ProgressMeter = ({
         className="absolute inset-y-0 left-0 rounded-full bg-text-primary transition-[width] duration-200"
         style={{ width: `${percent}%` }}
       />
-      {/* Tick markers at each interval boundary (skip the leading edge). */}
-      {Array.from({ length: count - 1 }).map((_, i) => {
-        const tickIdx = i + 1
-        const leftPct = (tickIdx / count) * 100
-        return (
-          <span
-            key={PANEL_ORDER[tickIdx]}
-            aria-hidden="true"
-            className="absolute top-1/2 h-2 w-px -translate-y-1/2 bg-bg-primary"
-            style={{ left: `${leftPct}%` }}
-          />
-        )
-      })}
       {/* Invisible step buttons sitting on top of the track — click to jump
           to that panel. Stretched a little vertically so they're easy to hit. */}
       {Array.from({ length: count }).map((_, i) => {
@@ -524,45 +574,45 @@ export const RefinePage = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-secondary">
-      <div className="relative flex flex-1 min-h-0 overflow-hidden">
-        {/* Sliding track — each child fills the viewport. */}
-        <div
-          className="flex w-full transition-transform duration-300 ease-out"
-          style={{ transform: `translateX(-${activeIndex * 100}%)` }}
-        >
-          {PANEL_ORDER.map((panelId, idx) => (
-            <section
-              key={panelId}
-              aria-hidden={idx !== activeIndex}
-              className="h-full w-full shrink-0 overflow-y-auto"
-            >
-              {panelId === 'summary' ? (
-                <SummaryPanel summary={summary} />
-              ) : (
-                <IssuePanel
-                  title={
-                    panelId === 'identity'
-                      ? 'Match farms and fields to Sandy'
-                      : panelId === 'schema'
-                        ? 'Help us read your file structure'
-                        : 'Map your data to Sandy values'
-                  }
-                  blurb={
-                    panelId === 'identity'
-                      ? "Sandy didn't recognise some of the farms or fields in your upload. Match them to existing records or create new ones."
-                      : panelId === 'schema'
-                        ? 'Tell Sandy how the columns in your file map onto the canonical schema.'
-                        : 'Source values that need translating into Sandy reference vocabularies (crop varieties, units, …).'
-                  }
-                  issues={issuesByPanel[panelId]}
-                  state={state}
-                  onCommit={commitFor}
-                  onAllResolved={() => goTo(idx + 1)}
-                />
-              )}
-            </section>
-          ))}
-        </div>
+      <div className="relative flex flex-1 min-h-0">
+        {/* Inactive panels are display:none so they can't influence layout
+            or steal focus; only the active panel is mounted into the flex
+            flow. */}
+        {PANEL_ORDER.map((panelId, idx) => (
+          <section
+            key={panelId}
+            aria-hidden={idx !== activeIndex}
+            className={clsx(
+              'min-h-0 flex-1 overflow-y-auto',
+              idx !== activeIndex && 'hidden',
+            )}
+          >
+            {panelId === 'summary' ? (
+              <SummaryPanel summary={summary} />
+            ) : (
+              <IssuePanel
+                title={
+                  panelId === 'identity'
+                    ? 'Match farms and fields to Sandy'
+                    : panelId === 'schema'
+                      ? 'Help us read your file structure'
+                      : 'Map your data to Sandy values'
+                }
+                blurb={
+                  panelId === 'identity'
+                    ? "Sandy didn't recognise some of the farms or fields in your upload. Match them to existing records or create new ones."
+                    : panelId === 'schema'
+                      ? ''
+                      : 'Source values that need translating into Sandy reference vocabularies (crop varieties, units, …).'
+                }
+                issues={issuesByPanel[panelId]}
+                state={state}
+                onCommit={commitFor}
+                onAllResolved={() => goTo(idx + 1)}
+              />
+            )}
+          </section>
+        ))}
       </div>
 
       <NavBar
@@ -583,14 +633,11 @@ export const RefinePage = ({
               onClick: () => goTo(activeIndex + 1),
             }
           }
-          const panelIssues = issuesByPanel[activePanel]
-          const unresolved = panelIssues.filter((i) => isUnresolved(i, state))
-          const allResolved = unresolved.length === 0
           const isLast = activeIndex === PANEL_ORDER.length - 1
+          // Always keep Next clickable so the prototype is navigable end-to-
+          // end without first resolving every issue.
           return {
             label: isLast ? 'Done' : 'Continue',
-            disabled: !allResolved,
-            disabledHint: `Please resolve all ${unresolved.length} ${unresolved.length === 1 ? 'issue' : 'issues'} before proceeding`,
             onClick: () => goTo(activeIndex + 1),
           }
         })()}

@@ -32,6 +32,12 @@ export type ModalProps = {
    * Use when the modal body owns its own visual structure (headlines, etc).
    */
   unstyled?: boolean
+  /**
+   * When true, the popup grows to fill 90% of the viewport height instead
+   * of clamping to a max. Lets the footer pin to the bottom edge even when
+   * the body content is short.
+   */
+  fillHeight?: boolean
   children: ReactNode
 }
 
@@ -51,6 +57,7 @@ export const Modal = ({
   footer,
   topBar,
   unstyled = false,
+  fillHeight = false,
   children,
 }: ModalProps) => (
   <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -64,7 +71,8 @@ export const Modal = ({
       />
       <BaseDialog.Popup
         className={clsx(
-          'fixed inset-0 z-50 m-auto flex max-h-[90vh] flex-col overflow-hidden',
+          'fixed inset-0 z-50 m-auto flex flex-col overflow-hidden',
+          fillHeight ? 'h-[90vh]' : 'max-h-[90vh]',
           'bg-bg-primary rounded-xl border-2 border-border-tertiary shadow-xl',
           'outline-none',
           'transition-[opacity,transform] duration-200 ease-out',

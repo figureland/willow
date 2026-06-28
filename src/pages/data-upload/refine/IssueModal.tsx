@@ -4,6 +4,7 @@ import { Button, IconArrowLeft, Modal } from '../../../components/ui'
 import type { IssueState } from '../IssueResolverModal'
 import type { Issue } from '../issues'
 import { EXAMPLE_WORKBOOK } from '../schema-transformation'
+import { DescribeAutoOpenContext } from './DescribeTray'
 import type { IssueAdapter } from './issue-adapter'
 import { SheetView } from './SheetView'
 
@@ -28,6 +29,12 @@ export type IssuePanel = {
   body?: ReactNode
   /** Actions pinned to the bottom of the modal for this panel. */
   actions: ReactNode
+  /**
+   * When true, the body renders flush — no horizontal/bottom padding wrap,
+   * and the modal's footer is suppressed (the body draws its own).
+   * Use for full-bleed editors like the schema mapping panel.
+   */
+  fullBleed?: boolean
 }
 
 /** Navigation handle handed to adapter panel-builders. */
@@ -50,6 +57,12 @@ export type IssueModalProps = {
    * the default "headline + standard actions" root used by farm/field issues.
    */
   renderRoot?: (params: RootPanelParams) => IssuePanel
+  /**
+   * When true, signal to inner panels (via DescribeAutoOpenContext) that
+   * the Describe tray should be open on mount. Triggered by the card's
+   * Describe button — bypasses the user's usual click to open the tray.
+   */
+  openDescribeOnMount?: boolean
 }
 
 export type RootPanelParams = {
@@ -92,6 +105,7 @@ export const IssueModal = ({
   adapter,
   onCommit,
   renderRoot,
+  openDescribeOnMount = false,
 }: IssueModalProps) => {
   const affected = adapter.affected(issue)
   const affectedSheet = affected
@@ -103,10 +117,17 @@ export const IssueModal = ({
   // mid-flow close doesn't leave stale state behind for the next open.
   const [stack, setStack] = useState<IssuePanel[]>([])
 
-  // Root panel — either supplied by the caller or the default shape.
+  // Root panel — either supplied by the caller, the adapter's
+  // optionsPanel (when it asks to skip the chooser), or the default shape.
   const buildRoot = (nav: IssueNav): IssuePanel => {
     if (renderRoot) {
       return renderRoot({ issue, state, adapter, nav, onCommit })
+    }
+    if (adapter.skipChooseAction) {
+      return adapter.optionsPanel(issue, (next) => {
+        onCommit(next)
+        nav.close()
+      })
     }
     return defaultRootPanel({ issue, state, adapter, nav, onCommit })
   }
@@ -174,37 +195,46 @@ export const IssueModal = ({
       unstyled
       maxWidth="92vw"
     >
-      <div className="flex h-[90vh] flex-col">
-        {/* Title row — back button on deeper panels, headline / panel
+      <DescribeAutoOpenContext.Provider value={openDescribeOnMount}>
+        <div className="flex h-[90vh] flex-col">
+          {/* Title row — back button on deeper panels, headline / panel
             title alongside. */}
-        <header className="flex items-start gap-4 px-10 pb-6 pt-10">
-          {!isRoot ? <BackButton onClick={nav.pop} /> : null}
-          <div className="flex-1 min-w-0">{titleNode}</div>
-        </header>
+          <header className="flex items-start gap-4 px-10 pb-6 pt-10">
+            {!isRoot ? <BackButton onClick={nav.pop} /> : null}
+            <div className="flex-1 min-w-0">{titleNode}</div>
+          </header>
 
-        {/* Mid section — panel body (optional) and the data table when the
+          {/* Mid section — panel body (optional) and the data table when the
             adapter has one. Data table sits on the root panel only. */}
-        <div className="flex-1 overflow-y-auto px-10">
-          {active.body ? (
-            <div className="flex flex-col gap-5 pb-6">{active.body}</div>
-          ) : null}
-          {isRoot && affected && affectedSheet ? (
-            <div className="pb-6">
-              <SheetView
-                filename={affected.source.filename}
-                initialTab={affected.sheetName}
-                highlights={affected.highlights}
-                cellHighlights={affected.cellHighlights ?? []}
-              />
+          {active.fullBleed ? (
+            <div className="flex-1 min-h-0 overflow-hidden">{active.body}</div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-10">
+              {active.body ? (
+                <div className="flex flex-col gap-5 pb-6">{active.body}</div>
+              ) : null}
+              {isRoot && affected && affectedSheet ? (
+                <div className="pb-6">
+                  <SheetView
+                    filename={affected.source.filename}
+                    initialTab={affected.sheetName}
+                    highlights={affected.highlights}
+                    cellHighlights={affected.cellHighlights ?? []}
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          )}
 
-        {/* Actions — pinned to the bottom of the modal for every panel. */}
-        <footer className="flex items-center justify-end gap-2 border-t-2 border-border-tertiary px-10 py-5">
-          {active.actions}
-        </footer>
-      </div>
+          {/* Actions — pinned to the bottom of the modal for every panel.
+            Full-bleed panels draw their own footer. */}
+          {active.fullBleed ? null : (
+            <footer className="flex items-center justify-end gap-2 border-t-2 border-border-tertiary px-10 py-5">
+              {active.actions}
+            </footer>
+          )}
+        </div>
+      </DescribeAutoOpenContext.Provider>
     </Modal>
   )
 

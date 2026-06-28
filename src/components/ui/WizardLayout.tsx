@@ -2,6 +2,7 @@ import { Popover as BasePopover } from '@base-ui/react/popover'
 import clsx from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './Button'
+import { IconArrowLeft } from './icons'
 import type { WizardStep } from './WizardStepper'
 
 export type WizardStepConfig = WizardStep & {
@@ -27,17 +28,11 @@ export type WizardStepConfig = WizardStep & {
    */
   onContinue?: () => boolean | undefined | Promise<boolean | undefined>
   /**
-   * Hide the layout's Continue button entirely on this step. Use when the
-   * step owns its own primary CTA (e.g. a "Save to Sandy" button) and the
-   * generic Continue would be redundant. Back stays visible.
+   * Hide the top-bar Next button entirely on this step. Use when the step
+   * owns its own primary CTA (e.g. a "Save to Sandy" button) and the
+   * generic Next would be redundant. Back stays visible.
    */
   hideContinue?: boolean
-  /**
-   * Hide the entire footer (Back + Continue) on this step. Use when the
-   * step renders its own navigation chrome (e.g. a carousel with its own
-   * advance buttons).
-   */
-  hideFooter?: boolean
   /**
    * Render the step's content full-bleed — no padding around the body and
    * no inter-element gap. Use for steps that own their own outer chrome
@@ -79,8 +74,9 @@ export type WizardLayoutProps = {
 
 /**
  * Generic stepped flow layout. Fills inside the AppWrapper outlet with a
- * title bar, stepper row, scrollable step body, and a footer with back /
- * continue controls.
+ * top bar (Back · title · step picker · Cancel · Save and quit · Next)
+ * and a scrollable step body. There is no bottom footer — navigation
+ * lives in the top bar.
  *
  * Navigation is fully controlled: the consumer owns the URL (so browser
  * back/forward, deep links and refresh all work natively) and passes the
@@ -130,15 +126,39 @@ export const WizardLayout = ({
   const isLast = currentIndex === steps.length - 1
   const canContinue = step.canContinue !== false
 
+  const goNext = async () => {
+    if (step.onContinue) {
+      const result = await step.onContinue()
+      // Explicit `false` means "I handled it, don't advance".
+      if (result === false) return
+    }
+    if (isLast) onComplete?.()
+    else goToStep(currentIndex + 1)
+  }
+
   return (
     <div className={clsx('flex flex-1 min-h-0 flex-col', className)}>
-      {/* Top bar — title + step picker on the left, secondary actions on
-          the right. The dedicated stepper row below has been collapsed
-          into the StepPicker popover so the body gets more vertical
-          space. */}
+      {/* Top bar — Back (only after the first step) + title + step picker on
+          the left; Cancel · Save and quit · Next on the right. No bottom
+          footer — every nav action lives here. */}
       <header className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-6">
         <div className="flex items-center gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {!isFirst ? (
+              <button
+                type="button"
+                onClick={() => goToStep(currentIndex - 1)}
+                aria-label="Back to previous step"
+                className={clsx(
+                  'grid size-9 shrink-0 place-items-center rounded-md',
+                  'border-2 border-border-tertiary bg-bg-primary text-text-primary',
+                  'transition-colors hover:bg-bg-tertiary',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+                )}
+              >
+                <IconArrowLeft size={18} />
+              </button>
+            ) : null}
             <h1 className="min-w-0 truncate text-2xl font-semibold leading-9 text-text-primary">
               {title}
             </h1>
@@ -164,6 +184,15 @@ export const WizardLayout = ({
                 Save and quit
               </Button>
             ) : null}
+            {step.hideContinue ? null : (
+              <Button
+                variant="primary"
+                disabled={!canContinue}
+                onClick={goNext}
+              >
+                {step.continueLabel ?? (isLast ? finishLabel : 'Next')}
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -179,43 +208,6 @@ export const WizardLayout = ({
           >
             {step.content}
           </main>
-
-          {step.hideFooter ? null : (
-            <div className="border-t-2 border-border-tertiary bg-bg-primary px-8 py-4">
-              <div className="flex items-center justify-between gap-2">
-                {/* Spacer keeps Continue right-aligned when Back is hidden. */}
-                {isFirst ? (
-                  <span />
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => goToStep(currentIndex - 1)}
-                  >
-                    Back
-                  </Button>
-                )}
-                {step.hideContinue ? (
-                  <span />
-                ) : (
-                  <Button
-                    variant="primary"
-                    disabled={!canContinue}
-                    onClick={async () => {
-                      if (step.onContinue) {
-                        const result = await step.onContinue()
-                        // Explicit `false` means "I handled it, don't advance".
-                        if (result === false) return
-                      }
-                      if (isLast) onComplete?.()
-                      else goToStep(currentIndex + 1)
-                    }}
-                  >
-                    {step.continueLabel ?? (isLast ? finishLabel : 'Continue')}
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

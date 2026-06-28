@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Button, Select, TextInput } from '../../../components/ui'
 import type { IssueState } from '../IssueResolverModal'
-import { IssueBody } from '../IssueResolverModal'
 import {
   defaultResolutionForIssue,
   type FarmMissingIssue,
@@ -15,6 +14,9 @@ import { EXAMPLE_WORKBOOK } from '../schema-transformation'
 import type { IssuePanel } from './IssueModal'
 import { IssueToken } from './IssueToken'
 import type { CellHighlight, IssueAdapter } from './issue-adapter'
+import { FileChip, SchemaMappingPanel } from './SchemaMappingPanel'
+import { operationsPropertiesForSheet } from './schema-properties'
+import { ValueMappingPanel } from './ValueMappingPanel'
 
 /* -------------------------------------------------------------------------- */
 /* Demo highlights — used by the data table inside the IssueModal              */
@@ -305,14 +307,40 @@ export const fieldMissingBatchAdapter: IssueAdapter = {
   },
   solution: (raw) => {
     const issue = raw as FieldMissingBatchIssue
-    if (!issue.suggestedFarmName) {
-      return <p>Where should we attach them?</p>
-    }
-    return (
+    return issue.suggestedFarmName ? (
       <p>
-        Should they belong to{' '}
-        <IssueToken tone="success">{issue.suggestedFarmName}</IssueToken>?
+        We think they are part of{' '}
+        <IssueToken tone="success">{issue.suggestedFarmName}</IssueToken>. Is
+        that right?
       </p>
+    ) : (
+      <p>Where should we attach them?</p>
+    )
+  },
+  details: (raw) => {
+    const issue = raw as FieldMissingBatchIssue
+    return (
+      <div className="overflow-hidden rounded-lg border-2 border-border-tertiary">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-bg-secondary text-xs font-semibold uppercase tracking-wide text-text-secondary">
+            <tr>
+              <th className="px-3 py-2 text-left">Unknown field</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issue.sourceNames.map((name, idx) => (
+              <tr
+                key={name}
+                className={
+                  idx > 0 ? 'border-t border-border-tertiary' : undefined
+                }
+              >
+                <td className="px-3 py-2 text-md text-text-primary">{name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )
   },
   acceptSuggestion: (raw) => {
@@ -357,28 +385,21 @@ export const schemaAdapter: IssueAdapter = {
   problem: (raw) => {
     const issue = raw as SchemaTransformationIssue
     return (
-      <p>
-        Help us understand the layout of{' '}
-        <IssueToken>{issue.sheetName}</IssueToken> in{' '}
-        <IssueToken>{issue.filename}</IssueToken>.
+      <p className="flex flex-wrap items-center gap-2">
+        <span>
+          We don't recognise this template. Help us understand the layout.
+        </span>
+        <FileChip filename={issue.filename} sheetName={issue.sheetName} />
       </p>
     )
   },
   solution: () => null,
+  // No yes/no fork — Resolve opens straight into the mapping UI.
+  skipChooseAction: true,
+  // The mapping panel renders its own source-data preview, so suppress the
+  // modal's built-in sheet view.
   acceptSuggestion: () => null,
-  affected: (raw) => {
-    const issue = raw as SchemaTransformationIssue
-    return {
-      sheetName: issue.sheetName,
-      highlights: [],
-      source: {
-        filename: issue.filename,
-        dataCategory: issue.dataCategory,
-        fileKind: 'spreadsheet',
-        location: issue.sheetName,
-      },
-    }
-  },
+  affected: () => null,
   resolvedLabel: (state) => {
     if (state.resolution.kind !== 'rule-program') return null
     const program = state.resolution.program as
@@ -391,23 +412,60 @@ export const schemaAdapter: IssueAdapter = {
     const issue = raw as SchemaTransformationIssue
     return {
       id: 'schema-resolve',
-      title: 'Map your file structure',
+      title: 'Help us understand the layout',
+      fullBleed: true,
       body: (
-        <IssueBody
+        <SchemaMappingPanel
           issue={issue}
-          state={{ resolution: defaultResolutionForIssue(issue) }}
-          onChange={(next) => commit(next)}
-          onResolve={() => {
-            // The schema rule editor closes itself when the user hits its
-            // own Save and continue — commit hasn't fired in that path,
-            // so we exit the modal here via the panel-stack pop. The
-            // modal's own close X is still available.
-          }}
+          onCommit={(next) => commit(next)}
+          // Cancel is best-effort here — the IssueModal owns close. We
+          // can't reach into nav from this adapter callback so we just
+          // commit nothing; the user can hit the modal's X.
+          onCancel={() => {}}
         />
       ),
-      actions: <span />,
+      actions: null,
     }
   },
+  // Card-level Describe shortcut — produces a rule-program seeded from the
+  // spec defaults with `cropVariety` filled by Sandy's guess. Mirrors what
+  // the in-modal tray does so the outcome is the same.
+  describe: (raw) => {
+    const issue = raw as SchemaTransformationIssue
+    return {
+      triggerLabel: 'Describe',
+      title: 'Describe this file',
+      placeholder:
+        "e.g. Each row is one fertiliser application. The crop variety lives in the 'variety' column — it's a code that maps to the master Fields_Crops sheet.",
+      hint: 'Sandy will read the sheet and try to fill in the gaps.',
+      apply: () => {
+        const program = suggestedSchemaProgramWithAssist(issue.sheetName)
+        return { resolution: { kind: 'rule-program', program } }
+      },
+    }
+  },
+}
+
+/**
+ * Build a SchemaRuleProgram that includes every property's default
+ * expression *plus* an assistive guess for cropVariety (the only slot the
+ * default spec deliberately leaves blank).
+ */
+const suggestedSchemaProgramWithAssist = (sheetName: string) => {
+  const props = operationsPropertiesForSheet(sheetName)
+  const rules: Record<string, unknown> = {}
+  for (const p of props) {
+    if (p.defaultExpression) rules[p.property] = p.defaultExpression
+  }
+  rules.cropVariety = {
+    kind: 'join',
+    sourceSheet: sheetName,
+    sourceMatchColumn: 'variety',
+    lookupSheet: 'Fields_Crops',
+    lookupMatchColumn: 'variety',
+    lookupReturnColumn: 'varietyName',
+  }
+  return { sheetName, rules }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -482,40 +540,65 @@ export const valueMappingAdapter: IssueAdapter = {
       ? 'All values mapped'
       : `${decided}/${total} mapped`
   },
+  // No yes/no fork — Resolve opens straight into the mapping UI.
+  skipChooseAction: true,
   optionsPanel: (raw, commit) => {
     const issue = raw as ValueMappingIssue
     return {
       id: 'value-mapping-resolve',
       title: 'Map values',
-      body: <ValueMappingPanelBody issue={issue} commit={commit} />,
-      actions: <span />,
+      fullBleed: true,
+      body: (
+        <ValueMappingPanel
+          issue={issue}
+          onCommit={(next) => commit(next)}
+          onCancel={() => {}}
+        />
+      ),
+      actions: null,
     }
   },
-}
-
-/**
- * Stateful wrapper around the legacy IssueBody renderer. Keeps the user's
- * in-flight edits in local state so editing a dropdown doesn't fire the
- * parent's `commit` (which would close the modal). Only Confirm commits.
- */
-const ValueMappingPanelBody = ({
-  issue,
-  commit,
-}: {
-  issue: ValueMappingIssue
-  commit: (next: IssueState) => void
-}) => {
-  const [draft, setDraft] = useState<IssueState>({
-    resolution: defaultResolutionForIssue(issue),
-  })
-  return (
-    <IssueBody
-      issue={issue}
-      state={draft}
-      onChange={(next) => setDraft(next)}
-      onResolve={() => commit(draft)}
-    />
-  )
+  // Card-level Describe shortcut — fills every still-unmapped value with a
+  // fuzzy-matched canonical option. Mirrors the in-modal tray's behaviour.
+  describe: (raw) => {
+    const issue = raw as ValueMappingIssue
+    return {
+      triggerLabel: 'Describe',
+      title: 'Describe these values',
+      placeholder: `e.g. These are abbreviations for ${issue.targetLabel.toLowerCase()} — match them to the closest Sandy option, even if the spelling differs.`,
+      hint: 'Sandy will read your hint and map the remaining values.',
+      apply: (currentState) => {
+        const existing =
+          currentState?.resolution.kind === 'value-mapping'
+            ? (currentState.resolution.decisions as Record<
+                string,
+                { kind: 'map'; canonicalValue: string } | { kind: 'skip' }
+              >)
+            : {}
+        const next: Record<
+          string,
+          { kind: 'map'; canonicalValue: string } | { kind: 'skip' }
+        > = { ...existing }
+        for (const sv of issue.sourceValues) {
+          const current = next[sv.value]
+          if (current?.kind === 'map' && current.canonicalValue) continue
+          const lower = sv.value.toLowerCase()
+          const match =
+            issue.canonicalOptions.find((opt) =>
+              opt.label.toLowerCase().startsWith(lower.slice(0, 3)),
+            ) ??
+            issue.canonicalOptions.find((opt) =>
+              opt.label.toLowerCase().includes(lower.slice(0, 3)),
+            ) ??
+            issue.canonicalOptions[0]
+          if (match) {
+            next[sv.value] = { kind: 'map', canonicalValue: match.value }
+          }
+        }
+        return { resolution: { kind: 'value-mapping', decisions: next } }
+      },
+    }
+  },
 }
 
 /* -------------------------------------------------------------------------- */

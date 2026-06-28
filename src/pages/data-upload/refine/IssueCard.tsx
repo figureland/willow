@@ -1,8 +1,9 @@
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '../../../components/ui'
 import type { IssueState } from '../IssueResolverModal'
 import type { Issue } from '../issues'
+import { DescribeTray } from './DescribeTray'
 import { IssueModal } from './IssueModal'
 import type { IssueAdapter } from './issue-adapter'
 
@@ -70,6 +71,10 @@ export const IssueCard = ({
   // The card opens a single unified modal — same modal regardless of
   // which button kicked it off; the modal itself manages panel state.
   const [modalOpen, setModalOpen] = useState(false)
+  // Describe tray — mounts directly on the card, not inside the modal.
+  // Clicking Describe must NOT open the resolver modal.
+  const [describeOpen, setDescribeOpen] = useState(false)
+  const describe = useMemo(() => adapter.describe?.(issue), [adapter, issue])
 
   const yesPayload = adapter.acceptSuggestion(issue)
   const resolvedLabel = state ? adapter.resolvedLabel(state, issue) : null
@@ -84,8 +89,8 @@ export const IssueCard = ({
       <article
         onClick={onFocus}
         className={clsx(
-          'group flex cursor-pointer items-start gap-3 rounded-xl border-2 border-transparent p-5 shadow-sm transition-all duration-200',
-          'hover:border-border-tertiary hover:shadow-md',
+          'group flex cursor-pointer items-start gap-3 rounded-xl border-2 border-transparent p-5 opacity-75 shadow-sm transition-all duration-200',
+          'hover:border-border-tertiary hover:opacity-100 hover:shadow-md',
           isResolved ? 'bg-support-bg-green/60' : 'bg-bg-primary',
         )}
       >
@@ -113,7 +118,7 @@ export const IssueCard = ({
     >
       <div className="relative flex items-start gap-4">
         <StatusIndicator resolved={isResolved} />
-        <div className="flex max-w-[540px] flex-1 flex-col gap-1">
+        <div className="flex max-w-[540px] flex-1 flex-col gap-3">
           <div className="text-lg font-medium leading-7 text-text-primary">
             {adapter.problem(issue)}
           </div>
@@ -126,6 +131,7 @@ export const IssueCard = ({
               {adapter.solution(issue)}
             </div>
           )}
+          {!isResolved && adapter.details ? adapter.details(issue) : null}
         </div>
       </div>
 
@@ -154,9 +160,22 @@ export const IssueCard = ({
           // Schema-transformation + value-mapping issues have no Yes path —
           // their resolver IS the modal, so collapse the two old buttons
           // ("Choose an action" + "View details") into a single Resolve CTA.
-          <Button variant="primary" onClick={() => setModalOpen(true)}>
-            Resolve
-          </Button>
+          <>
+            {describe ? (
+              <Button
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDescribeOpen(true)
+                }}
+              >
+                {describe.triggerLabel}
+              </Button>
+            ) : null}
+            <Button variant="primary" onClick={() => setModalOpen(true)}>
+              Resolve
+            </Button>
+          </>
         )}
       </div>
 
@@ -168,6 +187,17 @@ export const IssueCard = ({
           state={state}
           adapter={adapter}
           onCommit={onCommit}
+        />
+      ) : null}
+
+      {describe ? (
+        <DescribeTray
+          open={describeOpen}
+          onClose={() => setDescribeOpen(false)}
+          title={describe.title}
+          placeholder={describe.placeholder}
+          hint={describe.hint}
+          onApply={() => onCommit(describe.apply(state))}
         />
       ) : null}
     </article>
