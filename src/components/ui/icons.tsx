@@ -310,3 +310,32 @@ export const IconDownload = (props: IconProps) => (
     />
   </FigmaIcon>
 )
+
+/** Trend glyph — line chart climbing into an arrowhead. Used as the leading
+ *  affordance on trend / regional comparison anomaly cards. */
+export const IconTrend = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M3 19h18v1.5H3V19Zm0-2.5 5-5 4 4 7-7 1.5 1.5v-3.5h-3.5L18 8 12 14l-4-4-6 6 1 1.5Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** Spot-check glyph — magnifying glass over a small grid of spreadsheet
+ *  cells. Used as the leading affordance on spot-anomaly cards. */
+export const IconSpotCheck = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    {/* Cell grid — two-by-two underneath the lens. */}
+    <path
+      d="M3 4h8v3.5H3V4Zm0 5.5h8V13H3V9.5Z"
+      fill="currentColor"
+      opacity="0.45"
+    />
+    {/* Magnifying glass */}
+    <path
+      d="M14.5 9a4.5 4.5 0 1 0-1.65 3.46l3.85 3.84 1.41-1.41-3.84-3.84A4.48 4.48 0 0 0 14.5 9Zm-4.5 2.5A2.5 2.5 0 1 1 12.5 9 2.5 2.5 0 0 1 10 11.5Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)

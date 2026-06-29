@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
+import { AnomalyStateProvider } from './anomaly-state'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import {
@@ -58,7 +59,9 @@ const typo = (name: string): string => {
  */
 export const DataUploadWizard = () => (
   <FixStateProvider>
-    <DataUploadWizardInner />
+    <AnomalyStateProvider>
+      <DataUploadWizardInner />
+    </AnomalyStateProvider>
   </FixStateProvider>
 )
 
@@ -314,12 +317,22 @@ const DataUploadWizardInner = () => {
         id: 'anomaly-detection',
         label: 'Anomaly detection',
         content: <AnomalyDetectionStep />,
+        bare: true,
       },
       {
         id: 'commit',
         label: 'Commit',
         content: <CommitStep />,
-        hideContinue: true,
+        bare: true,
+        continueLabel: 'Save to Sandy',
+        // Fire a window-level event the CommitStep listens for — opens the
+        // confirmation modal it owns internally. Returning `false` keeps
+        // the wizard on the commit step (the modal handles its own success
+        // path with a redirect home).
+        onContinue: () => {
+          window.dispatchEvent(new CustomEvent('data-upload:commit-request'))
+          return false
+        },
       },
     ],
     [

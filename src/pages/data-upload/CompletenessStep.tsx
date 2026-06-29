@@ -463,8 +463,7 @@ const TIER_CARD: Record<Tier, TierTone> = {
     arrowFg: 'text-text-primary-inverse',
     accent: 'text-sandy-300',
     statBg: 'bg-sandy-800/60',
-    backChip:
-      'bg-sandy-800/60 text-text-primary-inverse/90 hover:bg-sandy-800',
+    backChip: 'bg-sandy-800/60 text-text-primary-inverse/90 hover:bg-sandy-800',
     backChipRing: 'focus-visible:ring-sandy-300/60',
   },
   encouraged: {

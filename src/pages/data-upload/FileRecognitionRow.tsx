@@ -54,9 +54,7 @@ export const FileThumb = ({
 const ThumbStatusOutline = ({ state }: { state: ThumbState }) => {
   if (state === 'done') return null
   const stroke =
-    state === 'loading'
-      ? 'stroke-text-brand-dark'
-      : 'stroke-support-fg-amber'
+    state === 'loading' ? 'stroke-text-brand-dark' : 'stroke-support-fg-amber'
   const dasharray = state === 'loading' ? '20 60' : undefined
   return (
     <svg

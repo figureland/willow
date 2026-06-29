@@ -5,41 +5,63 @@ import type { ReactNode } from 'react'
 /* SuggestionCard — shared between the issues view + field view               */
 /* -------------------------------------------------------------------------- */
 
+export type SuggestionTone = 'smart' | 'neutral'
+
 /**
- * Tray-style card used in the "How to fix" surface. Forest-green background,
- * white headline + body, change-line punched out in bright sandy green so
- * the value being applied reads as the headline of the suggestion.
+ * Single-purpose "do this" card on the "How to fix" surface. Each card is
+ * collapsed to one type size: a headline naming the action, a short
+ * description of what it'll do, and a single CTA.
+ *
+ * - `smart` (default) → forest green for AI suggestions Sandy is confident
+ *   enough to recommend.
+ * - `neutral`        → grey for hand-offs into the manual editor where
+ *   the user does the work themselves.
  */
 export const SuggestionCard = ({
-  title,
+  headline,
   description,
-  changeLine,
   cta,
+  tone = 'smart',
 }: {
-  title: string
+  headline: string
   description?: string
-  changeLine?: string
   cta?: ReactNode
-}) => (
-  <div
-    className={clsx(
-      'flex h-full flex-1 flex-col gap-3 rounded-xl bg-sandy-900 p-5 text-text-primary-inverse',
-      'shadow-none transition-shadow duration-200 hover:shadow-md',
-    )}
-  >
-    <div className="flex flex-1 flex-col gap-2">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-sandy-300">
-        {title}
-      </h3>
-      {description ? (
-        <p className="text-md text-text-primary-inverse/80">{description}</p>
-      ) : null}
-      {changeLine ? (
-        <p className="mt-1 text-lg font-semibold leading-snug text-sandy-300">
-          {changeLine}
-        </p>
-      ) : null}
+  tone?: SuggestionTone
+}) => {
+  const isSmart = tone === 'smart'
+  return (
+    <div
+      className={clsx(
+        'flex h-full flex-1 flex-col gap-3 rounded-xl p-5',
+        'shadow-none transition-shadow duration-200 hover:shadow-md',
+        isSmart
+          ? 'bg-sandy-900 text-text-primary-inverse'
+          : 'bg-bg-tertiary text-text-primary',
+      )}
+    >
+      <div className="flex flex-1 flex-col gap-2">
+        <h3
+          className={clsx(
+            'text-lg font-semibold leading-snug',
+            isSmart ? 'text-sandy-300' : 'text-text-primary',
+          )}
+        >
+          {headline}
+        </h3>
+        {description ? (
+          <p
+            className={clsx(
+              'text-md',
+              isSmart
+                ? 'text-text-primary-inverse/80'
+                : 'text-text-secondary',
+            )}
+          >
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {cta ? <div className="mt-2">{cta}</div> : null}
     </div>
-    {cta ? <div className="mt-2">{cta}</div> : null}
-  </div>
-)
+  )
+}

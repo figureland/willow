@@ -143,9 +143,7 @@ export const DownloadTemplateModal = ({
               // every farm is selected — otherwise the default "N selected"
               // copy hides the fact that the picker is in all-farms mode.
               formatSelected={(selected) => {
-                const hasAll = selected.some(
-                  (o) => o.value === ALL_FARMS_VALUE,
-                )
+                const hasAll = selected.some((o) => o.value === ALL_FARMS_VALUE)
                 if (hasAll) return 'All farms'
                 const farms = selected.filter(
                   (o) => o.value !== ALL_FARMS_VALUE,

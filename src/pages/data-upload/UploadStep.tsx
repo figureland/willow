@@ -447,7 +447,6 @@ export const UploadStep = ({
               )
             })}
           </ul>
-
         </div>
       ) : (
         <EmptyHero onBrowseClick={() => acceptFiles(simulateRandomFiles())} />

@@ -757,8 +757,7 @@ const FieldFixesSection = ({
             Nothing to fix here
           </p>
           <p className="text-sm text-text-secondary">
-            Sandy hasn't found anything that needs your attention on this
-            field.
+            Sandy hasn't found anything that needs your attention on this field.
           </p>
         </div>
       ) : (
@@ -766,15 +765,8 @@ const FieldFixesSection = ({
           {actionable.map((group) => (
             <SuggestionCard
               key={group.id}
-              title={group.title}
-              description={`Based on the other records in this sheet, it looks like you should set ${group.brokenFieldKeys
-                .map((k, i) => {
-                  const v = group.sandySuggestion[k]
-                  return v ? `${group.brokenFieldLabels[i]}: ${v}` : null
-                })
-                .filter((s): s is string => s !== null)
-                .join(' · ')}.`}
-              changeLine={`Update ${group.recordIds.length} ${
+              tone="smart"
+              headline={`Update ${group.recordIds.length} ${
                 group.recordIds.length === 1 ? 'record' : 'records'
               } ${group.brokenFieldKeys
                 .map((k, i) => {
@@ -783,6 +775,13 @@ const FieldFixesSection = ({
                 })
                 .filter((s): s is string => s !== null)
                 .join(', ')}`}
+              description={`Based on the other records in this sheet, we'd set ${group.brokenFieldKeys
+                .map((k, i) => {
+                  const v = group.sandySuggestion[k]
+                  return v ? `${group.brokenFieldLabels[i]}: ${v}` : null
+                })
+                .filter((s): s is string => s !== null)
+                .join(' · ')}.`}
               cta={
                 <Button variant="primary" onClick={() => onAcceptSandy(group)}>
                   Apply suggestion

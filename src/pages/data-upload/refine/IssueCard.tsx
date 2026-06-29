@@ -138,15 +138,15 @@ export const IssueCard = ({
   return (
     <article
       className={clsx(
-        'relative flex flex-col gap-5 overflow-hidden rounded-xl p-6 shadow-md transition-all duration-200',
+        'relative flex flex-col gap-3 overflow-hidden rounded-xl p-6 shadow-md transition-all duration-200',
         isResolved ? 'bg-support-bg-green/60' : 'bg-bg-primary',
       )}
     >
+      {/* Top row — title (with status pip) flows left, action buttons sit
+          right-aligned in the same row so there's no dead band between the
+          headline and the provenance strip below. */}
       <div className="relative flex items-start gap-4">
         <StatusIndicator resolved={isResolved} />
-        {/* One continuous block — problem + solution + resolved label all
-            share the same text size and line-height so the card reads as a
-            single neat paragraph. */}
         <div className="flex max-w-[540px] flex-1 flex-col gap-1 text-md leading-7 text-text-primary [&_p]:text-md [&_p]:leading-7">
           {adapter.problem(issue)}
           {isResolved ? (
@@ -156,144 +156,143 @@ export const IssueCard = ({
           )}
           {!isResolved && adapter.details ? adapter.details(issue) : null}
         </div>
-      </div>
-
-      <div className="relative flex flex-wrap items-center justify-end gap-2">
-        {isResolved && review ? (
-          // Schema cards route every "Change" press through the same Review
-          // modal so the user sees the data + mapping again, not the old
-          // narrow chooser.
-          <Button variant="secondary" onClick={() => setReviewOpen(true)}>
-            Change
-          </Button>
-        ) : isResolved ? (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              // Change lands directly on the chooser — the user already
-              // confirmed once, so the data-grid view would just be noise.
-              setOpenOnOptions(true)
-              setModalOpen(true)
-            }}
-          >
-            Change
-          </Button>
-        ) : review ? (
-          // Single Review CTA — opens the unified review modal that owns
-          // the entire review → describe → manual flow internally.
-          <Button variant="primary" onClick={() => setReviewOpen(true)}>
-            {review.triggerLabel}
-          </Button>
-        ) : yesPayload ? (
-          <>
-            <Button
-              variant="primary"
-              onClick={() => onCommit(yesPayload)}
-              disabled={isResolved}
-            >
-              Yes
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {isResolved && review ? (
+            // Schema cards route every "Change" press through the same Review
+            // modal so the user sees the data + mapping again, not the old
+            // narrow chooser.
+            <Button variant="secondary" onClick={() => setReviewOpen(true)}>
+              Change
             </Button>
-            {describe ? (
-              // Adapter has its own Describe surface — wire "No" to it so the
-              // user can correct Sandy's guess in their own words instead of
-              // walking through the full options modal.
-              <Button
-                variant="secondary"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDescribeOpen(true)
-                }}
-              >
-                No
-              </Button>
-            ) : (
-              // Default Yes/No flow — "Other options" opens the modal at
-              // the chooser ("How should we handle this …?") so the user
-              // can pick a different action without first scrolling past
-              // the affected-data table.
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setOpenOnOptions(true)
-                  setModalOpen(true)
-                }}
-              >
-                Other options
-              </Button>
-            )}
-          </>
-        ) : mapColumns ? (
-          // Unrecognised schema-transformation: Describe (AI assist) or
-          // Map columns (manual) — both feed into the same review modal.
-          <>
-            {describe ? (
-              <Button
-                variant="primary"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDescribeOpen(true)
-                }}
-              >
-                {describe.triggerLabel}
-              </Button>
-            ) : null}
+          ) : isResolved ? (
             <Button
               variant="secondary"
-              onClick={(e) => {
-                e.stopPropagation()
-                setMapColumnsOpen(true)
+              onClick={() => {
+                // Change lands directly on the chooser — the user already
+                // confirmed once, so the data-grid view would just be noise.
+                setOpenOnOptions(true)
+                setModalOpen(true)
               }}
             >
-              {mapColumns.triggerLabel}
+              Change
             </Button>
-          </>
-        ) : mapValues ? (
-          // Value-mapping: Describe (AI) or Map values (manual). Same
-          // shape as the schema flow; the manual modal lists every raw
-          // value with a confidence badge on Sandy's guesses.
-          <>
-            {describe ? (
+          ) : review ? (
+            // Single Review CTA — opens the unified review modal that owns
+            // the entire review → describe → manual flow internally.
+            <Button variant="primary" onClick={() => setReviewOpen(true)}>
+              {review.triggerLabel}
+            </Button>
+          ) : yesPayload ? (
+            <>
               <Button
                 variant="primary"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDescribeOpen(true)
-                }}
+                onClick={() => onCommit(yesPayload)}
+                disabled={isResolved}
               >
-                {describe.triggerLabel}
+                Yes
               </Button>
-            ) : null}
-            <Button
-              variant="secondary"
-              onClick={(e) => {
-                e.stopPropagation()
-                setMapValuesOpen(true)
-              }}
-            >
-              {mapValues.triggerLabel}
-            </Button>
-          </>
-        ) : (
-          // Schema-transformation + value-mapping issues have no Yes path —
-          // their resolver IS the modal, so collapse the two old buttons
-          // ("Choose an action" + "View details") into a single Resolve CTA.
-          <>
-            {describe ? (
+              {describe ? (
+                // Adapter has its own Describe surface — wire "No" to it so the
+                // user can correct Sandy's guess in their own words instead of
+                // walking through the full options modal.
+                <Button
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDescribeOpen(true)
+                  }}
+                >
+                  No
+                </Button>
+              ) : (
+                // Default Yes/No flow — "Other options" opens the modal at
+                // the chooser ("How should we handle this …?") so the user
+                // can pick a different action without first scrolling past
+                // the affected-data table.
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setOpenOnOptions(true)
+                    setModalOpen(true)
+                  }}
+                >
+                  Other options
+                </Button>
+              )}
+            </>
+          ) : mapColumns ? (
+            // Unrecognised schema-transformation: Describe (AI assist) or
+            // Map columns (manual) — both feed into the same review modal.
+            <>
+              {describe ? (
+                <Button
+                  variant="primary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDescribeOpen(true)
+                  }}
+                >
+                  {describe.triggerLabel}
+                </Button>
+              ) : null}
               <Button
                 variant="secondary"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setDescribeOpen(true)
+                  setMapColumnsOpen(true)
                 }}
               >
-                {describe.triggerLabel}
+                {mapColumns.triggerLabel}
               </Button>
-            ) : null}
-            <Button variant="primary" onClick={() => setModalOpen(true)}>
-              Resolve
-            </Button>
-          </>
-        )}
+            </>
+          ) : mapValues ? (
+            // Value-mapping: Describe (AI) or Map values (manual). Same
+            // shape as the schema flow; the manual modal lists every raw
+            // value with a confidence badge on Sandy's guesses.
+            <>
+              {describe ? (
+                <Button
+                  variant="primary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDescribeOpen(true)
+                  }}
+                >
+                  {describe.triggerLabel}
+                </Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMapValuesOpen(true)
+                }}
+              >
+                {mapValues.triggerLabel}
+              </Button>
+            </>
+          ) : (
+            // Schema-transformation + value-mapping issues have no Yes path —
+            // their resolver IS the modal, so collapse the two old buttons
+            // ("Choose an action" + "View details") into a single Resolve CTA.
+            <>
+              {describe ? (
+                <Button
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDescribeOpen(true)
+                  }}
+                >
+                  {describe.triggerLabel}
+                </Button>
+              ) : null}
+              <Button variant="primary" onClick={() => setModalOpen(true)}>
+                Resolve
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {adapter.provenance ? (

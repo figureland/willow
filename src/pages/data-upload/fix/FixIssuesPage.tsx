@@ -161,13 +161,10 @@ const FixIntro = ({ onContinue }: { onContinue: () => void }) => (
         className="max-w-[460px] text-md leading-relaxed text-text-secondary animate-fade-up"
         style={{ animationDelay: '440ms' }}
       >
-        We picked up a few issues that we couldn't resolve automatically.
-        Let's go through them together.
+        We picked up a few issues that we couldn't resolve automatically. Let's
+        go through them together.
       </p>
-      <div
-        className="animate-fade-up"
-        style={{ animationDelay: '560ms' }}
-      >
+      <div className="animate-fade-up" style={{ animationDelay: '560ms' }}>
         <Button variant="primary" onClick={onContinue}>
           Review issues
         </Button>

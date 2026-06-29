@@ -72,6 +72,39 @@
   --color-bayer-900: #1f4126;
   --color-bayer-950: #0d2713;
 
+  /* Sunflower — warm pastel yellow ramp anchored on #FFEE8C at 400. Used
+     by the anomaly-detection surface (surface tint + icon foreground).
+     Lighter stops fade toward cream; darker stops bend toward amber →
+     sienna so the dark-on-yellow icon pairing reads as sunflower over
+     dark molasses. */
+  --color-sunflower-50: #fffcec;
+  --color-sunflower-100: #fff7c8;
+  --color-sunflower-200: #fff2a6;
+  --color-sunflower-300: #ffee8c;
+  --color-sunflower-400: #ffee8c;
+  --color-sunflower-500: #f5d24a;
+  --color-sunflower-600: #d3a91a;
+  --color-sunflower-700: #a37f0e;
+  --color-sunflower-800: #735807;
+  --color-sunflower-900: #4a3805;
+  --color-sunflower-950: #2a2003;
+
+  /* Lagoon — soft teal ramp anchored on #85DFE2 at 400. Pairs with the
+     sunflower ramp on the anomaly-detection page (sunflower = quick fixes,
+     lagoon = long-term trends). Darker stops bend toward deep marine teal
+     so dark-on-teal iconography stays solidly legible. */
+  --color-lagoon-50: #ecfafb;
+  --color-lagoon-100: #d2f4f5;
+  --color-lagoon-200: #aeebed;
+  --color-lagoon-300: #85dfe2;
+  --color-lagoon-400: #85dfe2;
+  --color-lagoon-500: #44c7cb;
+  --color-lagoon-600: #1ea4a8;
+  --color-lagoon-700: #16807f;
+  --color-lagoon-800: #115d5e;
+  --color-lagoon-900: #0d3f40;
+  --color-lagoon-950: #062324;
+
   /* Neutrals */
   --color-neutral-900: #171717;
   --color-neutral-950: #0a0a0a;

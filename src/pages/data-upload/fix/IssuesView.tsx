@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Button,
   DataTable,
@@ -39,17 +39,16 @@ const IssueRow = ({
   group,
   isActive,
   resolved,
-  onSelect,
+  href,
 }: {
   group: IssueGroup
   isActive: boolean
   resolved: boolean
-  onSelect: () => void
+  href: string
 }) => (
   <li>
-    <button
-      type="button"
-      onClick={onSelect}
+    <Link
+      to={href}
       className={clsx(
         'flex w-full items-center gap-3 border-b-2 border-border-tertiary px-4 py-3 text-left transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
@@ -69,7 +68,7 @@ const IssueRow = ({
               } · ${group.brokenFieldLabels.join(', ') || 'see rows'}`}
         </span>
       </div>
-    </button>
+    </Link>
   </li>
 )
 
@@ -80,20 +79,20 @@ const IssueRow = ({
 /**
  * Compact issue card — borrows the structure of the Refine step's issue
  * cards: a status indicator, a short headline + sub-line, and the whole
- * card is the click target. Resolved cards tint green.
+ * card is the click target. Renders as a `<Link>` so the destination URL
+ * is visible on hover and middle-click / cmd-click work natively.
  */
 const IssueCardItem = ({
   group,
   resolved,
-  onSelect,
+  href,
 }: {
   group: IssueGroup
   resolved: boolean
-  onSelect: () => void
+  href: string
 }) => (
-  <button
-    type="button"
-    onClick={onSelect}
+  <Link
+    to={href}
     className={clsx(
       'group flex w-full items-start gap-3 rounded-xl border-2 border-transparent p-5 text-left shadow-sm transition-all duration-200',
       'hover:border-border-tertiary hover:shadow-md',
@@ -114,23 +113,21 @@ const IssueCardItem = ({
             } · ${group.brokenFieldLabels.join(', ') || 'see rows'}`}
       </p>
     </div>
-  </button>
+  </Link>
 )
 
 const IssueCardList = ({
   groups,
   resolvedIds,
-  totalRecords,
-  affectedFarms,
-  affectedFields,
-  onSelect,
+  hrefForIssue,
+  hrefForSeverity,
+  activeSeverity,
 }: {
   groups: IssueGroup[]
   resolvedIds: Set<string>
-  totalRecords: number
-  affectedFarms: number
-  affectedFields: number
-  onSelect: (id: string) => void
+  hrefForIssue: (issueId: string) => string
+  hrefForSeverity: (severity: 'all' | 'blocking' | 'warning') => string
+  activeSeverity: 'all' | 'blocking' | 'warning'
 }) => {
   const unresolved = groups.filter((g) => !resolvedIds.has(g.id))
   const mustFix = unresolved.filter((g) => g.severity === 'blocking').length
@@ -145,30 +142,20 @@ const IssueCardList = ({
           We need to fix a few issues before we can proceed.
         </p>
       </header>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <SummaryTile
           stat={mustFix}
           label="Must fix"
-          hint="Issues we can't import"
           tone="blocking"
+          href={hrefForSeverity('blocking')}
+          active={activeSeverity === 'blocking'}
         />
         <SummaryTile
           stat={worthALook}
           label="Worth a look"
-          hint="Warnings we'd flag"
           tone="warning"
-        />
-        <SummaryTile
-          stat={totalRecords}
-          label="Records checked"
-          hint="Across cropping + operations"
-          tone="neutral"
-        />
-        <SummaryTile
-          stat={`${affectedFields}/${affectedFarms}`}
-          label="Fields / farms affected"
-          hint="At least one issue surfaced"
-          tone="neutral"
+          href={hrefForSeverity('warning')}
+          active={activeSeverity === 'warning'}
         />
       </div>
       <div className="flex flex-col gap-3">
@@ -177,7 +164,7 @@ const IssueCardList = ({
             key={group.id}
             group={group}
             resolved={resolvedIds.has(group.id)}
-            onSelect={() => onSelect(group.id)}
+            href={hrefForIssue(group.id)}
           />
         ))}
       </div>
@@ -186,41 +173,53 @@ const IssueCardList = ({
 }
 
 /* -------------------------------------------------------------------------- */
-/* SummaryTile — large stat + label + hint                                     */
+/* SummaryTile — large stat + label, optional anchor for filtering              */
 /* -------------------------------------------------------------------------- */
 
 const TILE_TONE: Record<'blocking' | 'warning' | 'neutral', string> = {
-  blocking:
-    'bg-support-bg-red border-support-border-red text-support-fg-red',
-  warning:
-    'bg-support-bg-amber border-support-border-amber text-support-fg-amber',
-  neutral: 'bg-bg-secondary border-border-tertiary text-text-primary',
+  // Solid strong fills with inverse text — the whole tile reads as a CTA.
+  blocking: 'bg-support-fg-red text-text-primary-inverse',
+  warning: 'bg-support-fg-amber text-text-primary-inverse',
+  neutral: 'bg-text-primary text-text-primary-inverse',
 }
 
 const SummaryTile = ({
   stat,
   label,
-  hint,
   tone,
+  href,
+  active,
 }: {
   stat: number | string
   label: string
-  hint: string
   tone: 'blocking' | 'warning' | 'neutral'
-}) => (
-  <div
-    className={clsx(
-      'flex flex-col gap-1 rounded-xl border-2 px-4 py-3',
-      TILE_TONE[tone],
-    )}
-  >
-    <span className="text-3xl font-semibold leading-none tabular-nums text-text-primary">
-      {stat}
-    </span>
-    <span className="text-sm font-medium text-text-primary">{label}</span>
-    <span className="text-xs text-text-secondary">{hint}</span>
-  </div>
-)
+  href?: string
+  active?: boolean
+}) => {
+  const base = clsx(
+    'flex flex-col gap-1 rounded-xl px-4 py-3 transition-all',
+    TILE_TONE[tone],
+    href &&
+      'hover:shadow-md hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+    active && 'ring-2 ring-text-primary/30',
+  )
+  const body = (
+    <>
+      <span className="text-3xl font-semibold leading-none tabular-nums text-current">
+        {stat}
+      </span>
+      <span className="text-sm font-medium text-current/90">{label}</span>
+    </>
+  )
+  if (!href) {
+    return <div className={base}>{body}</div>
+  }
+  return (
+    <Link to={href} className={base}>
+      {body}
+    </Link>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
@@ -517,13 +516,13 @@ const IssuePanel = ({
           <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
             {Object.keys(group.sandySuggestion).length > 0 ? (
               <SuggestionCard
-                title="Sandy suggestion"
-                description={`Based on the other records in this sheet, it looks like you should set ${sandySummary || '—'}.`}
-                changeLine={
+                tone="smart"
+                headline={
                   sandyChangeLine
                     ? `Update ${targetCount} ${targetCount === 1 ? 'record' : 'records'} ${sandyChangeLine}`
-                    : undefined
+                    : `Update ${targetCount} ${targetCount === 1 ? 'record' : 'records'}`
                 }
+                description={`Based on the other records in this sheet, we'd set ${sandySummary || '—'}.`}
                 cta={
                   <Button
                     variant="primary"
@@ -536,15 +535,16 @@ const IssuePanel = ({
               />
             ) : null}
             <SuggestionCard
-              title="Set a new value"
-              description={`Open the record editor to set ${group.brokenFieldLabels.join(', ') || 'a value'} across every record below.`}
+              tone="neutral"
+              headline={`Set ${group.brokenFieldLabels.join(', ') || 'a value'} yourself`}
+              description="Open the record editor to pick a value across every record below."
               cta={
                 <Button
                   variant="secondary"
                   disabled={busy}
                   onClick={openValueEditor}
                 >
-                  Apply a new value
+                  Open editor
                 </Button>
               }
             />
@@ -651,15 +651,34 @@ export const IssuesView = () => {
   // Active issue lives in the URL so back/forward + refresh keep the user
   // on the same issue.
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
   const activeId = searchParams.get('issue')
+  const rawSeverity = searchParams.get('severity')
+  const activeSeverity: 'all' | 'blocking' | 'warning' =
+    rawSeverity === 'blocking' || rawSeverity === 'warning'
+      ? rawSeverity
+      : 'all'
+
+  /** Build a path that swaps the `issue` URL param, preserving other params. */
+  const hrefForIssue = (id: string): string => {
+    const params = new URLSearchParams(searchParams)
+    params.set('issue', id)
+    return `${location.pathname}?${params.toString()}`
+  }
+  /** Build a path that swaps the `severity` URL param. */
+  const hrefForSeverity = (
+    severity: 'all' | 'blocking' | 'warning',
+  ): string => {
+    const params = new URLSearchParams(searchParams)
+    if (severity === 'all') params.delete('severity')
+    else params.set('severity', severity)
+    const qs = params.toString()
+    return qs ? `${location.pathname}?${qs}` : location.pathname
+  }
+
   const setActiveId = (id: string) => {
     const params = new URLSearchParams(searchParams)
     params.set('issue', id)
-    setSearchParams(params, { replace: true })
-  }
-  const clearActiveId = () => {
-    const params = new URLSearchParams(searchParams)
-    params.delete('issue')
     setSearchParams(params, { replace: true })
   }
 
@@ -714,28 +733,6 @@ export const IssuesView = () => {
     for (const r of operationRecords)
       map.set(r.id, projectRecord(r, 'operation'))
     return map
-  }, [croppingRecords, operationRecords])
-
-  // Headline stats for the card-view summary tiles.
-  const summaryStats = useMemo(() => {
-    const totalRecords = croppingRecords.length + operationRecords.length
-    const farmsAffected = new Set<string>()
-    const fieldsAffected = new Set<string>()
-    for (const r of croppingRecords) {
-      if (r.issues.length === 0) continue
-      farmsAffected.add(r.farmName)
-      fieldsAffected.add(`${r.farmName}::${r.fieldName}`)
-    }
-    for (const r of operationRecords) {
-      if (r.issues.length === 0) continue
-      farmsAffected.add(r.farmName)
-      fieldsAffected.add(`${r.farmName}::${r.fieldName}`)
-    }
-    return {
-      totalRecords,
-      affectedFarms: farmsAffected.size,
-      affectedFields: fieldsAffected.size,
-    }
   }, [croppingRecords, operationRecords])
 
   const onApply = (
@@ -870,19 +867,23 @@ export const IssuesView = () => {
       onApplyValueForIssue={onApplyValueForIssue}
       headerSlot={
         layout === 'cards' ? (
-          <button
-            type="button"
-            onClick={clearActiveId}
+          <Link
+            to={(() => {
+              const params = new URLSearchParams(searchParams)
+              params.delete('issue')
+              const qs = params.toString()
+              return qs ? `${location.pathname}?${qs}` : location.pathname
+            })()}
             className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
           >
             <IconArrowLeft size={16} />
             Back to issues
-          </button>
+          </Link>
         ) : null
       }
       resolvedFooterSlot={
         layout === 'cards' && nextIssue ? (
-          <Button variant="primary" onClick={() => setActiveId(nextIssue.id)}>
+          <Button variant="primary" to={hrefForIssue(nextIssue.id)}>
             Next issue
           </Button>
         ) : null
@@ -908,7 +909,7 @@ export const IssuesView = () => {
                     group={group}
                     isActive={activeGroup?.id === group.id}
                     resolved={resolvedIssueIds.has(group.id)}
-                    onSelect={() => setActiveId(group.id)}
+                    href={hrefForIssue(group.id)}
                   />
                 ))}
               </ul>
@@ -930,10 +931,9 @@ export const IssuesView = () => {
             <IssueCardList
               groups={sidebarGroups}
               resolvedIds={resolvedIssueIds}
-              totalRecords={summaryStats.totalRecords}
-              affectedFarms={summaryStats.affectedFarms}
-              affectedFields={summaryStats.affectedFields}
-              onSelect={setActiveId}
+              hrefForIssue={hrefForIssue}
+              hrefForSeverity={hrefForSeverity}
+              activeSeverity={activeSeverity}
             />
           )}
         </section>

@@ -350,9 +350,19 @@ export const RecordEditorSheet = <Row extends { id: string }>({
             <Button
               variant="primary"
               disabled={!canSave}
-              onClick={() => setStage('confirm')}
+              onClick={() => {
+                // Single-record edits skip the overwrite-confirmation step
+                // — there's no "many records, varying values" risk to
+                // reconcile, so commit straight away. Batch edits still
+                // walk through the confirm stage.
+                if (!isMulti) {
+                  onSave(patch)
+                  return
+                }
+                setStage('confirm')
+              }}
             >
-              Review changes
+              {isMulti ? 'Review changes' : 'Save'}
             </Button>
           </>
         ) : (

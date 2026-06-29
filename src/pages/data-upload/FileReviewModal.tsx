@@ -1,7 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Modal, MultiSelect, Select } from '../../components/ui'
-import { TemplateDescribeTray } from './TemplateDescribeTray'
 import { FileThumb, rowToneClasses, thumbStateFor } from './FileRecognitionRow'
 import {
   BUILTIN_TEMPLATES,
@@ -13,6 +12,7 @@ import {
   type RecognitionResult,
   type ReviewState,
 } from './recognition'
+import { TemplateDescribeTray } from './TemplateDescribeTray'
 import type { UploadedFile } from './UploadStep'
 
 /* -------------------------------------------------------------------------- */
@@ -457,8 +457,8 @@ const FileReviewPanel = ({
           ) : (
             <>
               <p className="text-sm text-text-secondary">
-                We couldn't match this file to a saved template. Link it to
-                one Sandy already knows, or describe it so we can mint a new
+                We couldn't match this file to a saved template. Link it to one
+                Sandy already knows, or describe it so we can mint a new
                 template.
               </p>
               <div>
