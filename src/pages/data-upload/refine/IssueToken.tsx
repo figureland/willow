@@ -18,7 +18,9 @@ export type IssueTokenProps = {
 }
 
 const TONE: Record<IssueTokenTone, string> = {
-  neutral: 'bg-bg-tertiary text-text-primary',
+  // Semi-transparent black sits cleanly on both white cards and the green
+  // resolved-card tint without needing a per-context override.
+  neutral: 'bg-black/5 text-text-primary',
   success: 'bg-support-bg-green text-text-brand-dark',
 }
 

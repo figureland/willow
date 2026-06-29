@@ -107,6 +107,19 @@ export type SchemaTransformationIssue = BaseIssue & {
   sheetName: string
   /** Human label for the data category (e.g. "Operations"). */
   dataCategory: string
+  /**
+   * When true, Sandy has already read the sheet and proposed a layout
+   * that the user just needs to confirm with Yes / No. When false (or
+   * omitted) we fall back to the "we don't recognise this template"
+   * framing where the user has to drive the resolver themselves.
+   */
+  recognised?: boolean
+  /**
+   * Short summary of *what* Sandy found inside the file when
+   * `recognised` is true (e.g. "16 cropping records across 3 farms").
+   * Surfaced on the card alongside the source filename.
+   */
+  recognisedSummary?: string
 }
 
 /**
@@ -119,6 +132,10 @@ export type ValueMappingIssue = BaseIssue & {
   type: 'value-mapping'
   /** Data category the rules apply to (Operations / Cropping / …). */
   category: 'operational' | 'cropping' | 'soil-sampling'
+  /** Filename the unknown values were detected in. */
+  filename: string
+  /** Sheet within the workbook. */
+  sheetName: string
   /** Source column the unknown values came from. */
   sourceColumn: string
   /** Canonical field label they map onto. */

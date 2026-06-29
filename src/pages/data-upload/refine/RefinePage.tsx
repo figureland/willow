@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Tooltip } from '../../../components/ui'
+import { CompletionToast } from '../CompletionToast'
 import type { IssueState } from '../IssueResolverModal'
 import type { Issue } from '../issues'
 import type { DetectionSummary, FarmSummary } from '../summary'
@@ -63,7 +64,7 @@ const panelForIssue = (issue: Issue): PanelId | null => {
 /* Resolution helpers — shared with the issue panels                           */
 /* -------------------------------------------------------------------------- */
 
-const isUnresolved = (
+export const isUnresolved = (
   issue: Issue,
   state: Record<string, IssueState>,
 ): boolean => {
@@ -253,50 +254,6 @@ const SummaryPanel = ({ summary }: { summary: DetectionSummary }) => {
     </div>
   )
 }
-
-/* -------------------------------------------------------------------------- */
-/* CompletionToast — push-up tick announcement                                 */
-/* -------------------------------------------------------------------------- */
-
-const CompletionToast = ({
-  visible,
-  label,
-}: {
-  visible: boolean
-  label: string
-}) => (
-  <div
-    role="status"
-    aria-live="polite"
-    aria-hidden={!visible}
-    className={clsx(
-      'pointer-events-none fixed inset-x-0 bottom-[24px] z-30 flex justify-center px-4',
-      'transition-all duration-300 ease-out',
-      visible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
-    )}
-  >
-    <div className="flex items-center gap-3 rounded-full bg-support-fg-green px-5 py-3 text-text-primary-inverse shadow-lg">
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <title>Complete</title>
-        <path
-          d="M5 12.5l4.5 4.5L19 7"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <span className="text-md font-semibold">{label}</span>
-    </div>
-  </div>
-)
 
 /* -------------------------------------------------------------------------- */
 /* Issue panel                                                                 */
@@ -633,9 +590,16 @@ export const RefinePage = ({
               onClick: () => goTo(activeIndex + 1),
             }
           }
+          // Hide the panel's Continue/Done button until every issue in the
+          // active panel carries a non-pending resolution. The top-level
+          // wizard Next is similarly gated, so users still have a clear way
+          // to leave the step once they're done.
+          const panelIssues = issuesByPanel[activePanel] ?? []
+          const allResolved =
+            panelIssues.length === 0 ||
+            panelIssues.every((i) => !isUnresolved(i, state))
+          if (!allResolved) return undefined
           const isLast = activeIndex === PANEL_ORDER.length - 1
-          // Always keep Next clickable so the prototype is navigable end-to-
-          // end without first resolving every issue.
           return {
             label: isLast ? 'Done' : 'Continue',
             onClick: () => goTo(activeIndex + 1),

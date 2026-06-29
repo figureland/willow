@@ -122,7 +122,7 @@ export const DescribeTray = ({
         role="dialog"
         aria-label={title}
         className={clsx(
-          'mx-auto w-full max-w-[500px]',
+          'mx-auto w-full max-w-[640px]',
           portal
             ? 'fixed inset-x-0 bottom-0 z-[101]'
             : 'absolute inset-x-0 bottom-0 z-20',
@@ -164,7 +164,7 @@ export const DescribeTray = ({
                 }
               }}
               placeholder={placeholder}
-              rows={4}
+              rows={10}
               className={clsx(
                 'w-full resize-none rounded-lg border-2 border-border-tertiary bg-bg-primary px-3 py-2',
                 'text-md text-text-primary placeholder:text-text-placeholder',

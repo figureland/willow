@@ -14,7 +14,7 @@ import {
   EXAMPLE_WORKBOOK,
   type SchemaRuleProgram,
 } from '../schema-transformation'
-import type { ValueMappingDecisions } from '../value-mapping'
+import { CANONICAL_VOCAB, type ValueMappingDecisions } from '../value-mapping'
 import type { IssuePanel } from './IssueModal'
 import { IssueToken } from './IssueToken'
 import type { CellHighlight, IssueAdapter } from './issue-adapter'
@@ -388,21 +388,44 @@ export const fieldMissingBatchAdapter: IssueAdapter = {
 export const schemaAdapter: IssueAdapter = {
   problem: (raw) => {
     const issue = raw as SchemaTransformationIssue
+    if (issue.recognised) {
+      return (
+        <div className="flex flex-col gap-2">
+          <p>
+            We read your <IssueToken>{issue.dataCategory}</IssueToken> data.
+            {issue.recognisedSummary ? <> {issue.recognisedSummary}</> : null}{' '}
+            Does this look right?
+          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-text-secondary">Reading from</p>
+            <FileChip filename={issue.filename} sheetName={issue.sheetName} />
+          </div>
+        </div>
+      )
+    }
     return (
-      <p className="flex flex-wrap items-center gap-2">
-        <span>
-          We don't recognise this template. Help us understand the layout.
-        </span>
-        <FileChip filename={issue.filename} sheetName={issue.sheetName} />
-      </p>
+      <div className="flex flex-col gap-2">
+        <p>We don't recognise this template. Help us understand the layout.</p>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-text-secondary">Reading from</p>
+          <FileChip filename={issue.filename} sheetName={issue.sheetName} />
+        </div>
+      </div>
     )
   },
   solution: () => null,
-  // No yes/no fork — Resolve opens straight into the mapping UI.
+  // When recognised, Sandy already proposed a layout — Yes confirms it. When
+  // not recognised, the resolver IS the modal (no Yes/No fork) so we skip the
+  // chooser.
   skipChooseAction: true,
-  // The mapping panel renders its own source-data preview, so suppress the
-  // modal's built-in sheet view.
-  acceptSuggestion: () => null,
+  acceptSuggestion: (raw) => {
+    const issue = raw as SchemaTransformationIssue
+    if (!issue.recognised) return null
+    // Yes confirms the auto-drafted layout that Sandy would have proposed
+    // (mirrors the assist-guess we use elsewhere).
+    const program = suggestedSchemaProgramWithAssist(issue.sheetName)
+    return { resolution: { kind: 'rule-program', program } }
+  },
   affected: () => null,
   resolvedLabel: (state) => {
     if (state.resolution.kind !== 'rule-program') return null
@@ -444,6 +467,21 @@ export const schemaAdapter: IssueAdapter = {
   // the in-modal tray does so the outcome is the same.
   describe: (raw) => {
     const issue = raw as SchemaTransformationIssue
+    // Recognised: Sandy already proposed a layout — frame the prompt as
+    // "what did we get wrong?". Unrecognised: ask for a layout from scratch.
+    if (issue.recognised) {
+      return {
+        triggerLabel: 'No',
+        title: "Tell us what we've missed",
+        placeholder:
+          "e.g. Crop variety actually lives in the 'variety_code' column, not the one we picked. The harvest year is in column F.",
+        hint: 'Sandy will re-read the sheet with your corrections.',
+        apply: () => {
+          const program = suggestedSchemaProgramWithAssist(issue.sheetName)
+          return { resolution: { kind: 'rule-program', program } }
+        },
+      }
+    }
     return {
       triggerLabel: 'Describe',
       title: 'Describe this file',
@@ -489,17 +527,81 @@ export const valueMappingAdapter: IssueAdapter = {
     const issue = raw as ValueMappingIssue
     const n = issue.sourceValues.length
     return (
-      <p>
-        We spotted{' '}
-        <IssueToken>
-          {n} unknown {n === 1 ? 'value' : 'values'}
-        </IssueToken>{' '}
-        in <IssueToken>{issue.sourceColumn}</IssueToken>. Help us map them to{' '}
-        <IssueToken>{issue.targetLabel}</IssueToken>.
-      </p>
+      <div className="flex flex-col gap-2">
+        <p>
+          We spotted{' '}
+          <IssueToken>
+            {n} unknown {n === 1 ? 'value' : 'values'}
+          </IssueToken>{' '}
+          in <IssueToken>{issue.sourceColumn}</IssueToken>. Help us map them to{' '}
+          <IssueToken>{issue.targetLabel}</IssueToken>.
+        </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-text-secondary">Reading from</p>
+          <FileChip filename={issue.filename} sheetName={issue.sheetName} />
+        </div>
+      </div>
     )
   },
   solution: () => null,
+  // Before/after preview on the active card. Shows the source value and the
+  // canonical match Sandy proposed (the user can confirm or override in the
+  // resolver modal). Cap rows so the card stays scannable — full table lives
+  // inside the modal.
+  details: (raw) => {
+    const issue = raw as ValueMappingIssue
+    const options = CANONICAL_VOCAB[issue.category]
+    const labelFor = (id: string | undefined) =>
+      options.find((o) => o.value === id)?.label
+    const PREVIEW_CAP = 4
+    const previewed = issue.sourceValues.slice(0, PREVIEW_CAP)
+    const overflow = issue.sourceValues.length - previewed.length
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border-2 border-border-tertiary bg-bg-secondary px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          Proposed quick fix
+        </p>
+        <table className="w-full table-fixed border-separate border-spacing-y-0.5 text-sm">
+          <thead>
+            <tr className="text-left text-xs font-medium text-text-secondary">
+              <th className="w-2/5 font-medium">Source value</th>
+              <th className="w-3/5 font-medium">Will become</th>
+            </tr>
+          </thead>
+          <tbody>
+            {previewed.map((sv) => {
+              const matched = sv.suggestion ? labelFor(sv.suggestion) : null
+              return (
+                <tr key={sv.value}>
+                  <td className="text-text-primary">
+                    <span className="rounded-md bg-bg-primary px-1.5 py-0.5">
+                      {sv.value}
+                    </span>
+                    <span className="ml-2 text-text-secondary">
+                      ({sv.occurrences.toLocaleString()} rows)
+                    </span>
+                  </td>
+                  <td className="text-text-primary">
+                    {matched ?? (
+                      <span className="text-support-fg-amber">
+                        Needs mapping
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {overflow > 0 ? (
+          <p className="text-xs text-text-secondary">
+            +{overflow} more {overflow === 1 ? 'value' : 'values'} — open to
+            review all
+          </p>
+        ) : null}
+      </div>
+    )
+  },
   acceptSuggestion: () => null,
   affected: (raw) => {
     const issue = raw as ValueMappingIssue

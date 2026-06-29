@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Button, SegmentedControl } from '../../../components/ui'
 import { DataTableView } from './DataTableView'
 import { FieldView } from './FieldView'
+import { useFixState } from './fix-state'
 import { IssuesView } from './IssuesView'
 
 /* -------------------------------------------------------------------------- */
@@ -205,9 +206,11 @@ const FixPage = () => {
     setSearchParams(params, { replace: true })
   }
 
+  const { hasUnsavedChanges, saveChanges, discardChanges } = useFixState()
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-6 gap-y-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-text-secondary">
             Group issues by:
@@ -230,6 +233,16 @@ const FixPage = () => {
             onValueChange={setSeverity}
           />
         </div>
+        {hasUnsavedChanges ? (
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="secondary" onClick={discardChanges}>
+              Discard changes
+            </Button>
+            <Button variant="primary" onClick={saveChanges}>
+              Save changes
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-1 min-h-0 flex-col">
         {view === 'issue' ? (

@@ -149,12 +149,26 @@ export const IssueCard = ({
             >
               Yes
             </Button>
-            {/* Single "Other options" button — opens the enlarged modal
-                where the user can pick a different action or inspect the
-                affected data. Replaces the previous No + View details pair. */}
-            <Button variant="secondary" onClick={() => setModalOpen(true)}>
-              Other options
-            </Button>
+            {describe ? (
+              // Adapter has its own Describe surface — wire "No" to it so the
+              // user can correct Sandy's guess in their own words instead of
+              // walking through the full options modal.
+              <Button
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDescribeOpen(true)
+                }}
+              >
+                No
+              </Button>
+            ) : (
+              // Default Yes/No flow — "No" opens the resolver modal where the
+              // user can pick a different action or inspect the affected data.
+              <Button variant="secondary" onClick={() => setModalOpen(true)}>
+                Other options
+              </Button>
+            )}
           </>
         ) : (
           // Schema-transformation + value-mapping issues have no Yes path —

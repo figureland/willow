@@ -100,6 +100,10 @@ export type ValueMappingDecisions = Record<string, ValueMappingDecision>
 
 export type ValueMappingFixture = {
   category: DataCategory
+  /** Filename the unknown values were detected in. */
+  filename: string
+  /** Sheet within the workbook. */
+  sheetName: string
   /** Column name as it appears in the source file. */
   sourceColumn: string
   /** Human-friendly label for the canonical target field. */
@@ -111,6 +115,8 @@ export type ValueMappingFixture = {
 export const MOCK_VALUE_MAPPING_FIXTURES: ValueMappingFixture[] = [
   {
     category: 'operational',
+    filename: 'xfarm-operations-export.xlsx',
+    sheetName: 'PRD_Fertilizers',
     sourceColumn: 'prodActivity',
     targetLabel: 'Operation type',
     values: [
@@ -123,6 +129,8 @@ export const MOCK_VALUE_MAPPING_FIXTURES: ValueMappingFixture[] = [
   },
   {
     category: 'cropping',
+    filename: 'arable-2024-cropping-plan.xlsx',
+    sheetName: 'PRD_Cropping',
     sourceColumn: 'commodityName',
     targetLabel: 'Crop name',
     values: [

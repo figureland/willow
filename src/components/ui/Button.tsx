@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { Spinner } from './Spinner'
 
-type Variant = 'primary' | 'secondary' | 'ghost'
+type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive'
 type Size = 'md' | 'lg'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -45,6 +45,14 @@ const variants: Record<Variant, string> = {
     'hover:bg-button-tertiary',
     'active:bg-button-tertiary-hover',
     'disabled:text-text-disabled',
+  ),
+  // Destructive — red fill, white text. Uses the support-red ramp so the
+  // colour scales with the rest of the danger language (alerts, error pills).
+  destructive: clsx(
+    'bg-support-fg-red text-text-primary-inverse border-support-fg-red',
+    'hover:bg-red-600 hover:border-red-600',
+    'active:bg-red-600 active:border-red-600',
+    'disabled:bg-button-disabled disabled:border-border-disabled disabled:text-text-disabled',
   ),
 }
 

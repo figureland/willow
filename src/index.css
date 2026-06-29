@@ -164,12 +164,15 @@
 
   /* Support — amber / green / red triplets for callouts, alerts, badges */
   --color-support-bg-amber: #fffbeb;
+  --color-support-bg-blue: #eff6ff;
   --color-support-bg-green: #eefff1;
   --color-support-bg-red: #fef2f2;
   --color-support-fg-amber: #d97706;
+  --color-support-fg-blue: #2563eb;
   --color-support-fg-green: #00b82b;
   --color-support-fg-red: #dc2626;
   --color-support-border-amber: #d97706;
+  --color-support-border-blue: #2563eb;
   --color-support-border-green: #00b82b;
   --color-support-border-red: #dc2626;
 

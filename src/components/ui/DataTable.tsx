@@ -153,6 +153,13 @@ const tableSx = {
   '& .MuiDataGrid-row.Mui-selected:hover': {
     backgroundColor: 'var(--color-sandy-100)',
   },
+  // Selection accent — a 3px sandy bar inside the row's left edge, drawn via
+  // box-shadow so it sits on top of any background tint (severity, edited,
+  // removed). This is the row-level highlight that survives regardless of
+  // the row colour state.
+  '& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover': {
+    boxShadow: 'inset 3px 0 0 0 var(--color-sandy-600)',
+  },
   // Severity-tinted rows. Consumers opt in via `getRowClassName` returning
   // `row-issue-blocking` / `row-issue-warning`. Hover states preserved.
   '& .MuiDataGrid-row.row-issue-blocking': {
@@ -166,6 +173,19 @@ const tableSx = {
   },
   '& .MuiDataGrid-row.row-issue-warning:hover': {
     backgroundColor: 'var(--color-support-bg-amber)',
+  },
+  // Edited rows — pale blue tint signals the row carries unsaved changes.
+  // `row-edited` outranks the severity tints (consumers should not return
+  // both simultaneously; if they do, edited takes precedence).
+  '& .MuiDataGrid-row.row-edited, & .MuiDataGrid-row.row-edited:hover': {
+    backgroundColor: 'var(--color-support-bg-blue)',
+  },
+  // Removed rows — kept in the table for visibility but rendered as a
+  // strikethrough at reduced opacity, so the user can undo before saving.
+  '& .MuiDataGrid-row.row-removed, & .MuiDataGrid-row.row-removed:hover': {
+    opacity: 0.5,
+    textDecoration: 'line-through',
+    textDecorationColor: 'var(--color-text-secondary)',
   },
   // Severity-tinted cells. Consumers opt in via `cellClassName` returning
   // `cell-issue-blocking` / `cell-issue-warning`. Used by Fix-issue cards to

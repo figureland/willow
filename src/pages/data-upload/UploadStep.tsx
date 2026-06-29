@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { type DragEvent, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui'
+import { CompletionToast } from './CompletionToast'
 import { FileRecognitionRow } from './FileRecognitionRow'
 import { FileReviewModal } from './FileReviewModal'
 import {
@@ -188,8 +189,25 @@ export const UploadStep = ({
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   )
+  // Clear every timer when the component tears down so stray callbacks
+  // can't fire setState on a dead component.
+  useEffect(() => {
+    const timers = timersRef.current
+    return () => {
+      for (const t of timers.values()) clearTimeout(t)
+      timers.clear()
+    }
+  }, [])
 
   const startProcessing = (file: UploadedFile, indexAtAdd: number) => {
+    // Defensive: clear any orphan timer for this file first so we never
+    // leave a dangling timeout that could late-write `processed[id] = true`
+    // after a re-scan was kicked off.
+    const existing = timersRef.current.get(file.id)
+    if (existing) {
+      clearTimeout(existing)
+      timersRef.current.delete(file.id)
+    }
     const recognition = recogniseFile(file, indexAtAdd)
     setRecognitions((prev) => ({ ...prev, [file.id]: recognition }))
     setReviews((prev) =>
@@ -197,6 +215,15 @@ export const UploadStep = ({
         ? prev // keep manual edits across re-scans
         : { ...prev, [file.id]: seedReview(recognition) },
     )
+    // Make sure this file is in the loading state before the timer flips it
+    // back to processed — otherwise a previous true value would shadow the
+    // intended "loading" UI.
+    setProcessed((prev) => {
+      if (!(file.id in prev)) return prev
+      const next = { ...prev }
+      delete next[file.id]
+      return next
+    })
     const delay = PROCESS_BASE_MS + Math.random() * PROCESS_JITTER_MS
     const timer = setTimeout(() => {
       setProcessed((prev) => ({ ...prev, [file.id]: true }))
@@ -224,14 +251,13 @@ export const UploadStep = ({
       })
     }
     if (valid.length === 0) return
-    setFiles((curr) => {
-      const next = [...valid, ...curr]
-      // Seed processing using the new file's *position in the next list* —
-      // keeps the recogniser's odd/even cycling deterministic for the demo.
-      valid.forEach((f, i) => {
-        startProcessing(f, i)
-      })
-      return next
+    // IMPORTANT: keep side-effects (setTimeout / state setters with timers)
+    // OUT of the state-setter callback. React StrictMode will invoke the
+    // updater twice in dev, double-scheduling timers and leaving orphans
+    // that can prevent `processed[id]` from ever flipping true.
+    setFiles((curr) => [...valid, ...curr])
+    valid.forEach((f, i) => {
+      startProcessing(f, i)
     })
   }
 
@@ -389,24 +415,6 @@ export const UploadStep = ({
             onBrowseClick={() => acceptFiles(simulateRandomFiles())}
           />
 
-          {reprocessing
-            ? (() => {
-                const reprocessingCount = files.filter(
-                  (f) => !processed[f.id],
-                ).length
-                if (reprocessingCount === 0) return null
-                return (
-                  <div className="flex items-center gap-3 rounded-xl border-2 border-border-tertiary bg-bg-secondary px-5 py-3 animate-fade-up">
-                    <p className="text-md text-text-primary">
-                      Processing {reprocessingCount}{' '}
-                      {reprocessingCount === 1 ? 'file' : 'files'} again with
-                      your changes…
-                    </p>
-                  </div>
-                )
-              })()
-            : null}
-
           <ul className="flex flex-col gap-3">
             {files.map((file) => {
               const recognition = recognitions[file.id]
@@ -426,7 +434,9 @@ export const UploadStep = ({
                             setReviewScope({ kind: 'single', fileId: file.id })
                           }
                     }
-                    onRemove={isLoading ? () => deleteFile(file.id) : undefined}
+                    // Remove is available across every state — users can
+                    // back out of a loading file or drop a finished one.
+                    onRemove={() => deleteFile(file.id)}
                   />
                 </li>
               )
@@ -450,9 +460,46 @@ export const UploadStep = ({
         onChange={(id, next) => setReviews((curr) => ({ ...curr, [id]: next }))}
         scope={reviewScope ?? undefined}
       />
+
+      <CompletionToast
+        visible={reprocessing}
+        label={(() => {
+          const n = files.filter((f) => !processed[f.id]).length
+          return `Processing ${n} ${n === 1 ? 'file' : 'files'} again with your changes…`
+        })()}
+        icon={<ToastSpinner />}
+      />
     </div>
   )
 }
+
+/** Small inline spinner that matches the toast's text colour. */
+const ToastSpinner = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden
+    className="animate-spin"
+  >
+    <title>Processing</title>
+    <circle
+      cx="12"
+      cy="12"
+      r="9"
+      stroke="currentColor"
+      strokeOpacity="0.3"
+      strokeWidth="3"
+    />
+    <path
+      d="M21 12a9 9 0 0 0-9-9"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+  </svg>
+)
 
 /**
  * Cheap deep-equality on the bits of ReviewState that influence Sandy's
@@ -473,6 +520,7 @@ const changedFileIds = (
     }
     if (
       a.matchedTemplateId !== b.matchedTemplateId ||
+      !!a.createNewTemplate !== !!b.createNewTemplate ||
       (a.newTemplateName ?? '') !== (b.newTemplateName ?? '') ||
       (a.description ?? '') !== (b.description ?? '') ||
       a.categories.join('|') !== b.categories.join('|')

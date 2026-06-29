@@ -136,6 +136,18 @@ const maybeMissing = <T>(
 /* Row models                                                                  */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Provenance — where this row came from in the user's upload. Surfaces at
+ * the bottom of the record editor so the user can cross-reference the
+ * original file when a value looks wrong.
+ */
+export type RecordProvenance = {
+  filename: string
+  sheetName: string
+  /** 1-based row index in the source sheet (the header sits on row 1). */
+  sourceRow: number
+}
+
 export type CroppingRecord = {
   id: string
   farmName: string
@@ -151,6 +163,7 @@ export type CroppingRecord = {
   harvestDate: string | null
   totalYield: number | null
   issues: RowIssue[]
+  provenance: RecordProvenance
 }
 
 export type OperationRecord = {
@@ -166,6 +179,7 @@ export type OperationRecord = {
   unit: string | null
   appliedArea: number | null
   issues: RowIssue[]
+  provenance: RecordProvenance
 }
 
 /* -------------------------------------------------------------------------- */
@@ -204,6 +218,19 @@ const classifyOperation = (
 /* Fixtures                                                                    */
 /* -------------------------------------------------------------------------- */
 
+const CROPPING_SOURCE_FILES = [
+  { filename: 'xfarm-export-2024.xlsx', sheetName: 'Cropping' },
+  { filename: 'agleader-cropping.csv', sheetName: 'Sheet1' },
+  { filename: 'climate-fieldview.xlsx', sheetName: 'Crops' },
+]
+
+const OPERATION_SOURCE_FILES = [
+  { filename: 'xfarm-operations-export.xlsx', sheetName: 'PRD_Fertilizers' },
+  { filename: 'xfarm-operations-export.xlsx', sheetName: 'PRD_Chemicals' },
+  { filename: 'agleader-operations.csv', sheetName: 'Sheet1' },
+  { filename: 'climate-fieldview.xlsx', sheetName: 'Applications' },
+]
+
 export const CROPPING_RECORDS: CroppingRecord[] = Array.from(
   { length: 100 },
   (_, i) => {
@@ -213,6 +240,7 @@ export const CROPPING_RECORDS: CroppingRecord[] = Array.from(
     const workingArea = num(i, 5, 2.5, 28, 1)
     const yieldVal = num(i, 6, 3.2, 11, 2)
     const totalYield = Math.round(yieldVal * workingArea * 10) / 10
+    const source = CROPPING_SOURCE_FILES[i % CROPPING_SOURCE_FILES.length]
     const base = {
       id: `crop-${i}`,
       fieldName: pick(FIELD_NAMES, i),
@@ -237,6 +265,11 @@ export const CROPPING_RECORDS: CroppingRecord[] = Array.from(
       ),
       harvestDate: maybeMissing(dateForYear(year, 200 + (i % 30)), i, 58, 0.35),
       totalYield: maybeMissing(totalYield, i, 59, 0.4),
+      provenance: {
+        filename: source.filename,
+        sheetName: source.sheetName,
+        sourceRow: i + 2,
+      },
     }
     return { ...base, issues: classifyCropping(base) }
   },
@@ -247,6 +280,7 @@ export const OPERATION_RECORDS: OperationRecord[] = Array.from(
   (_, i) => {
     const group = pick(OPERATION_GROUPS, i)
     const year = 2024 + (i % 3)
+    const source = OPERATION_SOURCE_FILES[i % OPERATION_SOURCE_FILES.length]
     const base = {
       id: `op-${i}`,
       farmName: pick(FARM_NAMES, i),
@@ -269,6 +303,11 @@ export const OPERATION_RECORDS: OperationRecord[] = Array.from(
       quantity: maybeMissing(num(i, 13, 0.5, 220, 2), i, 75, 0.3),
       unit: maybeMissing(pick(UNITS_BY_GROUP[group] ?? ['—'], i), i, 76, 0.35),
       appliedArea: maybeMissing(num(i, 14, 2.5, 28, 1), i, 77, 0.4),
+      provenance: {
+        filename: source.filename,
+        sheetName: source.sheetName,
+        sourceRow: i + 2,
+      },
     }
     return { ...base, issues: classifyOperation(base) }
   },

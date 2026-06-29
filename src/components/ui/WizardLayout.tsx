@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './Button'
 import { IconArrowLeft } from './icons'
+import { Tooltip } from './Tooltip'
 import type { WizardStep } from './WizardStepper'
 
 export type WizardStepConfig = WizardStep & {
@@ -33,6 +34,12 @@ export type WizardStepConfig = WizardStep & {
    * generic Next would be redundant. Back stays visible.
    */
   hideContinue?: boolean
+  /**
+   * When the Next button is disabled (`canContinue === false`), this string
+   * surfaces as a tooltip explaining the gate. Leave undefined to disable
+   * silently. Ignored when `canContinue` is true.
+   */
+  disabledReason?: string
   /**
    * Render the step's content full-bleed — no padding around the body and
    * no inter-element gap. Use for steps that own their own outer chrome
@@ -184,7 +191,13 @@ export const WizardLayout = ({
                 Save and quit
               </Button>
             ) : null}
-            {step.hideContinue ? null : (
+            {step.hideContinue ? null : !canContinue && step.disabledReason ? (
+              <Tooltip content={step.disabledReason} side="bottom">
+                <Button variant="primary" disabled onClick={goNext}>
+                  {step.continueLabel ?? (isLast ? finishLabel : 'Next')}
+                </Button>
+              </Tooltip>
+            ) : (
               <Button
                 variant="primary"
                 disabled={!canContinue}

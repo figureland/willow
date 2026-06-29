@@ -5,10 +5,12 @@ import { AnomalyDetectionStep } from './AnomalyDetectionStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import { FixIssuesPage } from './fix/FixIssuesPage'
+import { FixStateProvider, useFixState } from './fix/fix-state'
 import { IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
+import { isUnresolved } from './refine/RefinePage'
 import { SaveAndQuitModal } from './SaveAndQuitModal'
 import { generateSummary } from './summary'
 import { UploadStep, type UploadSummary } from './UploadStep'
@@ -48,7 +50,13 @@ const typo = (name: string): string => {
  * links work natively. The bare `/data-upload` URL redirects to the first
  * step; unknown step ids fall through to the same redirect.
  */
-export const DataUploadWizard = () => {
+export const DataUploadWizard = () => (
+  <FixStateProvider>
+    <DataUploadWizardInner />
+  </FixStateProvider>
+)
+
+const DataUploadWizardInner = () => {
   const navigate = useNavigate()
   const { stepId } = useParams<{ stepId?: string }>()
 
@@ -119,19 +127,36 @@ export const DataUploadWizard = () => {
       }
     }
 
-    // Schema-transformation demo issues — one per sheet of the example
-    // workbook. In a real implementation Sandy would emit one of these for
-    // any uploaded file it can't parse against the canonical schema.
-    for (const sheetName of ['PRD_Fertilizers', 'PRD_Chemicals']) {
-      out.push({
-        id: `schema-${sheetName}`,
-        type: 'schema-transformation',
-        title: 'File structure',
-        filename: 'xfarm-operations-export.xlsx',
-        sheetName,
-        dataCategory: 'Operations',
-      })
-    }
+    // Schema-transformation demo issues. We seed two kinds for the demo:
+    //  - a "recognised" sheet where Sandy already proposed a layout and the
+    //    user just needs to confirm with Yes / No;
+    //  - an "unrecognised" sheet where the user has to drive the resolver.
+    out.push({
+      id: 'schema-recognised-PRD_Cropping',
+      type: 'schema-transformation',
+      title: 'File structure',
+      filename: 'arable-2024-cropping-plan.xlsx',
+      sheetName: 'PRD_Cropping',
+      dataCategory: 'Cropping',
+      recognised: true,
+      recognisedSummary: 'We found 142 cropping records from this file.',
+    })
+    out.push({
+      id: 'schema-PRD_Fertilizers',
+      type: 'schema-transformation',
+      title: 'File structure',
+      filename: 'xfarm-operations-export.xlsx',
+      sheetName: 'PRD_Fertilizers',
+      dataCategory: 'Operations',
+    })
+    out.push({
+      id: 'schema-PRD_Chemicals',
+      type: 'schema-transformation',
+      title: 'File structure',
+      filename: 'xfarm-operations-export.xlsx',
+      sheetName: 'PRD_Chemicals',
+      dataCategory: 'Operations',
+    })
 
     // Value-mapping demo issues — one per (category, column) pair from the
     // mock fixtures. Wired from the shared MOCK_VALUE_MAPPING_FIXTURES so
@@ -142,6 +167,8 @@ export const DataUploadWizard = () => {
         type: 'value-mapping',
         title: 'Help us understand your values',
         category: fixture.category,
+        filename: fixture.filename,
+        sheetName: fixture.sheetName,
         sourceColumn: fixture.sourceColumn,
         targetLabel: fixture.targetLabel,
         sourceValues: fixture.values,
@@ -155,6 +182,18 @@ export const DataUploadWizard = () => {
   // Per-issue resolution state, owned by the wizard so it persists across
   // step navigation. The inbox in the Refine step is the only writer.
   const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
+
+  // Refine-step gating — the Next button only unlocks once every issue on
+  // this page carries a non-pending resolution.
+  const unresolvedRefineIssues = useMemo(
+    () => issues.filter((i) => isUnresolved(i, issueState)).length,
+    [issues, issueState],
+  )
+
+  // Fix-step gating: the top Next button only unlocks once every record-level
+  // issue is resolved (edited, removed, or saved away). Reading via context so
+  // the source of truth lives with the data table view + toolbar.
+  const { unresolvedIssueCount, hasUnsavedChanges } = useFixState()
 
   // Lifted out of UploadStep so the wizard footer can read the per-file
   // scan / issue summary and react accordingly.
@@ -226,12 +265,30 @@ export const DataUploadWizard = () => {
         // and we now show Next in the wizard top bar — nothing to suppress
         // at the layout level.
         bare: true,
+        canContinue: unresolvedRefineIssues === 0,
+        disabledReason:
+          unresolvedRefineIssues > 0
+            ? `Resolve ${unresolvedRefineIssues} ${
+                unresolvedRefineIssues === 1 ? 'issue' : 'issues'
+              } on this page before continuing.`
+            : undefined,
       },
       {
         id: 'fix',
         label: 'Fix issues',
         content: <FixIssuesPage />,
         bare: true,
+        // Block forward navigation until every record-level issue is resolved
+        // and any pending edits have been saved. The tooltip explains the
+        // gate so the user knows where to look.
+        canContinue: unresolvedIssueCount === 0 && !hasUnsavedChanges,
+        disabledReason: hasUnsavedChanges
+          ? 'Save or discard your changes before continuing.'
+          : unresolvedIssueCount > 0
+            ? `Resolve ${unresolvedIssueCount} ${
+                unresolvedIssueCount === 1 ? 'issue' : 'issues'
+              } with your data before we can import into Sandy.`
+            : undefined,
       },
       {
         id: 'completeness',
@@ -258,6 +315,9 @@ export const DataUploadWizard = () => {
       summary,
       issues,
       issueState,
+      unresolvedRefineIssues,
+      unresolvedIssueCount,
+      hasUnsavedChanges,
     ],
   )
 
@@ -301,7 +361,6 @@ export const DataUploadWizard = () => {
         steps={steps}
         currentStepId={stepId}
         onNavigate={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
-        onCancel={exit}
         onSaveAndQuit={() => setSaveQuitOpen(true)}
         onComplete={exit}
         finishLabel="Finish upload"

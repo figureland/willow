@@ -58,37 +58,45 @@ const columnOptionsFor = (sheetName: string | null) => {
 export const FileChip = ({
   filename,
   sheetName,
+  sheetNames,
 }: {
   filename: string
+  /** Single sheet name (convenience — equivalent to `sheetNames: [name]`). */
   sheetName?: string
-}) => (
-  <span className="inline-flex items-center gap-2 rounded-md border-2 border-border-tertiary bg-bg-secondary px-2 py-1 text-sm font-medium text-text-primary">
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-      className="shrink-0 text-icon-secondary"
-    >
-      <title>File</title>
-      <path
-        d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 2.41L17.59 9H15a1 1 0 0 1-1-1V5.41Z"
-        fill="currentColor"
-      />
-    </svg>
-    <span className="font-mono text-xs text-text-primary">{filename}</span>
-    {sheetName ? (
-      <>
-        <span className="text-text-secondary">·</span>
-        <span className="font-mono text-xs text-text-secondary">
-          {sheetName}
+  /** Multiple sheet tabs to render in a row. */
+  sheetNames?: string[]
+}) => {
+  const tabs = sheetNames ?? (sheetName ? [sheetName] : [])
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+        focusable="false"
+        className="shrink-0 text-icon-secondary"
+      >
+        <title>File</title>
+        <path
+          d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 2.41L17.59 9H15a1 1 0 0 1-1-1V5.41Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>{filename}</span>
+      {tabs.length > 0 ? <span aria-hidden="true">·</span> : null}
+      {tabs.map((tab) => (
+        <span
+          key={tab}
+          className="rounded-md bg-black/5 px-2 py-0.5 text-text-primary"
+        >
+          {tab}
         </span>
-      </>
-    ) : null}
-  </span>
-)
+      ))}
+    </span>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /* Property row                                                                */
