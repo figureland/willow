@@ -35,6 +35,22 @@ export type DescribeTrayProps = {
    * trigger so the tray slides up from the bottom of the card.
    */
   portal?: boolean
+  /**
+   * Optional inventory of expected properties + whether Sandy could already
+   * find them. Rendered ABOVE the textarea so the user can see what they
+   * need to describe (the missing ones) at a glance.
+   */
+  expectedProperties?: {
+    label: string
+    presence: 'found' | 'missing'
+  }[]
+  /** Heading copy for the inventory block. Defaults to "What we're looking for". */
+  expectedPropertiesTitle?: string
+  /**
+   * Singular/plural noun shown in the missing summary. Defaults to
+   * `{ one: 'still missing', many: 'still missing' }`.
+   */
+  expectedPropertiesMissingLabel?: { one: string; many: string }
 }
 
 const ASSIST_STEPS = [
@@ -51,6 +67,9 @@ export const DescribeTray = ({
   hint,
   onApply,
   portal = false,
+  expectedProperties,
+  expectedPropertiesTitle,
+  expectedPropertiesMissingLabel,
 }: DescribeTrayProps) => {
   const [mounted, setMounted] = useState(false)
   const [text, setText] = useState('')
@@ -122,7 +141,8 @@ export const DescribeTray = ({
         role="dialog"
         aria-label={title}
         className={clsx(
-          'mx-auto w-full max-w-[640px]',
+          'mx-auto w-full',
+          expectedProperties ? 'max-w-[760px]' : 'max-w-[640px]',
           portal
             ? 'fixed inset-x-0 bottom-0 z-[101]'
             : 'absolute inset-x-0 bottom-0 z-20',
@@ -153,6 +173,13 @@ export const DescribeTray = ({
 
         {phase === 'idle' ? (
           <div className="flex flex-col gap-3 px-6 pb-5 pt-3">
+            {expectedProperties && expectedProperties.length > 0 ? (
+              <ExpectedPropertiesList
+                properties={expectedProperties}
+                title={expectedPropertiesTitle}
+                missingLabel={expectedPropertiesMissingLabel}
+              />
+            ) : null}
             <textarea
               ref={textareaRef}
               value={text}
@@ -224,6 +251,65 @@ export const DescribeTray = ({
   return portal && typeof document !== 'undefined'
     ? createPortal(tray, document.body)
     : tray
+}
+
+/* -------------------------------------------------------------------------- */
+/* ExpectedPropertiesList — found vs missing inventory shown above the input  */
+/* -------------------------------------------------------------------------- */
+
+const ExpectedPropertiesList = ({
+  properties,
+  title,
+  missingLabel,
+}: {
+  properties: { label: string; presence: 'found' | 'missing' }[]
+  title?: string
+  missingLabel?: { one: string; many: string }
+}) => {
+  const missingCount = properties.filter((p) => p.presence === 'missing').length
+  const summary =
+    missingCount === 0
+      ? 'All found'
+      : `${missingCount} ${
+          missingCount === 1
+            ? (missingLabel?.one ?? 'still missing')
+            : (missingLabel?.many ?? 'still missing')
+        }`
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border-2 border-border-tertiary bg-bg-secondary px-4 py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          {title ?? "What we're looking for"}
+        </p>
+        <p className="text-xs text-text-secondary">{summary}</p>
+      </div>
+      <ul className="flex flex-wrap gap-1.5">
+        {properties.map((p) => {
+          const found = p.presence === 'found'
+          return (
+            <li
+              key={p.label}
+              className={clsx(
+                'inline-flex items-center gap-1.5 rounded-full border-2 px-2.5 py-0.5 text-xs font-medium',
+                found
+                  ? 'border-support-border-green bg-support-bg-green text-text-brand-dark'
+                  : 'border-support-border-amber bg-support-bg-amber text-support-fg-amber',
+              )}
+            >
+              <span
+                aria-hidden
+                className={clsx(
+                  'inline-block size-1.5 rounded-full',
+                  found ? 'bg-support-fg-green' : 'bg-support-fg-amber',
+                )}
+              />
+              {p.label}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }
 
 /* -------------------------------------------------------------------------- */

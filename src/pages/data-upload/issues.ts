@@ -120,6 +120,13 @@ export type SchemaTransformationIssue = BaseIssue & {
    * Surfaced on the card alongside the source filename.
    */
   recognisedSummary?: string
+  /**
+   * Count of data types Sandy expected to find but couldn't. When > 0
+   * the card uses the partial-recognition copy ("we couldn't find N
+   * types of data in your sheet"); when omitted/0 it falls back to the
+   * fully-unrecognised copy.
+   */
+  missingDataCount?: number
 }
 
 /**
@@ -138,11 +145,16 @@ export type ValueMappingIssue = BaseIssue & {
   sheetName: string
   /** Source column the unknown values came from. */
   sourceColumn: string
+  /** Optional secondary source column when the issue pairs two values. */
+  secondaryColumn?: string
   /** Canonical field label they map onto. */
   targetLabel: string
   /** Unknown source values with their suggested canonical match. */
   sourceValues: {
     value: string
+    /** Secondary raw value paired with the primary one (e.g. crop variety
+     *  when the primary is the crop name). */
+    secondary?: string
     occurrences: number
     suggestion?: string
   }[]

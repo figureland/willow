@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
+import {
+  type DraftSession,
+  getDraft,
+  newSessionId,
+  saveDraft,
+} from './draft-sessions'
 import { FixIssuesPage } from './fix/FixIssuesPage'
 import { FixStateProvider, useFixState } from './fix/fix-state'
 import { IntroStep } from './IntroStep'
@@ -141,6 +147,9 @@ const DataUploadWizardInner = () => {
       recognised: true,
       recognisedSummary: 'We found 142 cropping records from this file.',
     })
+    // Partial recognition — Sandy parsed the sheet but couldn't place a
+    // few canonical data types. The card uses the "we couldn't find N
+    // types of data in your sheet" copy.
     out.push({
       id: 'schema-PRD_Fertilizers',
       type: 'schema-transformation',
@@ -148,7 +157,10 @@ const DataUploadWizardInner = () => {
       filename: 'xfarm-operations-export.xlsx',
       sheetName: 'PRD_Fertilizers',
       dataCategory: 'Operations',
+      missingDataCount: 3,
     })
+    // Fully unrecognised — kept as the second example so we still show the
+    // "we don't recognise this template" framing in the demo.
     out.push({
       id: 'schema-PRD_Chemicals',
       type: 'schema-transformation',
@@ -170,9 +182,11 @@ const DataUploadWizardInner = () => {
         filename: fixture.filename,
         sheetName: fixture.sheetName,
         sourceColumn: fixture.sourceColumn,
+        secondaryColumn: fixture.secondaryColumn,
         targetLabel: fixture.targetLabel,
         sourceValues: fixture.values,
-        canonicalOptions: CANONICAL_VOCAB[fixture.category],
+        canonicalOptions:
+          fixture.canonicalOverride ?? CANONICAL_VOCAB[fixture.category],
       })
     }
 
@@ -334,10 +348,61 @@ const DataUploadWizardInner = () => {
   const exit = () => navigate('/my-farms')
 
   const [saveQuitOpen, setSaveQuitOpen] = useState(false)
-  // Prototype heuristic — once files have been uploaded we offer a sample
-  // session name. Otherwise the user can save as Untitled.
-  const suggestedSessionName =
-    uploadSummary.files.length > 0 ? '2025/26 Cropping' : 'Untitled'
+
+  // Active draft id — kept in the URL so a hard refresh re-attaches to the
+  // same session. A fresh visit (no ?sessionId) gets a freshly-minted id the
+  // moment the user clicks Save and quit.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sessionId = searchParams.get('sessionId') ?? null
+
+  // Hydrate from a saved draft once — when ?sessionId is on the URL but we
+  // haven't loaded its snapshot yet, restore the wizard state.
+  const hydratedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!sessionId) return
+    if (hydratedRef.current === sessionId) return
+    const draft = getDraft(sessionId)
+    if (!draft) {
+      hydratedRef.current = sessionId
+      return
+    }
+    const snapshot = draft.snapshot as
+      | { issueState?: Record<string, IssueState>; title?: string }
+      | undefined
+    if (snapshot?.issueState) setIssueState(snapshot.issueState)
+    hydratedRef.current = sessionId
+  }, [sessionId])
+
+  // The pre-fill the user sees in the Save modal. If we're already attached
+  // to a draft, default to its title; otherwise propose a sensible new one.
+  const suggestedSessionName = (() => {
+    const existing = sessionId ? getDraft(sessionId) : null
+    if (existing) return existing.title
+    return uploadSummary.files.length > 0 ? '2025/26 Cropping' : 'Untitled'
+  })()
+
+  const persistDraft = (title: string) => {
+    const id = sessionId ?? newSessionId()
+    const snapshot: DraftSession['snapshot'] = {
+      // Loose snapshot — enough to round-trip the demo, not a full
+      // serialisation. The next time the user resumes we restore their
+      // issue resolutions; uploaded files are still client-side memory.
+      issueState,
+    }
+    saveDraft({
+      id,
+      title,
+      resumeAt: (stepId as DraftStepId | undefined) ?? 'add-files',
+      snapshot,
+    })
+    // Attach the URL to the freshly-minted draft so a save-then-keep-editing
+    // flow continues to update the same record instead of forking a new one.
+    if (!sessionId) {
+      const next = new URLSearchParams(searchParams)
+      next.set('sessionId', id)
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   // The start step takes over the whole page — no top bar, no stepper, no
   // footer. The wizard chrome only appears once the user begins a new upload
@@ -347,7 +412,11 @@ const DataUploadWizardInner = () => {
       <div className="flex flex-1 flex-col justify-center p-16">
         <IntroStep
           onStartNew={() => navigate(`${DATA_UPLOAD_BASE}/${steps[0].id}`)}
-          onResumeDraft={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
+          onResumeDraft={(draft) =>
+            navigate(
+              `${DATA_UPLOAD_BASE}/${draft.resumeAt}?sessionId=${draft.id}`,
+            )
+          }
           onViewPastUploads={() => navigate(`${DATA_UPLOAD_BASE}/past`)}
         />
       </div>
@@ -369,7 +438,8 @@ const DataUploadWizardInner = () => {
         open={saveQuitOpen}
         onOpenChange={setSaveQuitOpen}
         suggestedName={suggestedSessionName}
-        onSave={() => {
+        onSave={(name) => {
+          persistDraft(name)
           setSaveQuitOpen(false)
           exit()
         }}

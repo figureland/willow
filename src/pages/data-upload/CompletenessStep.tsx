@@ -1,6 +1,13 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
-import { CompletenessModal, type CompletenessTable } from './CompletenessModal'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  Button,
+  DataTable,
+  type GridColDef,
+  IconArrowLeft,
+} from '../../components/ui'
+import type { CompletenessTable } from './CompletenessModal'
 import { CompletenessSummary } from './CompletenessSummary'
 import type { CompletenessImprovement } from './completeness-summary'
 
@@ -8,40 +15,28 @@ import type { CompletenessImprovement } from './completeness-summary'
 /* Model                                                                       */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Completeness is opt-in — every gap Sandy spots can either be filled with
- * an estimate or left alone. We don't grade them as blocking/warning here;
- * instead we bucket them by how much downstream accuracy they affect.
- */
 type Tier = 'required' | 'encouraged' | 'optional'
 
 type Resolution = 'pending' | 'accepted' | 'skipped'
 
 type CompletenessIssue = {
   id: string
-  /** Short headline — what's missing, in plain language. */
   title: string
-  /** One-line summary of the affected record(s). */
   detail: string
-  /** Plain-language summary of Sandy's proposed fix. */
   recommendation: string
   tier: Tier
-  /**
-   * Optional rich preview. When set, the View button opens a modal that
-   * shows the full table-level changes Sandy will apply, with provenance.
-   * Issues without a preview just expose the short recommendation copy.
-   */
   preview?: {
+    headline?: string
+    /** Plain-English description of the gap Sandy spotted. */
+    problem?: string
+    /** Plain-English description of Sandy's proposed fix. */
+    fix?: string
+    /** Field names Sandy will touch — surfaced inline on the Accept CTA. */
+    fields?: string[]
     explanation: string
     sources: string[]
     tables: CompletenessTable[]
   }
-  /**
-   * Improvements this issue contributes to the completeness summary when
-   * accepted. Each entry says: "accepting me raises {nodeId}.{dimension}
-   * by N percentage points". The summary panel applies these and rolls
-   * them up through their parent summary rows.
-   */
   improvements?: CompletenessImprovement[]
 }
 
@@ -54,25 +49,30 @@ const TIER_LABEL: Record<Tier, string> = {
 }
 
 const TIER_DESCRIPTION: Record<Tier, string> = {
-  required:
-    'Sandy needs these to land the upload. Each one materially affects downstream reports.',
-  encouraged:
-    'Strongly recommended — improves report accuracy. Sandy can fill most of these in.',
-  optional: 'Adds polish or extra detail. Skip without consequence.',
+  required: 'Required to complete and submit your data to Sandy.',
+  encouraged: 'Changes we recommend to make your reports more accurate.',
+  optional:
+    'Smaller changes that can help your improve the quality of data in your organisation and access better quality recommendations.',
 }
 
 const ISSUES: CompletenessIssue[] = [
   // Important — high-impact gaps
   {
     id: 'mf-1',
-    title: 'Missing total nitrogen applied',
+    title: 'Add placeholder nitrogen records to 4 fields',
     detail: 'Long Bottom · winter wheat 2024',
     recommendation:
       'Estimate 120 kgN/ha based on yield and your 2023 farm average.',
     tier: 'required',
     preview: {
+      headline:
+        'We can infer missing values in your data to improve the quality of your results.',
+      problem:
+        '4 fields are missing total nitrogen applied. This will affect the quality of reports you can generate in Sandy.',
+      fix: 'Sandy can use your data and information from your region to create highly accurate estimated imputed data.',
+      fields: ['Long Bottom', 'Top East', 'Saltway', 'Stone Pightle'],
       explanation:
-        "Sandy didn't find any nitrogen applications on Long Bottom for winter wheat 2024. Based on your yields and the field's location, Sandy estimates 120 kgN/ha. Accepting this creates a single dummy operation row (dated to the first day of the harvest year) plus a matching dummy product in your manufactured fertiliser table.",
+        "Sandy didn't find any nitrogen applications on Long Bottom for winter wheat 2024. Based on your yields and the field's location, Sandy estimates 120 kgN/ha.",
       sources: [
         "Sandy's regional dataset — 2023 winter wheat applications within ~25 km of Long Bottom.",
         'Your previous Long Bottom yields (2020–2023) used to anchor the rate.',
@@ -88,8 +88,6 @@ const ISSUES: CompletenessIssue[] = [
             { key: 'qty', label: 'Qty', numeric: true },
             { key: 'unit', label: 'Unit' },
           ],
-          // No existing nitrogen rows — Sandy is reconstructing the whole
-          // application from scratch.
           rows: [],
           changes: [
             {
@@ -128,11 +126,7 @@ const ISSUES: CompletenessIssue[] = [
       ],
     },
     improvements: [
-      // The new operation row fills Required on Carbon Operations.
       { nodeId: 'carbon-operations', dimension: 'required', deltaPct: 0 },
-      // The dummy fertiliser product fills Required and Encouraged on the
-      // Manufactured fertiliser leaf (large jump because we're going from
-      // 12 / 9 to ~88 / 86 once a real product row exists).
       { nodeId: 'carbon-input-mf', dimension: 'required', deltaPct: 76 },
       { nodeId: 'carbon-input-mf', dimension: 'encouraged', deltaPct: 77 },
       { nodeId: 'wn-input-mf', dimension: 'required', deltaPct: 76 },
@@ -141,14 +135,14 @@ const ISSUES: CompletenessIssue[] = [
   },
   {
     id: 'cp-1',
-    title: 'No Sandy match for crop',
+    title: 'Add missing crops for 1 field',
     detail: 'Oats COVER · Long Bottom',
     recommendation: 'Map to "Cover crop (oats)".',
     tier: 'required',
   },
   {
     id: 'mf-2',
-    title: 'Missing spring N split',
+    title: 'Create spring nitrogen split for 1 field',
     detail: 'Long Bottom · single 220 kgN/ha pass',
     recommendation: 'Prefill a 60/40 split (Mar/Apr).',
     tier: 'required',
@@ -157,12 +151,18 @@ const ISSUES: CompletenessIssue[] = [
   // Recommended — useful fills with good defaults
   {
     id: 'cr-1',
-    title: 'Missing planting & harvest dates',
+    title: 'Fill in planting and harvest dates for 4 fields',
     detail: 'Cropping · 4 fields · winter wheat 2024',
     recommendation:
       'Impute planting and harvest dates from your historical cropping records.',
     tier: 'encouraged',
     preview: {
+      headline:
+        'We can infer missing planting and harvest dates from your own history.',
+      problem:
+        '4 fields are missing planting and harvest dates. This will affect the quality of reports you can generate in Sandy.',
+      fix: 'Sandy can use your 2020–2023 cropping records on these fields, plus regional sowing-window data, to fill the dates in.',
+      fields: ['Long Bottom', 'Top East', 'Saltway', 'Stone Pightle'],
       explanation:
         'Four winter wheat rows have empty planting and harvest dates. Sandy can fill them in directly from your 2020–2023 cropping records on the same fields — this only changes the cropping table, no extra rows.',
       sources: [
@@ -258,30 +258,27 @@ const ISSUES: CompletenessIssue[] = [
       ],
     },
     improvements: [
-      // Filling planting/harvest dates lifts the Cropping leaf for both
-      // standards (Carbon + Water & Nitrogen). The deltas are sized so the
-      // rollup shifts visibly without saturating.
       { nodeId: 'carbon-cropping', dimension: 'required', deltaPct: 22 },
       { nodeId: 'wn-cropping', dimension: 'required', deltaPct: 18 },
     ],
   },
   {
     id: 'of-1',
-    title: 'No dry-matter percentage',
+    title: 'Add dry-matter percentages for 3 slurry applications',
     detail: 'Saltway · 3 slurry applications',
     recommendation: 'Default to 6% (NRM 2023).',
     tier: 'encouraged',
   },
   {
     id: 'mf-3',
-    title: 'Unusual product unit',
+    title: 'Convert 1 product unit to kg/ha',
     detail: 'Yara Mila Actyva S · litres/ha',
     recommendation: 'Convert to kg/ha at 1.05 g/cm³.',
     tier: 'encouraged',
   },
   {
     id: 'cp-3',
-    title: 'Product not in registered list',
+    title: 'Map 1 unregistered product to the closest match',
     detail: 'RoundUp Flex Plus',
     recommendation: 'Map to Roundup Flex.',
     tier: 'encouraged',
@@ -290,21 +287,19 @@ const ISSUES: CompletenessIssue[] = [
   // Nice to have — polish
   {
     id: 'of-2',
-    title: 'No nutrient analysis',
+    title: 'Prefill nutrient analysis for 12 fields',
     detail: 'Compost · 12 fields',
     recommendation: 'Prefill from RB209 typicals.',
     tier: 'optional',
   },
   {
     id: 'cp-2',
-    title: 'Application notes empty',
+    title: 'Auto-generate application notes for 14 records',
     detail: 'Crop protection · 14 applications',
     recommendation: 'Leave blank or auto-generate from product + crop.',
     tier: 'optional',
   },
 ]
-
-const totalIssues = ISSUES.length
 
 const issuesByTier: Record<Tier, CompletenessIssue[]> = {
   required: ISSUES.filter((i) => i.tier === 'required'),
@@ -317,6 +312,9 @@ const issuesByTier: Record<Tier, CompletenessIssue[]> = {
 /* -------------------------------------------------------------------------- */
 
 export const CompletenessStep = () => {
+  const navigate = useNavigate()
+  const { panelId } = useParams<{ panelId?: string }>()
+
   const [resolutions, setResolutions] = useState<Record<string, Resolution>>(
     () => {
       const seed: Record<string, Resolution> = {}
@@ -327,13 +325,6 @@ export const CompletenessStep = () => {
   const setResolution = (id: string, next: Resolution) =>
     setResolutions((curr) => ({ ...curr, [id]: next }))
 
-  // Which issue is currently open in the View modal. `null` when no modal
-  // is open. Accepting commits the fix and closes; closing leaves it pending.
-  const [viewingId, setViewingId] = useState<string | null>(null)
-  const viewingIssue = ISSUES.find((i) => i.id === viewingId) ?? null
-
-  // Collect improvements from every accepted issue so the summary can
-  // project the post-resolution rollup.
   const appliedImprovements: CompletenessImprovement[] = useMemo(() => {
     const out: CompletenessImprovement[] = []
     for (const issue of ISSUES) {
@@ -343,17 +334,39 @@ export const CompletenessStep = () => {
     return out
   }, [resolutions])
 
+  const activeIssue = panelId
+    ? (ISSUES.find((i) => i.id === panelId) ?? null)
+    : null
+
+  const goToList = () =>
+    navigate('/data-upload/completeness', { replace: true })
+  const goToIssue = (id: string) =>
+    navigate(`/data-upload/completeness/${id}`, { replace: true })
+
+  if (activeIssue) {
+    return (
+      <CompletenessDetail
+        issue={activeIssue}
+        resolution={resolutions[activeIssue.id]}
+        onBack={goToList}
+        onAccept={() => {
+          setResolution(activeIssue.id, 'accepted')
+          goToList()
+        }}
+        onSkip={() => {
+          setResolution(activeIssue.id, 'skipped')
+          goToList()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 py-10 pb-24">
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold text-text-primary">
-          Completeness
+          Our recommended changes
         </h1>
-        <p className="max-w-[820px] text-md text-text-secondary">
-          Sandy can fill in {totalIssues} {totalIssues === 1 ? 'gap' : 'gaps'}{' '}
-          using historic, regional or government data. Completeness is opt-in —
-          accept the fix or leave it alone, on a per-item basis.
-        </p>
       </header>
 
       <CompletenessSummary appliedImprovements={appliedImprovements} />
@@ -366,11 +379,11 @@ export const CompletenessStep = () => {
               key={tier}
               className="flex flex-col gap-3 rounded-xl bg-bg-secondary p-4"
             >
-              <header className="flex flex-col gap-1">
-                <h2 className="text-md font-semibold text-text-primary">
+              <header className="flex flex-col gap-1.5">
+                <h2 className="text-xl font-semibold text-text-primary">
                   {TIER_LABEL[tier]}
                 </h2>
-                <p className="text-sm text-text-secondary">
+                <p className="text-md text-text-secondary">
                   {TIER_DESCRIPTION[tier]}
                 </p>
               </header>
@@ -386,7 +399,7 @@ export const CompletenessStep = () => {
                       <CompletenessCard
                         issue={issue}
                         resolution={resolutions[issue.id]}
-                        onView={() => setViewingId(issue.id)}
+                        onView={() => goToIssue(issue.id)}
                       />
                     </li>
                   ))
@@ -396,25 +409,6 @@ export const CompletenessStep = () => {
           )
         })}
       </div>
-
-      {viewingIssue?.preview ? (
-        <CompletenessModal
-          open={viewingId !== null}
-          onOpenChange={(open) => {
-            if (!open) setViewingId(null)
-          }}
-          issue={{
-            title: viewingIssue.title,
-            explanation: viewingIssue.preview.explanation,
-            sources: viewingIssue.preview.sources,
-            tables: viewingIssue.preview.tables,
-          }}
-          onAccept={() => {
-            setResolution(viewingIssue.id, 'accepted')
-            setViewingId(null)
-          }}
-        />
-      ) : null}
     </div>
   )
 }
@@ -423,38 +417,6 @@ export const CompletenessStep = () => {
 /* Card — mirrors the Fix step's IssuesView card structure, in column width    */
 /* -------------------------------------------------------------------------- */
 
-const StatusIndicator = ({ resolved }: { resolved: boolean }) => (
-  <span
-    aria-hidden="true"
-    className={clsx(
-      'mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border-2 transition-colors',
-      resolved
-        ? 'border-support-fg-green bg-support-fg-green text-text-primary-inverse'
-        : 'border-border-secondary bg-bg-primary',
-    )}
-  >
-    {resolved ? (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <title>Resolved</title>
-        <path
-          d="M5 12.5l4.5 4.5L19 7"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ) : null}
-  </span>
-)
-
 const resolvedLabelFor = (r: Resolution): string | null => {
   if (r === 'accepted') return 'Accepted'
   if (r === 'skipped') return 'Skipped'
@@ -462,6 +424,35 @@ const resolvedLabelFor = (r: Resolution): string | null => {
 }
 
 const isResolved = (r: Resolution) => r !== 'pending'
+
+const TIER_CARD: Record<
+  Tier,
+  {
+    surface: string
+    text: string
+    body: string
+    titleResolved: string
+  }
+> = {
+  required: {
+    surface: 'bg-sandy-900',
+    text: 'text-text-primary-inverse',
+    body: 'text-text-primary-inverse/80',
+    titleResolved: 'text-sandy-300',
+  },
+  encouraged: {
+    surface: 'bg-bayer-200',
+    text: 'text-bayer-950',
+    body: 'text-bayer-900/80',
+    titleResolved: 'text-bayer-800',
+  },
+  optional: {
+    surface: 'bg-sandy-100',
+    text: 'text-text-primary',
+    body: 'text-text-secondary',
+    titleResolved: 'text-text-secondary',
+  },
+}
 
 const CompletenessCard = ({
   issue,
@@ -474,27 +465,264 @@ const CompletenessCard = ({
 }) => {
   const resolved = isResolved(resolution)
   const resolvedLabel = resolvedLabelFor(resolution)
+  const tone = TIER_CARD[issue.tier]
 
   return (
     <button
       type="button"
       onClick={onView}
       className={clsx(
-        'group flex w-full items-start gap-3 rounded-lg border-2 border-transparent bg-bg-primary p-4 text-left shadow-sm transition-all duration-200',
-        'hover:border-border-tertiary hover:shadow-md',
+        'group flex w-full flex-col gap-2 rounded-xl px-5 py-4 text-left transition-all duration-200',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+        'hover:shadow-md',
+        tone.surface,
+        tone.text,
         resolved && 'opacity-70',
       )}
     >
-      <StatusIndicator resolved={resolved} />
-      <p className="flex-1 text-sm font-medium leading-snug text-text-primary">
-        {issue.title}
-      </p>
+      <p className="text-lg font-semibold leading-snug">{issue.title}</p>
+      <p className={clsx('text-md leading-snug', tone.body)}>{issue.detail}</p>
       {resolvedLabel ? (
-        <span className="mt-0.5 text-xs font-semibold text-text-brand-dark">
+        <p
+          className={clsx(
+            'mt-1 text-sm font-semibold uppercase tracking-wide',
+            tone.titleResolved,
+          )}
+        >
           {resolvedLabel}
-        </span>
+        </p>
       ) : null}
     </button>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* Detail page                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Headline stat shown next to Problem/Fix. Required issues frame as "needed
+ * to complete your upload"; everything else frames as the (capped) quality
+ * lift Sandy would apply if accepted, drawn from the `improvements` payload.
+ */
+const headlineStatFor = (
+  issue: CompletenessIssue,
+): { value: string; label: string } => {
+  if (issue.tier === 'required') {
+    return { value: 'Required', label: 'to complete your data upload' }
+  }
+  const totalRequired =
+    issue.improvements
+      ?.filter((i) => i.dimension === 'required')
+      .reduce((acc, i) => acc + i.deltaPct, 0) ?? 0
+  // Average across the leaves we touch so the headline reads as an org-level
+  // delta rather than a raw sum.
+  const leafCount = new Set(issue.improvements?.map((i) => i.nodeId)).size || 1
+  const lift = Math.max(1, Math.round(totalRequired / leafCount))
+  return {
+    value: `+${lift}%`,
+    label: 'improvement to your data quality',
+  }
+}
+
+type PreviewRow = {
+  id: string
+  isNew: boolean
+  [key: string]: string | boolean
+}
+
+/**
+ * Flatten a CompletenessTable into rows the design-system DataTable can
+ * render: existing rows patched with cell-level edits, then newly added
+ * rows appended.
+ */
+const flattenTable = (table: CompletenessTable): PreviewRow[] => {
+  const existing: PreviewRow[] = table.rows.map((row) => {
+    const cells: Record<string, string> = { ...row.cells }
+    for (const change of table.changes) {
+      if (change.kind === 'add-cell' && change.rowId === row.id) {
+        cells[change.column] = change.value
+      } else if (change.kind === 'edit-cell' && change.rowId === row.id) {
+        cells[change.column] = change.newValue
+      }
+    }
+    return { id: row.id, isNew: false, ...cells }
+  })
+  const added: PreviewRow[] = table.changes
+    .filter(
+      (
+        c,
+      ): c is {
+        kind: 'add-row'
+        rowId: string
+        cells: Record<string, string>
+      } => c.kind === 'add-row',
+    )
+    .map((c) => ({ id: c.rowId, isNew: true, ...c.cells }))
+  return [...existing, ...added]
+}
+
+const buildColumns = (table: CompletenessTable): GridColDef<PreviewRow>[] =>
+  table.columns.map((col) => ({
+    field: col.key,
+    headerName: col.label,
+    flex: 1,
+    minWidth: 130,
+    type: col.numeric ? 'number' : 'string',
+    sortable: false,
+    renderCell: ({ row }) => {
+      const value = row[col.key]
+      if (typeof value !== 'string' || value === '') {
+        return <span className="text-text-secondary">—</span>
+      }
+      return (
+        <span className={clsx(col.numeric && 'tabular-nums')}>{value}</span>
+      )
+    },
+  }))
+
+const PreviewTable = ({ table }: { table: CompletenessTable }) => {
+  const rows = useMemo(() => flattenTable(table), [table])
+  const columns = useMemo(() => buildColumns(table), [table])
+  if (rows.length === 0) return null
+  const newIds = new Set(rows.filter((r) => r.isNew).map((r) => r.id))
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-semibold text-text-primary">{table.title}</h3>
+      <DataTable<PreviewRow>
+        rows={rows}
+        columns={columns}
+        selectable={false}
+        defaultPageSize={25}
+        pageSizeOptions={[25, 50, 100]}
+        getRowClassName={({ row }) =>
+          newIds.has(String(row.id)) ? 'row-issue-warning' : ''
+        }
+        className="border-2 border-border-tertiary"
+      />
+    </div>
+  )
+}
+
+const CompletenessDetail = ({
+  issue,
+  resolution,
+  onBack,
+  onAccept,
+  onSkip,
+}: {
+  issue: CompletenessIssue
+  resolution: Resolution
+  onBack: () => void
+  onAccept: () => void
+  onSkip: () => void
+}) => {
+  const preview = issue.preview
+  const problem =
+    preview?.problem ??
+    'Sandy spotted a gap in your records. Accepting fills it with an estimate.'
+  const fix =
+    preview?.fix ??
+    'Sandy can use your data and information from your region to create highly accurate estimated imputed data.'
+  const stat = headlineStatFor(issue)
+  const resolvedLabel = resolvedLabelFor(resolution)
+  // Tables that only add new rows get a "we'll create these new records"
+  // framing; tables that patch existing rows get a plain title.
+  const addsNewRows = preview?.tables.some((t) =>
+    t.changes.some((c) => c.kind === 'add-row'),
+  )
+
+  return (
+    <div className="flex flex-col gap-10 pb-24">
+      {/* Full-bleed green hero — gives the page real presence + signals that
+          accepting this is a clear positive action. */}
+      <section className="bg-sandy-900 text-text-primary-inverse">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 py-10">
+          <div className="self-start">
+            <button
+              type="button"
+              onClick={onBack}
+              className={clsx(
+                'inline-flex items-center gap-2 rounded-md px-3 py-1.5',
+                'text-sm font-semibold text-text-primary-inverse/90',
+                'bg-sandy-800/60 hover:bg-sandy-800',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-300/60',
+              )}
+            >
+              <IconArrowLeft size={16} />
+              Back to recommendations
+            </button>
+          </div>
+          <header className="flex flex-col gap-2">
+            <h1 className="max-w-[820px] text-3xl font-semibold leading-tight text-text-primary-inverse">
+              {issue.title}
+            </h1>
+            {resolvedLabel ? (
+              <p className="text-sm font-semibold uppercase tracking-wide text-sandy-300">
+                {resolvedLabel}
+              </p>
+            ) : null}
+          </header>
+
+          {/* Problem · Fix · Stat — three columns reading left → right. */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <DetailColumn label="Problem" body={problem} />
+            <DetailColumn label="Fix" body={fix} />
+            <StatColumn value={stat.value} label={stat.label} />
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-10 px-8">
+        {preview ? (
+          <section className="flex flex-col gap-4">
+            <header className="flex flex-col gap-1">
+              <h2 className="text-xl font-semibold text-text-primary">
+                {addsNewRows
+                  ? "We'll create these new records"
+                  : "We'll update these records"}
+              </h2>
+            </header>
+            <div className="flex flex-col gap-8">
+              {preview.tables.map((table) => (
+                <PreviewTable key={table.title} table={table} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <footer className="flex flex-wrap items-center justify-end gap-3 border-t-2 border-border-tertiary pt-6">
+          <Button variant="secondary" onClick={onSkip}>
+            Skip
+          </Button>
+          <Button variant="primary" onClick={onAccept}>
+            Add data
+          </Button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+const DetailColumn = ({ label, body }: { label: string; body: string }) => (
+  <div className="flex flex-col gap-2">
+    <p className="text-xs font-semibold uppercase tracking-wide text-sandy-300">
+      {label}
+    </p>
+    <p className="text-md leading-snug text-text-primary-inverse/90">{body}</p>
+  </div>
+)
+
+const StatColumn = ({ value, label }: { value: string; label: string }) => (
+  <div className="flex flex-col gap-2 rounded-xl bg-sandy-800/60 p-4">
+    <p className="text-xs font-semibold uppercase tracking-wide text-sandy-300">
+      Why this matters
+    </p>
+    <div className="flex flex-col gap-1">
+      <span className="text-3xl font-semibold leading-none text-text-primary-inverse">
+        {value}
+      </span>
+      <span className="text-sm text-text-primary-inverse/80">{label}</span>
+    </div>
+  </div>
+)

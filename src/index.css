@@ -132,7 +132,10 @@
   --color-border-primary: #00b82b;
   --color-border-primary-hover: #0a7123;
   --color-border-primary-active: #0a5d20;
-  --color-border-primary-focus: #33f560;
+  /* Focus uses the same green as the base primary border. The neon sandy-400
+     felt too bright on form inputs — sticking to sandy-600 keeps focus
+     consistent with the active state used by buttons + selected rows. */
+  --color-border-primary-focus: #00b82b;
   --color-border-secondary: #e2e8f0;
   --color-border-secondary-hover: #cbd5e1;
   --color-border-secondary-active: #94a3b8;

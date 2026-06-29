@@ -292,10 +292,9 @@ export type CompletenessSummaryProps = {
 export const CompletenessSummary = ({
   appliedImprovements = [],
 }: CompletenessSummaryProps) => {
-  // Default open set — domain open; standards + nested summaries collapsed.
-  const [openIds, setOpenIds] = useState<Set<string>>(
-    () => new Set([COMPLETENESS_SUMMARY.id]),
-  )
+  // Default open set — fully collapsed; only the top-level domain row shows.
+  // The user expands a domain to see its standards / sections.
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
   const toggle = (id: string) =>
     setOpenIds((curr) => {
       const next = new Set(curr)

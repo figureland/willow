@@ -1,58 +1,66 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Button,
   DataTable,
   type GridColDef,
   Modal,
+  Tab,
+  TabBar,
+  TabPanel,
+  Tabs,
   TextInput,
 } from '../../../components/ui'
 import { IconSearch } from '../../../components/ui/icons'
+import { actionColumn, SelectionActionBar, statusColumn } from './fix-grid-bits'
 import type {
   CroppingRecord,
   FieldStatus,
   OperationRecord,
 } from './fix-records'
 import { useFixState } from './fix-state'
-import { type EditableField, RecordEditorSheet } from './RecordEditorSheet'
+import { buildIssueGroups, type IssueGroup } from './issue-groups'
+import { RecordEditorSheet } from './RecordEditorSheet'
+import { StatusHaloBadge } from './RowStatusPip'
 import {
-  CROP_TYPE_ITEMS,
-  farmFieldItems,
-  farmFieldValueFor,
-  farmFieldWritePatch,
-  operationTypeItemsFor,
-} from './record-editor-options'
+  buildOperationFieldFields,
+  CROPPING_FIELD_FIELDS,
+} from './record-editor-schemas'
 import { type RowIssue, worstSeverity } from './row-issues'
+import { SuggestionCard } from './SuggestionCard'
 import { rowMatchesSeverity, useSeverityFilter } from './use-severity-filter'
 
 /* -------------------------------------------------------------------------- */
-/* Status pill — reused from the previous FieldView                            */
+/* Field-status mapping — translates the field aggregate into the row pip    */
+/* vocabulary used by the shared StatusHaloBadge.                             */
 /* -------------------------------------------------------------------------- */
 
-const STATUS_LABEL: Record<FieldStatus, string> = {
-  blocked: 'Blocked',
-  warning: 'Warning',
-  good: 'Good',
-}
-
-const STATUS_PILL: Record<FieldStatus, string> = {
-  blocked: 'bg-support-bg-red text-support-fg-red',
-  warning: 'bg-support-bg-amber text-support-fg-amber',
-  good: 'bg-support-bg-green text-support-fg-green',
-}
-
-const StatusPill = ({ status }: { status: FieldStatus }) => (
-  <span
-    className={clsx(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      STATUS_PILL[status],
-    )}
-  >
-    {STATUS_LABEL[status]}
-  </span>
-)
+const FIELD_STATUS_PIP: Record<FieldStatus, 'clean' | 'warning' | 'blocking'> =
+  {
+    good: 'clean',
+    warning: 'warning',
+    blocked: 'blocking',
+  }
 
 const MissingCell = () => <span className="text-text-secondary">—</span>
+
+const NUMBER_FIELD_KEYS = new Set([
+  'workingArea',
+  'yield',
+  'totalYield',
+  'quantity',
+  'appliedArea',
+  'harvestYear',
+])
+
+const coerceForFieldKey = (key: string, raw: string): string | number => {
+  if (NUMBER_FIELD_KEYS.has(key)) {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : raw
+  }
+  return raw
+}
 
 /* -------------------------------------------------------------------------- */
 /* Per-field grids — narrower columns than the global Data Table               */
@@ -188,44 +196,6 @@ const OPERATION_COLUMNS: GridColDef<OperationRecord>[] = [
   },
 ]
 
-/* -------------------------------------------------------------------------- */
-/* Action column + row class — shared with DataTableView                       */
-/* -------------------------------------------------------------------------- */
-
-type RowAction = 'create' | 'edit' | 'delete'
-const ACTION_LABEL: Record<RowAction, string> = {
-  create: 'CREATE',
-  edit: 'EDIT',
-  delete: 'DELETE',
-}
-
-const ActionPill = ({ action }: { action: RowAction }) => (
-  <span className="inline-flex items-center rounded-md bg-text-secondary/10 px-2 py-0.5 text-xs font-semibold tracking-[0.15px] text-text-secondary">
-    {ACTION_LABEL[action]}
-  </span>
-)
-
-const actionFor = (
-  rowId: string,
-  edited: Set<string>,
-  removed: Set<string>,
-): RowAction =>
-  removed.has(rowId) ? 'delete' : edited.has(rowId) ? 'edit' : 'create'
-
-const actionColumn = <Row extends { id: string }>(
-  edited: Set<string>,
-  removed: Set<string>,
-): GridColDef<Row> => ({
-  field: '__action',
-  headerName: 'Action',
-  sortable: false,
-  filterable: false,
-  width: 96,
-  renderCell: ({ row }) => (
-    <ActionPill action={actionFor(row.id, edited, removed)} />
-  ),
-})
-
 const computeRowClass = ({
   row,
   edited,
@@ -243,160 +213,20 @@ const computeRowClass = ({
   return ''
 }
 
-/* -------------------------------------------------------------------------- */
-/* Editable-field schemas — Farm + Field are locked in field-scoped edits     */
-/* -------------------------------------------------------------------------- */
-
-const parseNullableNumber = (raw: string): number | null | undefined => {
-  const trimmed = raw.trim()
-  if (trimmed === '') return null
-  const n = Number(trimmed)
-  return Number.isFinite(n) ? n : undefined
+/**
+ * Collect every field key flagged as broken across a set of records — feeds
+ * `RecordEditorSheet.invalidKeys` so the editor outlines the relevant inputs
+ * in red the moment the user opens it.
+ */
+const collectInvalidKeys = (records: { issues: RowIssue[] }[]): string[] => {
+  const set = new Set<string>()
+  for (const r of records) {
+    for (const issue of r.issues ?? []) {
+      if (issue.columnName) set.add(issue.columnName)
+    }
+  }
+  return [...set]
 }
-
-const parseNullableString = (raw: string): string | null | undefined => {
-  const trimmed = raw.trim()
-  return trimmed === '' ? null : trimmed
-}
-
-const CROPPING_FIELD_FIELDS: EditableField<CroppingRecord>[] = [
-  {
-    kind: 'composite',
-    key: '__farm_field',
-    label: 'Farm / Field',
-    items: farmFieldItems,
-    read: (row) => farmFieldValueFor(row),
-    write: (raw) => farmFieldWritePatch<CroppingRecord>(raw),
-    readOnly: true,
-  },
-  {
-    key: 'harvestYear',
-    rowKey: 'harvestYear',
-    label: 'Year',
-    fromInput: (v) => {
-      const n = Number(v.trim())
-      return Number.isFinite(n) ? n : undefined
-    },
-  },
-  { key: 'cropName', rowKey: 'cropName', label: 'Crop' },
-  {
-    kind: 'select',
-    key: 'cropType',
-    rowKey: 'cropType',
-    label: 'Type',
-    items: CROP_TYPE_ITEMS,
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'cropVariety',
-    rowKey: 'cropVariety',
-    label: 'Variety',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'workingArea',
-    rowKey: 'workingArea',
-    label: 'Area (ha)',
-    fromInput: parseNullableNumber,
-  },
-  {
-    key: 'tillage',
-    rowKey: 'tillage',
-    label: 'Tillage',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'yield',
-    rowKey: 'yield',
-    label: 'Yield (t/ha)',
-    fromInput: parseNullableNumber,
-  },
-  {
-    key: 'plantingDate',
-    rowKey: 'plantingDate',
-    label: 'Planting',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'harvestDate',
-    rowKey: 'harvestDate',
-    label: 'Harvest',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'totalYield',
-    rowKey: 'totalYield',
-    label: 'Total (t)',
-    fromInput: parseNullableNumber,
-  },
-]
-
-const buildOperationFieldFields = (
-  records: OperationRecord[],
-): EditableField<OperationRecord>[] => [
-  {
-    kind: 'composite',
-    key: '__farm_field',
-    label: 'Farm / Field',
-    items: farmFieldItems,
-    read: (row) => farmFieldValueFor(row),
-    write: (raw) => farmFieldWritePatch<OperationRecord>(raw),
-    readOnly: true,
-  },
-  {
-    key: 'harvestYear',
-    rowKey: 'harvestYear',
-    label: 'Year',
-    fromInput: (v) => {
-      const n = Number(v.trim())
-      return Number.isFinite(n) ? n : undefined
-    },
-  },
-  { key: 'operationGroup', rowKey: 'operationGroup', label: 'Group' },
-  {
-    kind: 'select',
-    key: 'operationType',
-    rowKey: 'operationType',
-    label: 'Type',
-    items: operationTypeItemsFor(records),
-  },
-  {
-    key: 'operationDate',
-    rowKey: 'operationDate',
-    label: 'Date',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'productName',
-    rowKey: 'productName',
-    label: 'Product',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'quantity',
-    rowKey: 'quantity',
-    label: 'Quantity',
-    fromInput: parseNullableNumber,
-  },
-  {
-    key: 'unit',
-    rowKey: 'unit',
-    label: 'Unit',
-    fromInput: parseNullableString,
-  },
-  {
-    key: 'appliedArea',
-    rowKey: 'appliedArea',
-    label: 'Applied (ha)',
-    fromInput: parseNullableNumber,
-  },
-]
-
-const describeCropping = (row: CroppingRecord) =>
-  `${row.cropName} ${row.harvestYear}`
-
-const describeOperation = (row: OperationRecord) =>
-  `${row.operationType} ${row.harvestYear}`
 
 /* -------------------------------------------------------------------------- */
 /* Field summary — derived live from the FixState context                     */
@@ -460,7 +290,9 @@ const buildFieldSummaries = (
   const rank: Record<FieldStatus, number> = { blocked: 0, warning: 1, good: 2 }
   return [...map.values()].sort((a, b) => {
     const r = rank[a.status] - rank[b.status]
-    return r !== 0 ? r : a.name.localeCompare(b.name)
+    if (r !== 0) return r
+    const f = a.farmName.localeCompare(b.farmName)
+    return f !== 0 ? f : a.name.localeCompare(b.name)
   })
 }
 
@@ -484,14 +316,15 @@ const FieldList = ({ fields, activeName, onSelect }: FieldListProps) => (
             type="button"
             onClick={() => onSelect(field.name)}
             className={clsx(
-              'flex w-full items-center justify-between gap-3 border-b-2 border-border-tertiary px-4 py-3 text-left transition-colors',
+              'flex w-full items-center gap-3 border-b-2 border-border-tertiary px-4 py-3 text-left transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
               isActive
                 ? 'bg-bg-tertiary text-text-primary'
                 : 'bg-bg-primary text-text-primary hover:bg-bg-secondary',
             )}
           >
-            <div className="flex min-w-0 flex-col">
+            <StatusHaloBadge status={FIELD_STATUS_PIP[field.status]} />
+            <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-md font-medium">{field.name}</span>
               <span className="truncate text-xs text-text-secondary">
                 {field.farmName} ·{' '}
@@ -502,7 +335,6 @@ const FieldList = ({ fields, activeName, onSelect }: FieldListProps) => (
                     }`}
               </span>
             </div>
-            <StatusPill status={field.status} />
           </button>
         </li>
       )
@@ -573,15 +405,38 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
     [field.operationRecords, operationSelection],
   )
 
+  // Clicking the status pip on a row jumps straight into the editor for
+  // that one row — quicker than selecting + Edit.
+  const openSingleCroppingEditor = (rowId: string) => {
+    setCroppingSelection(new Set([rowId]))
+    setEditorTarget('cropping')
+  }
+  const openSingleOperationEditor = (rowId: string) => {
+    setOperationSelection(new Set([rowId]))
+    setEditorTarget('operations')
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: openSingleCroppingEditor is stable enough — re-running the memo every render would defeat the column-def cache
   const croppingCols = useMemo(
     () => [
+      statusColumn<CroppingRecord>(
+        removedCroppingIds,
+        undefined,
+        openSingleCroppingEditor,
+      ),
       actionColumn<CroppingRecord>(editedCroppingIds, removedCroppingIds),
       ...CROPPING_COLUMNS,
     ],
     [editedCroppingIds, removedCroppingIds],
   )
+  // biome-ignore lint/correctness/useExhaustiveDependencies: openSingleOperationEditor is stable enough — re-running the memo every render would defeat the column-def cache
   const operationCols = useMemo(
     () => [
+      statusColumn<OperationRecord>(
+        removedOperationIds,
+        undefined,
+        openSingleOperationEditor,
+      ),
       actionColumn<OperationRecord>(editedOperationIds, removedOperationIds),
       ...OPERATION_COLUMNS,
     ],
@@ -633,66 +488,158 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
   const isEmpty =
     field.croppingRecords.length === 0 && field.operationRecords.length === 0
 
+  // Per-field issue groups — derived from FixState's live records so the
+  // fix cards stay in sync with edits/removals. Filtered to just this
+  // field's record ids.
+  const fieldIssueGroups = useMemo(() => {
+    const all = buildIssueGroups(field.croppingRecords, field.operationRecords)
+    return all
+  }, [field.croppingRecords, field.operationRecords])
+
+  const croppingFixes = fieldIssueGroups.filter(
+    (g) => g.recordType === 'cropping',
+  )
+  const operationFixes = fieldIssueGroups.filter(
+    (g) => g.recordType === 'operation',
+  )
+
+  // Active section tab — persisted in the URL so back/forward + refresh
+  // keep the user on the same tab across fields.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('fieldTab')
+  const tab: 'cropping' | 'operations' | 'soil' =
+    rawTab === 'operations' || rawTab === 'soil' ? rawTab : 'cropping'
+  const setTab = (next: 'cropping' | 'operations' | 'soil') => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'cropping') params.delete('fieldTab')
+    else params.set('fieldTab', next)
+    setSearchParams(params, { replace: true })
+  }
+
+  const acceptSandyForGroup = (group: IssueGroup) => {
+    const patch: Record<string, unknown> = {}
+    for (const key of group.brokenFieldKeys) {
+      const raw = group.sandySuggestion[key]
+      if (raw === undefined) continue
+      patch[key] = coerceForFieldKey(key, raw)
+    }
+    if (Object.keys(patch).length === 0) return
+    // Jump to the tab the patch actually targets so the user sees the
+    // affected records update beneath the suggestion, not a stale tab.
+    const targetTab =
+      group.recordType === 'cropping' ? 'cropping' : 'operations'
+    if (tab !== targetTab) setTab(targetTab)
+    if (group.recordType === 'cropping') {
+      patchCropping(group.recordIds, patch as Partial<CroppingRecord>, {
+        autoSave: true,
+      })
+    } else {
+      patchOperations(group.recordIds, patch as Partial<OperationRecord>, {
+        autoSave: true,
+      })
+    }
+  }
+
+  // Consolidate cropping + operation fix groups into a single, capped list.
+  // The user only sees the top N fixes per field — anything else surfaces
+  // when they open the record editor or scroll into the data table.
+  const FIXES_PER_FIELD_CAP = 2
+  const allFieldFixes = useMemo(
+    () => [...croppingFixes, ...operationFixes].slice(0, FIXES_PER_FIELD_CAP),
+    [croppingFixes, operationFixes],
+  )
+
   return (
-    <div className="flex flex-col gap-8 pb-24">
-      {field.croppingRecords.length > 0 ? (
-        <section className="flex flex-col gap-2">
-          <h4 className="text-lg font-medium text-text-primary">
-            Cropping ({croppingRows.length})
-          </h4>
-          <DataTable<CroppingRecord>
-            rows={croppingRows}
-            columns={croppingCols}
-            selectable
-            hideFooter
-            getRowClassName={({ row }) =>
-              computeRowClass({
-                row,
-                edited: editedCroppingIds,
-                removed: removedCroppingIds,
-              })
-            }
-            isRowSelectable={({ row }) => !removedCroppingIds.has(row.id)}
-            rowSelectionModel={{ type: 'include', ids: croppingSelection }}
-            onRowSelectionModelChange={(model) => {
-              setCroppingSelection(new Set(Array.from(model.ids).map(String)))
-            }}
-          />
-        </section>
-      ) : null}
+    <div className="flex flex-col gap-6 pb-24">
+      {/* Field name sits at the top — same typography as the Issue Type
+          page so the two views read in parallel. */}
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold text-text-primary">
+          {field.name}
+        </h1>
+        <p className="text-sm text-text-secondary">{field.farmName}</p>
+      </header>
 
-      {field.operationRecords.length > 0 ? (
-        <section className="flex flex-col gap-2">
-          <h4 className="text-lg font-medium text-text-primary">
-            Operations ({operationRows.length})
-          </h4>
-          <DataTable<OperationRecord>
-            rows={operationRows}
-            columns={operationCols}
-            selectable
-            hideFooter
-            getRowClassName={({ row }) =>
-              computeRowClass({
-                row,
-                edited: editedOperationIds,
-                removed: removedOperationIds,
-              })
-            }
-            isRowSelectable={({ row }) => !removedOperationIds.has(row.id)}
-            rowSelectionModel={{ type: 'include', ids: operationSelection }}
-            onRowSelectionModelChange={(model) => {
-              setOperationSelection(new Set(Array.from(model.ids).map(String)))
-            }}
-          />
-        </section>
-      ) : null}
+      {/* Fixes sit ABOVE the table switcher so they apply to the whole field,
+          not whichever tab happens to be active. */}
+      <FieldFixesSection
+        groups={allFieldFixes}
+        onAcceptSandy={acceptSandyForGroup}
+      />
 
-      <section className="flex flex-col gap-2">
-        <h4 className="text-lg font-medium text-text-primary">Soil</h4>
-        <div className="rounded-xl border-2 border-dashed border-border-tertiary bg-bg-secondary px-6 py-8 text-center text-sm text-text-secondary">
-          No soil records for this field.
-        </div>
-      </section>
+      <Tabs<'cropping' | 'operations' | 'soil'>
+        value={tab}
+        onValueChange={setTab}
+      >
+        <TabBar>
+          <Tab value="cropping">Cropping ({field.croppingRecords.length})</Tab>
+          <Tab value="operations">
+            Operations ({field.operationRecords.length})
+          </Tab>
+          <Tab value="soil">Soil (0)</Tab>
+        </TabBar>
+        <TabPanel value="cropping" className="flex flex-col gap-4 pt-4">
+          {field.croppingRecords.length > 0 ? (
+            <DataTable<CroppingRecord>
+              rows={croppingRows}
+              columns={croppingCols}
+              selectable
+              hideFooter
+              getRowClassName={({ row }) =>
+                computeRowClass({
+                  row,
+                  edited: editedCroppingIds,
+                  removed: removedCroppingIds,
+                })
+              }
+              isRowSelectable={({ row }) => !removedCroppingIds.has(row.id)}
+              rowSelectionModel={{ type: 'include', ids: croppingSelection }}
+              onRowSelectionModelChange={(model) => {
+                setCroppingSelection(new Set(Array.from(model.ids).map(String)))
+              }}
+            />
+          ) : (
+            <FieldEmptyState
+              kind="cropping"
+              isEmpty={field.croppingRecords.length === 0}
+            />
+          )}
+        </TabPanel>
+        <TabPanel value="operations" className="flex flex-col gap-4 pt-4">
+          {field.operationRecords.length > 0 ? (
+            <DataTable<OperationRecord>
+              rows={operationRows}
+              columns={operationCols}
+              selectable
+              hideFooter
+              getRowClassName={({ row }) =>
+                computeRowClass({
+                  row,
+                  edited: editedOperationIds,
+                  removed: removedOperationIds,
+                })
+              }
+              isRowSelectable={({ row }) => !removedOperationIds.has(row.id)}
+              rowSelectionModel={{ type: 'include', ids: operationSelection }}
+              onRowSelectionModelChange={(model) => {
+                setOperationSelection(
+                  new Set(Array.from(model.ids).map(String)),
+                )
+              }}
+            />
+          ) : (
+            <FieldEmptyState
+              kind="operations"
+              isEmpty={field.operationRecords.length === 0}
+            />
+          )}
+        </TabPanel>
+        <TabPanel value="soil" className="flex flex-col gap-4 pt-4">
+          <div className="rounded-xl border-2 border-dashed border-border-tertiary bg-bg-secondary px-6 py-8 text-center text-sm text-text-secondary">
+            No soil records for this field.
+          </div>
+        </TabPanel>
+      </Tabs>
 
       {isEmpty ? (
         <p className="text-md text-text-secondary">
@@ -721,9 +668,9 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
           records={selectedCroppingRecords}
           fields={CROPPING_FIELD_FIELDS}
           recordLabel="cropping record"
-          describeRecord={describeCropping}
           onSave={applyCroppingPatch}
           getProvenance={(row) => row.provenance}
+          invalidKeys={collectInvalidKeys(selectedCroppingRecords)}
         />
       ) : null}
       {editorTarget === 'operations' ? (
@@ -735,9 +682,9 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
           records={selectedOperationRecords}
           fields={buildOperationFieldFields(selectedOperationRecords)}
           recordLabel="operation"
-          describeRecord={describeOperation}
           onSave={applyOperationPatch}
           getProvenance={(row) => row.provenance}
+          invalidKeys={collectInvalidKeys(selectedOperationRecords)}
         />
       ) : null}
 
@@ -773,46 +720,75 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
 }
 
 /* -------------------------------------------------------------------------- */
-/* SelectionActionBar — shared bottom bar (mirrors DataTableView)              */
+/* FieldFixesSection — flat list of Sandy-suggestion cards                    */
 /* -------------------------------------------------------------------------- */
 
-const SelectionActionBar = ({
-  count,
-  recordLabel,
-  onEdit,
-  onDelete,
-  onClear,
+const FieldFixesSection = ({
+  groups,
+  onAcceptSandy,
 }: {
-  count: number
-  recordLabel: string
-  onEdit: () => void
-  onDelete: () => void
-  onClear: () => void
+  groups: IssueGroup[]
+  onAcceptSandy: (group: IssueGroup) => void
+}) => {
+  // Only surface groups Sandy can actually propose a fix for. Anything else
+  // still appears as a row-level issue in the data table.
+  const actionable = groups.filter(
+    (g) => Object.keys(g.sandySuggestion).length > 0,
+  )
+  if (actionable.length === 0) return null
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+        How to fix
+      </h3>
+      <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+        {actionable.map((group) => (
+          <SuggestionCard
+            key={group.id}
+            title={group.title}
+            description={`Based on the other records in this sheet, it looks like you should set ${group.brokenFieldKeys
+              .map((k, i) => {
+                const v = group.sandySuggestion[k]
+                return v ? `${group.brokenFieldLabels[i]}: ${v}` : null
+              })
+              .filter((s): s is string => s !== null)
+              .join(' · ')}.`}
+            changeLine={`Update ${group.recordIds.length} ${
+              group.recordIds.length === 1 ? 'record' : 'records'
+            } ${group.brokenFieldKeys
+              .map((k, i) => {
+                const v = group.sandySuggestion[k]
+                return v ? `${group.brokenFieldLabels[i]} to ${v}` : null
+              })
+              .filter((s): s is string => s !== null)
+              .join(', ')}`}
+            cta={
+              <Button variant="primary" onClick={() => onAcceptSandy(group)}>
+                Apply suggestion
+              </Button>
+            }
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* FieldEmptyState — dashed border placeholder for a record-type with no rows */
+/* -------------------------------------------------------------------------- */
+
+const FieldEmptyState = ({
+  kind,
+  isEmpty,
+}: {
+  kind: 'cropping' | 'operations'
+  isEmpty: boolean
 }) => (
-  <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-6 pb-6">
-    <div className="pointer-events-auto flex items-center gap-4 rounded-pill border-2 border-border-tertiary bg-bg-primary px-4 py-2 shadow-xl">
-      <div className="flex items-center gap-3">
-        <span className="text-md font-medium text-text-primary">
-          {count} {count === 1 ? recordLabel : `${recordLabel}s`} selected
-        </span>
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-sm text-text-secondary underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-        >
-          Clear
-        </button>
-      </div>
-      <div className="h-6 w-px bg-border-tertiary" />
-      <div className="flex items-center gap-2">
-        <Button variant="destructive" onClick={onDelete}>
-          Delete {count === 1 ? 'record' : `${count} records`}
-        </Button>
-        <Button variant="secondary" onClick={onEdit}>
-          Edit {count === 1 ? 'record' : `${count} records`}
-        </Button>
-      </div>
-    </div>
+  <div className="rounded-xl border-2 border-dashed border-border-tertiary bg-bg-secondary px-6 py-8 text-center text-sm text-text-secondary">
+    {isEmpty
+      ? `No ${kind} records for this field.`
+      : `No ${kind} records match the current filter.`}
   </div>
 )
 
@@ -867,9 +843,15 @@ export const FieldView = () => {
     )
   }, [severityFiltered, query])
 
-  const [activeName, setActiveName] = useState<string | null>(
-    () => fields[0]?.name ?? null,
-  )
+  // Active field lives in the URL so back/forward + refresh keep the user
+  // on the same field across view types.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeName = searchParams.get('field')
+  const setActiveName = (name: string) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('field', name)
+    setSearchParams(params, { replace: true })
+  }
   const activeField =
     fields.find((f) => f.name === activeName) ?? fields[0] ?? null
 

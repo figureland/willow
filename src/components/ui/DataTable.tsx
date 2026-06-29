@@ -198,6 +198,11 @@ const tableSx = {
     backgroundColor: 'var(--color-support-bg-amber)',
     fontWeight: 500,
   },
+  '& .MuiDataGrid-cell.cell-issue-clean': {
+    backgroundColor: 'var(--color-support-bg-green)',
+    color: 'var(--color-text-brand-dark)',
+    fontWeight: 500,
+  },
   // Severity-tinted column headers. Consumers opt in via `headerClassName`.
   '& .MuiDataGrid-columnHeader.header-issue-blocking': {
     backgroundColor: 'var(--color-support-bg-red)',

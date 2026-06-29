@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Button,
@@ -7,790 +7,917 @@ import {
   type GridColDef,
   Modal,
 } from '../../../components/ui'
-import { VALIDATION_BY_CODE } from '../../../validations/catalogue'
-import { FIX_CODE_TO_CATALOGUE } from '../../../validations/fixes/code-mapping'
+import { IconArrowLeft } from '../../../components/ui/icons'
+import { actionColumn, SelectionActionBar, statusColumn } from './fix-grid-bits'
+import type { CroppingRecord, OperationRecord } from './fix-records'
+import { useFixState } from './fix-state'
 import {
-  FIX_SUBCATEGORY_LABEL,
-  FIX_SUBCATEGORY_ORDER,
-} from '../../../validations/types'
+  buildIssueGroups,
+  type FixableRecord,
+  type IssueGroup,
+  projectRecord,
+  type RecordType,
+} from './issue-groups'
+import { type EditableField, RecordEditorSheet } from './RecordEditorSheet'
+import { RowStatusPip, StatusHaloBadge } from './RowStatusPip'
 import {
-  AFFECTED_RECORDS,
-  type AffectedRecords,
-  type AffectedRow,
-  type Cell,
-} from './affected-records'
-import { FixIssueModal } from './FixIssueModal'
-import {
-  ISSUE_DEFAULTS,
-  type IssueCode,
-  type IssueSeverity,
-} from './row-issues'
+  buildOperationFieldFields,
+  CROPPING_FIELD_FIELDS,
+} from './record-editor-schemas'
+import type { IssueSeverity } from './row-issues'
+import { SuggestionCard } from './SuggestionCard'
 
 /* -------------------------------------------------------------------------- */
-/* FixIssuesPage — clone of the refine page for row-level validation issues   */
+/* IssuesView — sidebar of issues + per-issue fix workflow                    */
+/* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar — list of issues                                                    */
+/* -------------------------------------------------------------------------- */
+
+const IssueRow = ({
+  group,
+  isActive,
+  resolved,
+  onSelect,
+}: {
+  group: IssueGroup
+  isActive: boolean
+  resolved: boolean
+  onSelect: () => void
+}) => (
+  <li>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={clsx(
+        'flex w-full items-center gap-3 border-b-2 border-border-tertiary px-4 py-3 text-left transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+        isActive
+          ? 'bg-bg-tertiary text-text-primary'
+          : 'bg-bg-primary text-text-primary hover:bg-bg-secondary',
+      )}
+    >
+      <StatusHaloBadge status={resolved ? 'clean' : group.severity} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-md font-medium">{group.title}</span>
+        <span className="truncate text-xs text-text-secondary">
+          {resolved
+            ? 'Resolved'
+            : `${group.recordIds.length} ${
+                group.recordIds.length === 1 ? 'record' : 'records'
+              } · ${group.brokenFieldLabels.join(', ') || 'see rows'}`}
+        </span>
+      </div>
+    </button>
+  </li>
+)
+
+/* -------------------------------------------------------------------------- */
+/* IssueCardList — card-style list (cards layout)                              */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Categories the 17 issue codes fall into. Mirrors the way Sandy's docs
- * group validation failures — attribute-level lives next to reference-table
- * checks, cross-field next to cross-area, cross-record on its own.
+ * Compact issue card — borrows the structure of the Refine step's issue
+ * cards: a status indicator, a short headline + sub-line, and the whole
+ * card is the click target. Resolved cards tint green.
  */
-// Sub-category dimension lives in the central catalogue as
-// `FixSubcategory` — we re-import it here so the Fix step stays in sync.
-type FixCategory = 'attribute' | 'cross-field' | 'cross-record'
+const IssueCardItem = ({
+  group,
+  resolved,
+  onSelect,
+}: {
+  group: IssueGroup
+  resolved: boolean
+  onSelect: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onSelect}
+    className={clsx(
+      'group flex w-full items-start gap-3 rounded-xl border-2 border-transparent p-5 text-left shadow-sm transition-all duration-200',
+      'hover:border-border-tertiary hover:shadow-md',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+      resolved ? 'bg-support-bg-green/60' : 'bg-bg-primary',
+    )}
+  >
+    <span className="mt-1 shrink-0">
+      <RowStatusPip status={resolved ? 'clean' : group.severity} />
+    </span>
+    <div className="flex max-w-[640px] flex-1 flex-col gap-1">
+      <p className="text-md font-medium text-text-primary">{group.title}</p>
+      <p className="text-sm text-text-secondary">
+        {resolved
+          ? 'Resolved'
+          : `${group.recordIds.length} ${
+              group.recordIds.length === 1 ? 'record' : 'records'
+            } · ${group.brokenFieldLabels.join(', ') || 'see rows'}`}
+      </p>
+    </div>
+  </button>
+)
 
-const CATEGORY_LABEL: Record<FixCategory, string> = FIX_SUBCATEGORY_LABEL
-const CATEGORY_ORDER: FixCategory[] = FIX_SUBCATEGORY_ORDER
+const IssueCardList = ({
+  groups,
+  resolvedIds,
+  onSelect,
+}: {
+  groups: IssueGroup[]
+  resolvedIds: Set<string>
+  onSelect: (id: string) => void
+}) => (
+  <div className="mx-auto flex w-full max-w-[840px] flex-col gap-4">
+    <header className="flex flex-col gap-1">
+      <h1 className="text-2xl font-semibold text-text-primary">
+        Resolve {groups.length} {groups.length === 1 ? 'issue' : 'issues'}
+      </h1>
+      <p className="text-md text-text-secondary">
+        Pick an issue to open its records and apply a fix.
+      </p>
+    </header>
+    <div className="flex flex-col gap-3">
+      {groups.map((group) => (
+        <IssueCardItem
+          key={group.id}
+          group={group}
+          resolved={resolvedIds.has(group.id)}
+          onSelect={() => onSelect(group.id)}
+        />
+      ))}
+    </div>
+  </div>
+)
 
-const CATEGORY_FOR_CODE: Record<IssueCode, FixCategory> = (() => {
-  const out: Partial<Record<IssueCode, FixCategory>> = {}
-  for (const code of Object.keys(FIX_CODE_TO_CATALOGUE) as IssueCode[]) {
-    const entry = VALIDATION_BY_CODE[FIX_CODE_TO_CATALOGUE[code]]
-    if (entry?.subcategory) out[code] = entry.subcategory as FixCategory
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                     */
+/* -------------------------------------------------------------------------- */
+
+const fmt = (v: string | number | null | undefined): string => {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'number') {
+    return Number.isInteger(v) ? String(v) : v.toFixed(2)
   }
-  return out as Record<IssueCode, FixCategory>
-})()
-
-/* -------------------------------------------------------------------------- */
-/* Mock examples — one issue per code so the demo surfaces every type         */
-/* -------------------------------------------------------------------------- */
-
-export type FixIssue = {
-  id: string
-  code: IssueCode
-  severity: IssueSeverity
-  /** Human headline shown on the card. */
-  headline: string
-  /** One-line context the user needs to make a decision. */
-  context: string
-  /** Suggested action label — what "Fix" does. */
-  suggestion: string
+  return v
 }
 
-const EXAMPLES: FixIssue[] = [
-  // Attribute-level
-  {
-    id: 'ex-required-missing',
-    code: 'required-missing',
-    severity: ISSUE_DEFAULTS['required-missing'].severity,
-    headline: 'Working area is missing on 4 cropping rows',
-    context: 'Farm: Brookside Leys · Field: Millpond, Orchard Fold, +2',
-    suggestion: 'Add a value or skip these rows',
-  },
-  {
-    id: 'ex-max-length',
-    code: 'max-length-exceeded',
-    severity: ISSUE_DEFAULTS['max-length-exceeded'].severity,
-    headline: 'Variety name exceeds 60 characters',
-    context: '"Hereford Single Cross Late Variety Long Name…" · Field: Saltway',
-    suggestion: 'Truncate to 60 characters',
-  },
-  {
-    id: 'ex-year-invalid',
-    code: 'year-invalid',
-    severity: ISSUE_DEFAULTS['year-invalid'].severity,
-    headline: 'Harvest year reads "20245"',
-    context: 'Operation row op-12 · Field: Long Acre',
-    suggestion: 'Set to 2024',
-  },
-  {
-    id: 'ex-date-invalid',
-    code: 'date-invalid',
-    severity: ISSUE_DEFAULTS['date-invalid'].severity,
-    headline: 'Planting date "31/02/2024" is not a real date',
-    context: 'Cropping row crop-7 · Field: Stone Pightle',
-    suggestion: 'Choose a valid date',
-  },
-  {
-    id: 'ex-positive-int',
-    code: 'positive-int-required',
-    severity: ISSUE_DEFAULTS['positive-int-required'].severity,
-    headline: 'Sampling depth is -15 cm',
-    context: 'Soil sample soil-3 · Field: Mill Lane',
-    suggestion: 'Set to 15 cm',
-  },
-  {
-    id: 'ex-decimal-range',
-    code: 'decimal-out-of-range',
-    severity: ISSUE_DEFAULTS['decimal-out-of-range'].severity,
-    headline: 'pH value 12.4 is outside the 3–10 range',
-    context: 'Soil sample soil-9 · Field: Hayrick',
-    suggestion: 'Re-check the lab reading',
-  },
-  {
-    id: 'ex-crop-type-unknown',
-    code: 'crop-type-unknown',
-    severity: ISSUE_DEFAULTS['crop-type-unknown'].severity,
-    headline: 'Crop type "Winter rapeseed" is not in the reference list',
-    context: '6 cropping rows affected',
-    suggestion: 'Map to "Winter oilseed rape"',
-  },
-  // Cross-field
-  {
-    id: 'ex-planting-after-harvest',
-    code: 'planting-after-harvest',
-    severity: ISSUE_DEFAULTS['planting-after-harvest'].severity,
-    headline: 'Planting date (2024-10-12) is after harvest date (2024-08-21)',
-    context: 'Cropping row crop-15 · Field: Top Meadow',
-    suggestion: 'Swap the two dates',
-  },
-  {
-    id: 'ex-harvest-gt-total',
-    code: 'harvest-gt-total',
-    severity: ISSUE_DEFAULTS['harvest-gt-total'].severity,
-    headline: 'Harvest yield (24.1 t) is greater than total yield (22.0 t)',
-    context: 'Cropping row crop-4 · Field: Spinney',
-    suggestion: 'Reduce harvest yield',
-  },
-  {
-    id: 'ex-yield-zero',
-    code: 'yield-zero',
-    severity: ISSUE_DEFAULTS['yield-zero'].severity,
-    headline: 'Yield is recorded as 0 t/ha',
-    context: '3 cropping rows on Foxglove Hill',
-    suggestion: 'Confirm or supply a value',
-  },
-  {
-    id: 'ex-crop-area',
-    code: 'crop-area-exceeds-field',
-    severity: ISSUE_DEFAULTS['crop-area-exceeds-field'].severity,
-    headline: 'Crop area (32 ha) exceeds field area (28.4 ha)',
-    context: 'Field: River Bend · Cropping row crop-19',
-    suggestion: 'Cap at field area',
-  },
-  // Cross-record
-  {
-    id: 'ex-duplicate-cropping',
-    code: 'duplicate-cropping',
-    severity: ISSUE_DEFAULTS['duplicate-cropping'].severity,
-    headline: '2 identical cropping records for Winter wheat · Marlpit · 2024',
-    context: 'Sandy will block import until one is removed',
-    suggestion: 'Keep one, drop the other',
-  },
-  {
-    id: 'ex-duplicate-operation',
-    code: 'duplicate-operation',
-    severity: ISSUE_DEFAULTS['duplicate-operation'].severity,
-    headline: 'Two fungicide applications recorded for the same date',
-    context: 'Field: Old Barn Field · 2024-05-12',
-    suggestion: 'Confirm both happened',
-  },
-  {
-    id: 'ex-duplicate-fertiliser',
-    code: 'duplicate-fertiliser',
-    severity: ISSUE_DEFAULTS['duplicate-fertiliser'].severity,
-    headline: "Duplicate Nitram application on Cobbett's Hollow",
-    context: 'Two rows with the same product, rate, and date',
-    suggestion: 'Confirm or de-duplicate',
-  },
-  {
-    id: 'ex-duplicate-farm',
-    code: 'duplicate-farm',
-    severity: ISSUE_DEFAULTS['duplicate-farm'].severity,
-    headline: 'Farm "Brookside Leys" already exists in Sandy',
-    context: 'Imported as a new farm — should it merge?',
-    suggestion: 'Merge with the existing farm',
-  },
-  {
-    id: 'ex-orphan-operation',
-    code: 'orphan-operation',
-    severity: ISSUE_DEFAULTS['orphan-operation'].severity,
-    headline: 'Operation has no matching cropping record',
-    context: 'op-22 references CR-1183 which is not in this upload',
-    suggestion: 'Attach to an existing cropping record',
-  },
-  {
-    id: 'ex-deletion-not-allowed',
-    code: 'deletion-not-allowed',
-    severity: ISSUE_DEFAULTS['deletion-not-allowed'].severity,
-    headline: 'Crop Protection records cannot be deleted via upload',
-    context: 'op-31 · Field: Marlpit',
-    suggestion: 'Remove the deletion from the file',
-  },
+const PREVIEW_COLUMNS_CROPPING: { key: string; label: string }[] = [
+  { key: 'farmName', label: 'Farm' },
+  { key: 'fieldName', label: 'Field' },
+  { key: 'harvestYear', label: 'Year' },
+  { key: 'cropName', label: 'Crop' },
+  { key: 'workingArea', label: 'Area (ha)' },
+  { key: 'yield', label: 'Yield (t/ha)' },
 ]
 
-/* -------------------------------------------------------------------------- */
-/* Resolution state — scrappy: just "fixed" / "ignored" / "pending" per id    */
-/* -------------------------------------------------------------------------- */
+const PREVIEW_COLUMNS_OPERATION: { key: string; label: string }[] = [
+  { key: 'farmName', label: 'Farm' },
+  { key: 'fieldName', label: 'Field' },
+  { key: 'harvestYear', label: 'Year' },
+  { key: 'operationGroup', label: 'Group' },
+  { key: 'operationType', label: 'Type' },
+  { key: 'productName', label: 'Product' },
+  { key: 'quantity', label: 'Quantity' },
+  { key: 'unit', label: 'Unit' },
+]
 
-type Resolution = 'pending' | 'fixed' | 'ignored'
-
-const isResolved = (r: Resolution) => r === 'fixed' || r === 'ignored'
-
-/* -------------------------------------------------------------------------- */
-/* Severity pill — small leading badge on each card                           */
-/* -------------------------------------------------------------------------- */
-
-const SEVERITY_LABEL: Record<IssueSeverity, string> = {
-  blocking: 'Blocking',
-  warning: 'Warning',
+const previewColumnsFor = (
+  type: RecordType,
+  brokenFieldKeys: string[],
+  labels: string[],
+): { key: string; label: string }[] => {
+  const base =
+    type === 'cropping' ? PREVIEW_COLUMNS_CROPPING : PREVIEW_COLUMNS_OPERATION
+  const merged = [...base]
+  brokenFieldKeys.forEach((key, i) => {
+    if (!merged.some((c) => c.key === key)) {
+      merged.push({ key, label: labels[i] ?? key })
+    }
+  })
+  return merged
 }
 
-const SeverityPill = ({ severity }: { severity: IssueSeverity }) => (
-  <span
-    className={clsx(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-      severity === 'blocking'
-        ? 'bg-support-bg-red text-support-fg-red'
-        : 'bg-support-bg-amber text-support-fg-amber',
-    )}
-  >
-    {SEVERITY_LABEL[severity]}
-  </span>
-)
+const NUMBER_KEYS = new Set([
+  'workingArea',
+  'yield',
+  'totalYield',
+  'quantity',
+  'appliedArea',
+  'harvestYear',
+])
 
-/** Leading status indicator on every card — empty box when pending, filled
- *  green check when resolved. Mirrors the inbox pattern on the refine page. */
-const StatusIndicator = ({ resolved }: { resolved: boolean }) => (
-  <span
-    aria-hidden="true"
-    className={clsx(
-      'mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border-2 transition-colors',
-      resolved
-        ? 'border-support-fg-green bg-support-fg-green text-text-primary-inverse'
-        : 'border-border-secondary bg-bg-primary',
-    )}
-  >
-    {resolved ? (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <title>Resolved</title>
-        <path
-          d="M5 12.5l4.5 4.5L19 7"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ) : null}
-  </span>
-)
-
-/* -------------------------------------------------------------------------- */
-/* Affected-records table — condensed DataTable listing the rows the issue    */
-/* applies to. Replaces the old before/after modal.                            */
-/* -------------------------------------------------------------------------- */
-
-const fmtCell = (value: Cell): string => {
-  if (value === null) return '—'
-  if (typeof value === 'number') return value.toString()
-  return value
+const coerceForKey = (key: string, raw: string): string | number => {
+  if (NUMBER_KEYS.has(key)) {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : raw
+  }
+  return raw
 }
 
-type AffectedTableRow = AffectedRow & {
-  _highlight: Set<string>
-  _isRow: boolean
-}
+const labelFromColumns = (
+  columns: { key: string; label: string }[],
+  key: string,
+): string => columns.find((c) => c.key === key)?.label ?? key
 
-/**
- * Inspect the rows to decide which highlight mode best describes the issue:
- *  - 'row'    → at least one row is fully highlighted (e.g. a duplicate
- *               record where the entire row IS the problem). Detected when
- *               a row's highlight covers every column.
- *  - 'column' → every populated highlight in the set is the same set of
- *               columns (e.g. "Working area missing on N rows" — same column
- *               wrong on every row). We tint the column header too.
- *  - 'cell'   → highlights vary across rows — only paint the named cells.
- */
-type HighlightMode = 'row' | 'column' | 'cell'
-
-const detectMode = (records: AffectedRecords): HighlightMode => {
-  const populated = records.before.filter((r) => (r.highlight?.length ?? 0) > 0)
-  if (populated.length === 0) return 'cell'
-
-  const colKeys = new Set(records.columns.map((c) => c.key))
-  const isFullRow = (r: AffectedRow) =>
-    (r.highlight?.length ?? 0) === colKeys.size &&
-    r.highlight?.every((k) => colKeys.has(k))
-  if (populated.some(isFullRow)) return 'row'
-
-  // Sibling-row case: some rows are highlighted, others are not. The
-  // unhighlighted rows are context (e.g. the "original" against which a
-  // duplicate is compared) — treat the highlighted ones as full rows.
-  if (populated.length < records.before.length) return 'row'
-
-  const first = [...(populated[0].highlight ?? [])].sort().join('|')
-  const allSame = populated.every(
-    (r) => [...(r.highlight ?? [])].sort().join('|') === first,
-  )
-  return allSame && records.before.length > 1 ? 'column' : 'cell'
-}
-
-const HIGHLIGHTED_COLUMN_KEYS = (records: AffectedRecords): Set<string> => {
-  const first = records.before.find((r) => (r.highlight?.length ?? 0) > 0)
-  return new Set(first?.highlight ?? [])
-}
-
-const severityRowClass: Record<IssueSeverity, string> = {
-  blocking: 'row-issue-blocking',
-  warning: 'row-issue-warning',
-}
-
-const severityCellClass: Record<IssueSeverity, string> = {
-  blocking: 'cell-issue-blocking',
-  warning: 'cell-issue-warning',
-}
-
-const severityHeaderClass: Record<IssueSeverity, string> = {
-  blocking: 'header-issue-blocking',
-  warning: 'header-issue-warning',
-}
-
-const buildAffectedColumns = (
-  records: AffectedRecords,
-  mode: HighlightMode,
+const buildPreviewColumns = (
+  columns: { key: string; label: string }[],
+  brokenKeys: string[],
   severity: IssueSeverity,
-): GridColDef<AffectedTableRow>[] => {
-  const colHighlight =
-    mode === 'column' ? HIGHLIGHTED_COLUMN_KEYS(records) : null
-  return records.columns.map((col) => {
-    const headerHighlighted = colHighlight?.has(col.key) ?? false
-    return {
+  resolvedIds: Set<string>,
+  edited: Set<string>,
+  removed: Set<string>,
+  onPipClick: (rowId: string) => void,
+): GridColDef<FixableRecord>[] => {
+  const broken = new Set(brokenKeys)
+  return [
+    // Shared status + action chrome — same as the Data Table view, so the
+    // user sees the same row presentation whichever entry point they used.
+    statusColumn<FixableRecord>(
+      removed,
+      (id) => resolvedIds.has(id),
+      onPipClick,
+    ),
+    actionColumn<FixableRecord>(edited, removed),
+    ...columns.map<GridColDef<FixableRecord>>((col) => ({
       field: col.key,
       headerName: col.label,
       flex: 1,
-      minWidth: col.numeric ? 110 : 130,
-      type: col.numeric ? 'number' : 'string',
+      minWidth: 110,
       sortable: false,
-      headerClassName: headerHighlighted ? severityHeaderClass[severity] : '',
+      filterable: false,
       cellClassName: ({ row }) => {
-        if (mode === 'row') return ''
-        const cellHighlighted =
-          mode === 'column'
-            ? row._highlight.size > 0 && (colHighlight?.has(col.key) ?? false)
-            : row._highlight.has(col.key)
-        return cellHighlighted ? severityCellClass[severity] : ''
+        if (!broken.has(col.key)) return ''
+        if (resolvedIds.has(row.id)) return 'cell-issue-clean'
+        return severity === 'blocking'
+          ? 'cell-issue-blocking'
+          : 'cell-issue-warning'
       },
       renderCell: ({ row }) => (
-        <span className={clsx(col.numeric && 'tabular-nums')}>
-          {fmtCell(row.cells[col.key])}
+        <span
+          className={
+            col.key === 'harvestYear' || NUMBER_KEYS.has(col.key)
+              ? 'tabular-nums'
+              : undefined
+          }
+        >
+          {fmt(row.display[col.key])}
         </span>
       ),
-    }
-  })
+    })),
+  ]
 }
 
-export const AffectedDataGrid = ({
-  records,
-  severity,
-  rowCap,
+/* -------------------------------------------------------------------------- */
+/* SuggestionCard — solid white card for the two top-of-pane suggestions       */
+/* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* IssuePanel — the right pane for an active issue                            */
+/* -------------------------------------------------------------------------- */
+
+const IssuePanel = ({
+  group,
+  recordIndex,
+  onApply,
+  onResolved,
+  wasResolved,
+  editedIds,
+  removedIds,
+  onManualEdit,
+  onManualDelete,
+  onApplyValueForIssue,
+  headerSlot,
+  resolvedFooterSlot,
 }: {
-  records: AffectedRecords
-  severity: IssueSeverity
-  /** Truncate to this many rows. Renders +1 peek row underneath the cap so
-   *  the gradient overlay has something to fade out of. Omit for the full
-   *  list. */
-  rowCap?: number
+  group: IssueGroup
+  recordIndex: Map<string, FixableRecord>
+  onApply: (recordIds: string[], patch: Record<string, unknown>) => void
+  onResolved: (issueId: string) => void
+  wasResolved: boolean
+  /** Edited/removed ids for the active record type — drives the action pill. */
+  editedIds: Set<string>
+  removedIds: Set<string>
+  /** Triggered from the bottom action bar — opens the record editor sheet. */
+  onManualEdit: (recordIds: string[]) => void
+  /** Triggered from the bottom action bar — marks rows for removal. */
+  onManualDelete: (recordIds: string[]) => void
+  /**
+   * Triggered from the "Apply a new value" suggestion — opens the same
+   * editor sheet the data table uses, but scoped to just the broken fields
+   * for this issue. The parent decides which records the patch lands on.
+   */
+  onApplyValueForIssue: (recordIds: string[], brokenKeys: string[]) => void
+  /** Optional element rendered above the issue title — e.g. a back link. */
+  headerSlot?: ReactNode
+  /** Optional element rendered alongside the resolved banner — e.g. Next CTA. */
+  resolvedFooterSlot?: ReactNode
 }) => {
-  const mode = useMemo(() => detectMode(records), [records])
-  const columns = useMemo(
-    () => buildAffectedColumns(records, mode, severity),
-    [records, mode, severity],
+  // Snapshot the initial record ids so the preview grid keeps showing the
+  // same rows after they're patched — otherwise they'd vanish from the issue
+  // and the user wouldn't see the change land. Resolved ids stay highlighted
+  // so the change is visible until the user navigates away.
+  const [recordIds, setRecordIds] = useState<string[]>(group.recordIds)
+  const [selection, setSelection] = useState<Set<string>>(() => new Set())
+  const [busy, setBusy] = useState(false)
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(() =>
+    wasResolved ? new Set(group.recordIds) : new Set(),
   )
-  const allRows = useMemo<AffectedTableRow[]>(
+
+  // Reset transient state whenever the active issue changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: snapshot only on issue switch
+  useEffect(() => {
+    setRecordIds(group.recordIds)
+    setSelection(new Set())
+    setBusy(false)
+    setResolvedIds(wasResolved ? new Set(group.recordIds) : new Set())
+  }, [group.id])
+
+  // Re-read live values so the patch shows up in the table.
+  const rows = useMemo(
     () =>
-      records.before.map((r) => ({
-        ...r,
-        _highlight: new Set(r.highlight ?? []),
-        _isRow: (r.highlight?.length ?? 0) > 0,
-      })),
-    [records],
+      recordIds
+        .map((id) => recordIndex.get(id))
+        .filter((r): r is FixableRecord => r !== undefined),
+    [recordIds, recordIndex],
   )
-  const rows =
-    rowCap !== undefined && allRows.length > rowCap
-      ? allRows.slice(0, rowCap + 1)
-      : allRows
-  return (
-    <DataTable<AffectedTableRow>
-      rows={rows}
-      columns={columns}
-      selectable={false}
-      hideFooter
-      disableColumnMenu
-      getRowClassName={({ row }) => {
-        if (mode !== 'row') return ''
-        return row._isRow ? severityRowClass[severity] : ''
-      }}
-    />
+
+  const unresolvedRows = rows.filter((r) => !resolvedIds.has(r.id))
+
+  const columns = previewColumnsFor(
+    group.recordType,
+    group.brokenFieldKeys,
+    group.brokenFieldLabels,
   )
-}
 
-const PREVIEW_ROWS = 3
+  // One apply resolves the whole issue. Selection is still surfaced as
+  // contextual information but it doesn't scope the patch — the suggestion
+  // disappears straight after, so partial fixes wouldn't be reachable.
+  const applyPatch = (patch: Record<string, unknown>) => {
+    const ids = unresolvedRows.map((r) => r.id)
+    if (ids.length === 0 || Object.keys(patch).length === 0) return
+    setBusy(true)
+    // Brief "validation" pause — fade + spinner, then commit + reveal.
+    window.setTimeout(() => {
+      onApply(ids, patch)
+      setResolvedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.add(id)
+        return next
+      })
+      setSelection(new Set())
+      setBusy(false)
+      onResolved(group.id)
+    }, 700)
+  }
 
-const AffectedRecordsTable = ({
-  records,
-  severity,
-  issueTitle,
-}: {
-  records: AffectedRecords
-  severity: IssueSeverity
-  issueTitle: string
-}) => {
-  const [modalOpen, setModalOpen] = useState(false)
-  const total = records.before.length
-  const hasOverflow = total > PREVIEW_ROWS
-  const extra = total - PREVIEW_ROWS
+  const sandyPatch = useMemo<Record<string, unknown>>(() => {
+    const patch: Record<string, unknown> = {}
+    for (const key of group.brokenFieldKeys) {
+      const raw = group.sandySuggestion[key]
+      if (raw === undefined) continue
+      patch[key] = coerceForKey(key, raw)
+    }
+    return patch
+  }, [group])
+
+  const acceptSandy = () => applyPatch(sandyPatch)
+
+  // "Set a new value" hands off to the data table's editor sheet — same UI,
+  // but scoped to just the broken fields for this issue. Selecting the rows
+  // first means the user can see exactly which records will be affected
+  // before they confirm the change.
+  const openValueEditor = () => {
+    const ids = unresolvedRows.map((r) => r.id)
+    if (ids.length === 0) return
+    setSelection(new Set(ids))
+    onApplyValueForIssue(ids, group.brokenFieldKeys)
+  }
+
+  const sandySummary = group.brokenFieldKeys
+    .map((k) => {
+      const v = group.sandySuggestion[k]
+      return v ? `${labelFromColumns(columns, k)}: ${v}` : null
+    })
+    .filter((s): s is string => s !== null)
+    .join(' · ')
+
+  const targetCount =
+    selection.size > 0 ? selection.size : unresolvedRows.length
+
+  // One-line description of the change Sandy would make, e.g.
+  //   "Update 4 records · Unit to L/ha"
+  const sandyChangeLine = group.brokenFieldKeys
+    .map((k) => {
+      const v = group.sandySuggestion[k]
+      return v ? `${labelFromColumns(columns, k)} to ${v}` : null
+    })
+    .filter((s): s is string => s !== null)
+    .join(', ')
+
+  const allResolved = resolvedIds.size > 0 && unresolvedRows.length === 0
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="relative">
-        <AffectedDataGrid
-          records={records}
-          severity={severity}
-          rowCap={hasOverflow ? PREVIEW_ROWS : undefined}
-        />
-        {hasOverflow ? (
-          <>
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-14 rounded-b-xl bg-gradient-to-b from-transparent to-bg-primary"
+    <div className="flex flex-col gap-6">
+      {headerSlot ? <div>{headerSlot}</div> : null}
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold text-text-primary">
+          {group.title}
+        </h1>
+      </header>
+
+      {/* Suggestions disappear once the user applies any fix — the resolved
+       *  banner takes their place so the pane stays calm afterwards. */}
+      {allResolved ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-support-bg-green px-4 py-3">
+          <span className="inline-flex items-center gap-2 text-lg font-semibold text-text-brand-dark">
+            <RowStatusPip status="clean" />
+            Issue resolved · {resolvedIds.size}{' '}
+            {resolvedIds.size === 1 ? 'record' : 'records'} fixed
+          </span>
+          {resolvedFooterSlot ? <div>{resolvedFooterSlot}</div> : null}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+            How to fix
+          </h2>
+          <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+            {Object.keys(group.sandySuggestion).length > 0 ? (
+              <SuggestionCard
+                title="Sandy suggestion"
+                description={`Based on the other records in this sheet, it looks like you should set ${sandySummary || '—'}.`}
+                changeLine={
+                  sandyChangeLine
+                    ? `Update ${targetCount} ${targetCount === 1 ? 'record' : 'records'} ${sandyChangeLine}`
+                    : undefined
+                }
+                cta={
+                  <Button
+                    variant="primary"
+                    disabled={busy}
+                    onClick={acceptSandy}
+                  >
+                    Apply suggestion
+                  </Button>
+                }
+              />
+            ) : null}
+            <SuggestionCard
+              title="Set a new value"
+              description={`Open the record editor to set ${group.brokenFieldLabels.join(', ') || 'a value'} across every record below.`}
+              cta={
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={openValueEditor}
+                >
+                  Apply a new value
+                </Button>
+              }
             />
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setModalOpen(true)}
-                className="pointer-events-auto inline-flex items-center rounded-full bg-bg-primary px-3 py-1 text-xs font-medium text-text-primary shadow-md ring-1 ring-border-tertiary transition-colors hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
-              >
-                {extra} more {extra === 1 ? 'record' : 'records'}…
-              </button>
-            </div>
-          </>
+          </div>
+        </div>
+      )}
+
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+        {rows.length} affected {rows.length === 1 ? 'record' : 'records'}
+      </h2>
+
+      {/* Records grid — mirrors the Data Table view exactly. */}
+      <div
+        className={clsx(
+          'relative transition-opacity duration-200',
+          busy && 'opacity-40',
+        )}
+      >
+        <DataTable<FixableRecord>
+          rows={rows}
+          columns={buildPreviewColumns(
+            columns,
+            group.brokenFieldKeys,
+            group.severity,
+            resolvedIds,
+            editedIds,
+            removedIds,
+            (rowId) => onManualEdit([rowId]),
+          )}
+          // Once the issue is resolved the rows aren't selectable any more —
+          // the suggestions are gone and the resolved banner says enough.
+          selectable={!allResolved}
+          hideFooter
+          isRowSelectable={({ row }) =>
+            !resolvedIds.has(row.id) && !removedIds.has(row.id)
+          }
+          rowSelectionModel={{ type: 'include', ids: selection }}
+          onRowSelectionModelChange={(model) => {
+            setSelection(new Set(Array.from(model.ids).map(String)))
+          }}
+        />
+        {busy ? (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <span
+              role="status"
+              aria-label="Validating"
+              className="inline-block size-7 animate-spin rounded-full border-2 border-border-secondary border-t-sandy-600"
+            />
+          </div>
         ) : null}
       </div>
-      {hasOverflow ? (
-        <Modal
-          open={modalOpen}
-          onOpenChange={setModalOpen}
-          title={issueTitle}
-          description={`${total} affected records`}
-          maxWidth="1100px"
-        >
-          <AffectedDataGrid records={records} severity={severity} />
-        </Modal>
+
+      {selection.size > 0 ? (
+        <SelectionActionBar
+          count={selection.size}
+          recordLabel={
+            group.recordType === 'cropping' ? 'cropping record' : 'operation'
+          }
+          onEdit={() => onManualEdit(Array.from(selection))}
+          onDelete={() => onManualDelete(Array.from(selection))}
+          onClear={() => setSelection(new Set())}
+        />
       ) : null}
     </div>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/* IssueCard — compact / focused presentation, same shape as Refine            */
-/* -------------------------------------------------------------------------- */
-
-type FixIssueCardProps = {
-  issue: FixIssue
-  resolution: Resolution
-  isActive: boolean
-  onFocus: () => void
-  onCommit: (next: Resolution) => void
-}
-
-const FixIssueCard = ({
-  issue,
-  resolution,
-  isActive,
-  onFocus,
-  onCommit,
-}: FixIssueCardProps) => {
-  const [modalOpen, setModalOpen] = useState(false)
-  const records = AFFECTED_RECORDS[issue.id]
-  const resolved = isResolved(resolution)
-  const resolvedLabel =
-    resolution === 'fixed'
-      ? 'Fixed'
-      : resolution === 'ignored'
-        ? 'Ignored'
-        : null
-  const affectedSummary = records
-    ? `${records.before.length} ${records.before.length === 1 ? 'record' : 'records'} affected`
-    : null
-
-  if (!isActive) {
-    return (
-      // biome-ignore lint/a11y/useKeyWithClickEvents: also focusable via tab
-      // biome-ignore lint/a11y/noStaticElementInteractions: card reads as a row
-      <article
-        onClick={onFocus}
-        className={clsx(
-          'group flex cursor-pointer items-start gap-3 rounded-xl border-2 border-transparent bg-bg-primary p-5 shadow-sm transition-all duration-200',
-          'hover:border-border-tertiary hover:shadow-md',
-          resolved && 'opacity-70',
-        )}
-      >
-        <StatusIndicator resolved={resolved} />
-        <div className="flex flex-1 flex-col items-start gap-2">
-          <p className="text-md font-medium text-text-primary">
-            {issue.headline}
-          </p>
-          <p className="text-sm text-text-secondary">{issue.context}</p>
-          <SeverityPill severity={issue.severity} />
-        </div>
-        {resolvedLabel ? (
-          <span className="mt-1 flex items-center gap-2 text-sm font-semibold text-text-brand-dark">
-            <span>{resolvedLabel}</span>
-          </span>
-        ) : null}
-      </article>
-    )
-  }
-
-  return (
-    <article
-      className={clsx(
-        'relative flex flex-col gap-4 rounded-xl bg-bg-primary p-6 shadow-md transition-all duration-200',
-        resolved && 'opacity-90',
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <StatusIndicator resolved={resolved} />
-        <div className="flex flex-1 flex-col items-start gap-2">
-          <p className="text-lg font-medium leading-7 text-text-primary">
-            {issue.headline}
-          </p>
-          <p className="text-sm text-text-secondary">{issue.context}</p>
-          {affectedSummary ? (
-            <p className="text-xs font-medium text-text-secondary">
-              {affectedSummary}
-            </p>
-          ) : null}
-          <SeverityPill severity={issue.severity} />
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <Button variant="primary" onClick={() => setModalOpen(true)}>
-            {resolved ? 'Change' : 'Resolve'}
-          </Button>
-          {resolvedLabel ? (
-            <button
-              type="button"
-              onClick={() => onCommit('pending')}
-              className="inline-flex items-center gap-2 rounded-md bg-support-bg-green px-3 py-1 text-sm font-semibold text-text-brand-dark hover:bg-support-bg-green/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
-            >
-              <span>{resolvedLabel}</span>
-              <span aria-hidden="true">·</span>
-              <span>Undo</span>
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {records ? (
-        <AffectedRecordsTable
-          records={records}
-          severity={issue.severity}
-          issueTitle={issue.headline}
-        />
-      ) : null}
-
-      {modalOpen ? (
-        <FixIssueModal
-          open={modalOpen}
-          onOpenChange={setModalOpen}
-          issue={issue}
-          onResolve={() => {
-            onCommit('fixed')
-            setModalOpen(false)
-          }}
-          onSkip={() => {
-            onCommit('ignored')
-            setModalOpen(false)
-          }}
-        />
-      ) : null}
-    </article>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* SectionStatus — right-side header element (mirrors Refine)                  */
-/* -------------------------------------------------------------------------- */
-
-const SectionTick = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden="true"
-    focusable="false"
-    className="shrink-0 text-support-fg-green"
-  >
-    <path
-      d="M5 12.5l4.5 4.5L19 7"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
-
-const SectionStatus = ({
-  items,
-  unresolvedCount,
-  isOpen,
-  onToggle,
-}: {
-  items: FixIssue[]
-  unresolvedCount: number
-  isOpen: boolean
-  onToggle: () => void
-}) => {
-  if (items.length === 0) {
-    return <span className="text-sm text-text-secondary">No issues</span>
-  }
-  if (unresolvedCount === 0) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className="inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
-      >
-        <SectionTick />
-        <span>
-          {items.length} {items.length === 1 ? 'issue' : 'issues'} resolved
-        </span>
-      </button>
-    )
-  }
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={isOpen}
-      className={clsx(
-        'inline-flex items-center gap-1 rounded-md border-2 px-3 py-1.5 text-sm font-semibold transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-        isOpen
-          ? 'border-border-tertiary bg-bg-tertiary text-text-secondary hover:bg-bg-secondary'
-          : 'border-button-primary bg-button-primary text-text-primary-inverse hover:bg-button-primary-hover',
-      )}
-    >
-      {isOpen ? 'Hide' : 'View'} {unresolvedCount}{' '}
-      {unresolvedCount === 1 ? 'issue' : 'issues'}
-    </button>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Page                                                                        */
+/* IssuesView                                                                  */
 /* -------------------------------------------------------------------------- */
 
 export const IssuesView = () => {
-  const [resolutions, setResolutions] = useState<Record<string, Resolution>>({})
-  const [openCategory, setOpenCategory] = useState<FixCategory | null>(
-    'attribute',
+  const {
+    croppingRecords,
+    operationRecords,
+    editedCroppingIds,
+    editedOperationIds,
+    removedCroppingIds,
+    removedOperationIds,
+    patchCropping,
+    patchOperations,
+    removeCropping,
+    removeOperations,
+  } = useFixState()
+
+  const groups = useMemo(
+    () =>
+      buildIssueGroups(croppingRecords, operationRecords, {
+        editedCroppingIds,
+        editedOperationIds,
+        removedCroppingIds,
+        removedOperationIds,
+      }),
+    [
+      croppingRecords,
+      operationRecords,
+      editedCroppingIds,
+      editedOperationIds,
+      removedCroppingIds,
+      removedOperationIds,
+    ],
   )
+
+  // Active issue lives in the URL so back/forward + refresh keep the user
+  // on the same issue.
   const [searchParams, setSearchParams] = useSearchParams()
-
-  // Severity filter — read from the URL so it survives view switches and
-  // round-trips. `all` is the default.
-  const severityFilter = (() => {
-    const raw = searchParams.get('severity')
-    return raw === 'blocking' || raw === 'warning' ? raw : 'all'
-  })()
-
-  const grouped = useMemo(() => {
-    const buckets: Record<FixCategory, FixIssue[]> = {
-      attribute: [],
-      'cross-field': [],
-      'cross-record': [],
-    }
-    for (const issue of EXAMPLES) {
-      if (severityFilter !== 'all' && issue.severity !== severityFilter) {
-        continue
-      }
-      buckets[CATEGORY_FOR_CODE[issue.code]].push(issue)
-    }
-    return CATEGORY_ORDER.map((c) => [c, buckets[c]] as const)
-  }, [severityFilter])
-  const rawIssue = searchParams.get('issue')
-  const parsedIssue =
-    rawIssue === null ? Number.NaN : Number.parseInt(rawIssue, 10)
-  const activeIndex =
-    Number.isInteger(parsedIssue) &&
-    parsedIssue >= 0 &&
-    parsedIssue < EXAMPLES.length
-      ? parsedIssue
-      : 0
-  const activeId = EXAMPLES[activeIndex].id
+  const activeId = searchParams.get('issue')
   const setActiveId = (id: string) => {
-    const idx = EXAMPLES.findIndex((i) => i.id === id)
-    if (idx < 0) return
     const params = new URLSearchParams(searchParams)
-    params.set('issue', String(idx))
+    params.set('issue', id)
+    setSearchParams(params, { replace: true })
+  }
+  const clearActiveId = () => {
+    const params = new URLSearchParams(searchParams)
+    params.delete('issue')
     setSearchParams(params, { replace: true })
   }
 
-  const resolutionOf = (id: string): Resolution => resolutions[id] ?? 'pending'
+  // Layout style — controlled by `?issueLayout=cards` so it's easy to flip
+  // between the sidebar (default) and the card-list variant. The card-list
+  // variant routes through a list view at the issue level.
+  const layout =
+    searchParams.get('issueLayout') === 'cards' ? 'cards' : 'sidebar'
+  // Track which issues the user has resolved during this visit so the
+  // sidebar can keep them visible with a green pip even though
+  // `buildIssueGroups` drops them once their records are edited.
+  const [resolvedIssueIds, setResolvedIssueIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+  // Snapshot of resolved groups so the sidebar can render them after the
+  // underlying data has changed and they've vanished from `groups`.
+  const [resolvedSnapshots, setResolvedSnapshots] = useState<
+    Map<string, IssueGroup>
+  >(() => new Map())
 
-  const commitFor = (id: string) => (next: Resolution) => {
-    setResolutions((prev) => ({ ...prev, [id]: next }))
-    if (next !== 'pending') {
-      // Auto-advance to the next unresolved issue (scoped to the open section).
-      const list = grouped.find(([c]) => c === openCategory)?.[1] ?? EXAMPLES
-      const idx = list.findIndex((i) => i.id === id)
-      for (let step = 1; step <= list.length; step++) {
-        const candidate = list[(idx + step) % list.length]
-        if (!isResolved(resolutionOf(candidate.id)) && candidate.id !== id) {
-          setActiveId(candidate.id)
-          return
-        }
-      }
+  // Merge live (unresolved) groups with the snapshots of any the user has
+  // already resolved. Resolved ones render at the bottom of the list.
+  const sidebarGroups = useMemo<IssueGroup[]>(() => {
+    const liveIds = new Set(groups.map((g) => g.id))
+    const tail: IssueGroup[] = []
+    for (const [id, snapshot] of resolvedSnapshots) {
+      if (!liveIds.has(id)) tail.push(snapshot)
+    }
+    return [...groups, ...tail]
+  }, [groups, resolvedSnapshots])
+
+  // Sidebar mode falls back to the first issue when nothing's selected.
+  // Cards mode requires an explicit URL id — no active issue means we show
+  // the card list instead.
+  const explicitActive = sidebarGroups.find((g) => g.id === activeId) ?? null
+  const activeGroup =
+    layout === 'cards'
+      ? explicitActive
+      : (explicitActive ?? sidebarGroups[0] ?? null)
+
+  // Find the next unresolved issue after the active one — drives the
+  // "Next issue" CTA on the resolved banner in cards mode.
+  const nextIssue =
+    activeGroup &&
+    sidebarGroups.find(
+      (g) => g.id !== activeGroup.id && !resolvedIssueIds.has(g.id),
+    )
+
+  const recordIndex = useMemo(() => {
+    const map = new Map<string, FixableRecord>()
+    for (const r of croppingRecords) map.set(r.id, projectRecord(r, 'cropping'))
+    for (const r of operationRecords)
+      map.set(r.id, projectRecord(r, 'operation'))
+    return map
+  }, [croppingRecords, operationRecords])
+
+  const onApply = (
+    type: RecordType,
+    recordIds: string[],
+    patch: Record<string, unknown>,
+  ) => {
+    // Issue-level fixes (Sandy + Apply value) auto-save — they don't need
+    // the user to confirm again via the top-bar Save button.
+    if (type === 'cropping') {
+      patchCropping(recordIds, patch as Partial<CroppingRecord>, {
+        autoSave: true,
+      })
+    } else {
+      patchOperations(recordIds, patch as Partial<OperationRecord>, {
+        autoSave: true,
+      })
     }
   }
 
-  return (
-    <div className="relative mx-auto flex w-full max-w-[820px] flex-col gap-6 px-8 py-10 pb-24">
-      {grouped.map(([category, items]) => {
-        const isOpen = openCategory === category
-        const unresolvedCount = items.filter(
-          (i) => !isResolved(resolutionOf(i.id)),
-        ).length
-        return (
-          <section
-            key={category}
-            className="flex flex-col gap-3 border-b-2 border-border-tertiary pb-6 last:border-0"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-medium text-text-secondary">
-                {CATEGORY_LABEL[category]}
-              </h2>
-              <SectionStatus
-                items={items}
-                unresolvedCount={unresolvedCount}
-                isOpen={isOpen}
-                onToggle={() => setOpenCategory(isOpen ? null : category)}
-              />
-            </div>
+  const onResolved = (issueId: string) => {
+    setResolvedIssueIds((prev) => {
+      const next = new Set(prev)
+      next.add(issueId)
+      return next
+    })
+    // Snapshot the group so we can keep showing it in the sidebar even after
+    // the underlying records leave the live issue pool.
+    const live = groups.find((g) => g.id === issueId)
+    if (live) {
+      setResolvedSnapshots((prev) => {
+        if (prev.has(issueId)) return prev
+        const next = new Map(prev)
+        next.set(issueId, live)
+        return next
+      })
+    }
+  }
 
-            <div
-              className={clsx(
-                'flex flex-col gap-3 transition-all duration-200 ease-out',
-                isOpen
-                  ? 'opacity-100'
-                  : 'pointer-events-none h-0 overflow-hidden opacity-0',
-              )}
-            >
-              {items.map((issue) => (
-                <FixIssueCard
-                  key={issue.id}
-                  issue={issue}
-                  resolution={resolutionOf(issue.id)}
-                  isActive={activeId === issue.id}
-                  onFocus={() => setActiveId(issue.id)}
-                  onCommit={commitFor(issue.id)}
-                />
-              ))}
+  // Manual edit + delete state, scoped to the active issue. The bottom
+  // action bar drives both — same flow as the Data Table view.
+  const [editorIds, setEditorIds] = useState<string[] | null>(null)
+  const [deleteIds, setDeleteIds] = useState<string[] | null>(null)
+  // When the user clicks "Apply a new value", restrict the editor to just
+  // the issue's broken fields. Null means "show the full schema".
+  const [editorFieldKeys, setEditorFieldKeys] = useState<string[] | null>(null)
+
+  const activeEditedIds =
+    activeGroup?.recordType === 'cropping'
+      ? editedCroppingIds
+      : editedOperationIds
+  const activeRemovedIds =
+    activeGroup?.recordType === 'cropping'
+      ? removedCroppingIds
+      : removedOperationIds
+
+  const onManualEdit = (ids: string[]) => {
+    setEditorFieldKeys(null) // full schema for general edits
+    setEditorIds(ids)
+  }
+  const onManualDelete = (ids: string[]) => setDeleteIds(ids)
+  const onApplyValueForIssue = (ids: string[], brokenKeys: string[]) => {
+    // Scope to broken fields so the editor only shows what the issue needs
+    // fixed. Farm/Field/etc. stay in the original records — the user just
+    // doesn't see them in the editor.
+    setEditorFieldKeys(brokenKeys)
+    setEditorIds(ids)
+  }
+
+  // Filter the editor's field schema by `editorFieldKeys` when scoped (e.g.
+  // launched from "Apply a new value"). Each scoped key matches a text /
+  // select field's `rowKey`; the composite Farm/Field is never targeted, so
+  // it's safely excluded by the rowKey-based filter.
+  const filterFields = <Row,>(
+    schema: EditableField<Row>[],
+  ): EditableField<Row>[] => {
+    if (!editorFieldKeys) return schema
+    const wanted = new Set(editorFieldKeys)
+    return schema.filter((f) => {
+      // Composite + farm-field rows don't have a single rowKey, so they
+      // never match the broken-key filter — drop them in scoped mode.
+      if (f.kind === 'composite' || f.kind === 'farm-field') return false
+      return wanted.has(f.rowKey)
+    })
+  }
+
+  const editorRecords = useMemo(() => {
+    if (!editorIds || !activeGroup) return []
+    if (activeGroup.recordType === 'cropping') {
+      return croppingRecords.filter((r) => editorIds.includes(r.id))
+    }
+    return operationRecords.filter((r) => editorIds.includes(r.id))
+  }, [editorIds, activeGroup, croppingRecords, operationRecords])
+
+  const applyManualPatch = (patch: Record<string, unknown>) => {
+    if (!editorIds || !activeGroup) return
+    if (activeGroup.recordType === 'cropping') {
+      patchCropping(editorIds, patch as Partial<CroppingRecord>)
+    } else {
+      patchOperations(editorIds, patch as Partial<OperationRecord>)
+    }
+    setEditorIds(null)
+    setEditorFieldKeys(null)
+  }
+
+  const confirmDelete = () => {
+    if (!deleteIds || !activeGroup) return
+    if (activeGroup.recordType === 'cropping') {
+      removeCropping(deleteIds)
+    } else {
+      removeOperations(deleteIds)
+    }
+    setDeleteIds(null)
+  }
+
+  if (sidebarGroups.length === 0) {
+    return <AllResolvedState />
+  }
+
+  const panel = activeGroup ? (
+    <IssuePanel
+      key={activeGroup.id}
+      group={activeGroup}
+      recordIndex={recordIndex}
+      onApply={(ids, patch) => onApply(activeGroup.recordType, ids, patch)}
+      onResolved={onResolved}
+      wasResolved={resolvedIssueIds.has(activeGroup.id)}
+      editedIds={activeEditedIds}
+      removedIds={activeRemovedIds}
+      onManualEdit={onManualEdit}
+      onManualDelete={onManualDelete}
+      onApplyValueForIssue={onApplyValueForIssue}
+      headerSlot={
+        layout === 'cards' ? (
+          <button
+            type="button"
+            onClick={clearActiveId}
+            className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+          >
+            <IconArrowLeft size={16} />
+            Back to issues
+          </button>
+        ) : null
+      }
+      resolvedFooterSlot={
+        layout === 'cards' && nextIssue ? (
+          <Button variant="primary" onClick={() => setActiveId(nextIssue.id)}>
+            Next issue
+          </Button>
+        ) : null
+      }
+    />
+  ) : null
+
+  return (
+    <div className="flex flex-1 min-h-0">
+      {layout === 'sidebar' ? (
+        <>
+          <aside className="flex w-[30%] min-w-[280px] max-w-[420px] flex-col border-r-2 border-border-tertiary bg-bg-primary">
+            <div className="border-b-2 border-border-tertiary px-4 py-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                Issues ({sidebarGroups.length})
+              </h2>
             </div>
+            <div className="flex-1 overflow-y-auto">
+              <ul className="flex flex-col">
+                {sidebarGroups.map((group) => (
+                  <IssueRow
+                    key={group.id}
+                    group={group}
+                    isActive={activeGroup?.id === group.id}
+                    resolved={resolvedIssueIds.has(group.id)}
+                    onSelect={() => setActiveId(group.id)}
+                  />
+                ))}
+              </ul>
+            </div>
+          </aside>
+          <section className="flex-1 overflow-y-auto px-8 py-8 pb-24">
+            {panel ?? (
+              <p className="text-md text-text-secondary">
+                Select an issue from the list.
+              </p>
+            )}
           </section>
-        )
-      })}
+        </>
+      ) : (
+        <section className="flex-1 overflow-y-auto px-8 py-8 pb-24">
+          {activeGroup ? (
+            <div className="mx-auto w-full max-w-[1100px]">{panel}</div>
+          ) : (
+            <IssueCardList
+              groups={sidebarGroups}
+              resolvedIds={resolvedIssueIds}
+              onSelect={setActiveId}
+            />
+          )}
+        </section>
+      )}
+
+      {activeGroup?.recordType === 'cropping' && editorIds ? (
+        <RecordEditorSheet<CroppingRecord>
+          open
+          onOpenChange={(next) => {
+            if (!next) {
+              setEditorIds(null)
+              setEditorFieldKeys(null)
+            }
+          }}
+          records={editorRecords as CroppingRecord[]}
+          fields={filterFields(CROPPING_FIELD_FIELDS)}
+          recordLabel="cropping record"
+          onSave={applyManualPatch}
+          getProvenance={(row) => row.provenance}
+          compact={editorFieldKeys !== null}
+        />
+      ) : null}
+      {activeGroup?.recordType === 'operation' && editorIds ? (
+        <RecordEditorSheet<OperationRecord>
+          open
+          onOpenChange={(next) => {
+            if (!next) {
+              setEditorIds(null)
+              setEditorFieldKeys(null)
+            }
+          }}
+          records={editorRecords as OperationRecord[]}
+          fields={filterFields(
+            buildOperationFieldFields(editorRecords as OperationRecord[]),
+          )}
+          recordLabel="operation"
+          onSave={applyManualPatch}
+          getProvenance={(row) => row.provenance}
+          compact={editorFieldKeys !== null}
+        />
+      ) : null}
+
+      <Modal
+        open={deleteIds !== null}
+        onOpenChange={(next) => {
+          if (!next) setDeleteIds(null)
+        }}
+        title={`Delete ${deleteIds?.length ?? 0} ${
+          (deleteIds?.length ?? 0) === 1 ? 'record' : 'records'
+        }?`}
+        description="The selected rows will be marked for removal. Save or discard from the bar above."
+        maxWidth="440px"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteIds(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete {deleteIds?.length ?? 0}{' '}
+              {(deleteIds?.length ?? 0) === 1 ? 'record' : 'records'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-md text-text-secondary">
+          Deleted rows stay visible until you save — they appear with a
+          strikethrough so you can review the change first.
+        </p>
+      </Modal>
     </div>
   )
 }
+
+const AllResolvedState = () => (
+  <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 px-8 py-24 text-center">
+    <span className="inline-flex size-12 items-center justify-center rounded-full bg-support-bg-green text-text-brand-dark">
+      <RowStatusPip status="clean" />
+    </span>
+    <h2 className="text-xl font-semibold text-text-primary">
+      No issues left to resolve
+    </h2>
+    <p className="text-md text-text-secondary">
+      Save your changes to lock them in, or move on to the next step.
+    </p>
+  </div>
+)

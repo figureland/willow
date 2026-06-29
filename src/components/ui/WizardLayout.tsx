@@ -148,7 +148,7 @@ export const WizardLayout = ({
       {/* Top bar — Back (only after the first step) + title + step picker on
           the left; Cancel · Save and quit · Next on the right. No bottom
           footer — every nav action lives here. */}
-      <header className="border-b-2 border-border-tertiary bg-bg-primary px-8 py-6">
+      <header className="sticky top-0 z-30 border-b-2 border-border-tertiary bg-bg-primary px-8 py-6">
         <div className="flex items-center gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {!isFirst ? (

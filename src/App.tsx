@@ -1,4 +1,3 @@
-import { Agentation } from 'agentation'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { PasscodeGate } from './components/auth/PasscodeGate'
@@ -37,9 +36,9 @@ export const App = () => (
     {/* Dev-only Agentation overlay. Vite injects `import.meta.env.DEV`
         based on the build mode, so this disappears entirely from the
         production bundle. */}
-    {import.meta.env.DEV ? (
+    {/* {import.meta.env.DEV ? (
       <Agentation endpoint="http://localhost:4747" />
-    ) : null}
+    ) : null} */}
     <Routes>
       <Route element={<AppWrapper />}>
         <Route path="/" element={<PlaceholderPage title="Home" />} />

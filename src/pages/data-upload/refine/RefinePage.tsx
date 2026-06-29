@@ -1,12 +1,13 @@
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Tooltip } from '../../../components/ui'
 import { CompletionToast } from '../CompletionToast'
 import type { IssueState } from '../IssueResolverModal'
 import type { Issue } from '../issues'
-import type { DetectionSummary, FarmSummary } from '../summary'
+import type { DetectionSummary } from '../summary'
 import { adapterFor } from './adapters'
+import { IdentityPreview } from './IdentityPreview'
 import { IssueCard } from './IssueCard'
 
 /* -------------------------------------------------------------------------- */
@@ -24,17 +25,11 @@ export type RefinePageProps = {
 /* Panel taxonomy                                                              */
 /* -------------------------------------------------------------------------- */
 
-type PanelId = 'summary' | 'identity' | 'schema' | 'value-mapping'
+type PanelId = 'identity' | 'schema' | 'value-mapping'
 
-const PANEL_ORDER: PanelId[] = [
-  'summary',
-  'identity',
-  'schema',
-  'value-mapping',
-]
+const PANEL_ORDER: PanelId[] = ['identity', 'schema', 'value-mapping']
 
 const PANEL_LABEL: Record<PanelId, string> = {
-  summary: 'Summary',
   identity: 'Farms & fields',
   schema: 'File structure',
   'value-mapping': 'Value mapping',
@@ -77,185 +72,6 @@ export const isUnresolved = (
 }
 
 /* -------------------------------------------------------------------------- */
-/* Deterministic per-field record count                                        */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Stable hash mapping (farmId, fieldName) to a "records detected" count.
- * Same inputs produce the same output across renders so the summary panel
- * doesn't reshuffle when the user moves between panels.
- */
-const recordCountFor = (farmId: string, fieldName: string): number => {
-  const key = `${farmId}:${fieldName}`
-  let h = 0
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0
-  // Range 1..30 — small per-field record counts.
-  return 1 + (Math.abs(h) % 30)
-}
-
-/**
- * Stable subset of years observed in a given field's data. Derived from the
- * upload's overall year set so the value matches the rest of the summary.
- */
-const yearsObservedFor = (
-  farmId: string,
-  fieldName: string,
-  allYears: number[],
-): number[] => {
-  if (allYears.length === 0) return []
-  const key = `${farmId}:${fieldName}:years`
-  let h = 0
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0
-  // Pick 1..allYears.length years deterministically.
-  const count = 1 + (Math.abs(h) % allYears.length)
-  const seen = new Set<number>()
-  for (let i = 0; i < count; i++) {
-    const idx = Math.abs(h + i * 7919) % allYears.length
-    seen.add(allYears[idx])
-  }
-  return [...seen].sort((a, b) => a - b)
-}
-
-/* -------------------------------------------------------------------------- */
-/* Summary panel                                                               */
-/* -------------------------------------------------------------------------- */
-
-const FarmRow = ({
-  farm,
-  active,
-  onSelect,
-}: {
-  farm: FarmSummary
-  active: boolean
-  onSelect: () => void
-}) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    aria-current={active ? 'true' : undefined}
-    className={clsx(
-      'flex w-full items-center justify-between gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-      active
-        ? 'border-border-primary bg-bg-tertiary'
-        : 'border-transparent bg-bg-primary hover:border-border-tertiary hover:bg-bg-secondary',
-    )}
-  >
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="truncate text-md font-medium text-text-primary">
-        {farm.name}
-      </span>
-      <span className="text-sm text-text-secondary">
-        {farm.fieldCount} {farm.fieldCount === 1 ? 'field' : 'fields'}
-      </span>
-    </div>
-  </button>
-)
-
-const SummaryPanel = ({ summary }: { summary: DetectionSummary }) => {
-  const farms = summary.farmRows
-  const [activeFarmId, setActiveFarmId] = useState<string>(
-    () => farms[0]?.id ?? '',
-  )
-  const activeFarm = farms.find((f) => f.id === activeFarmId) ?? farms[0]
-  const fields = useMemo(() => {
-    if (!activeFarm) return []
-    // farm.fieldNames is capped at ~12 even when fieldCount is larger.
-    // Synthesise extra labels so the field list reflects the true field
-    // count and each row gets a stable record count.
-    const names: string[] = [...activeFarm.fieldNames]
-    while (names.length < activeFarm.fieldCount) {
-      names.push(`Field ${names.length + 1}`)
-    }
-    return names.slice(0, activeFarm.fieldCount).map((name) => ({
-      name,
-      records: recordCountFor(activeFarm.id, name),
-      years: yearsObservedFor(activeFarm.id, name, summary.years),
-    }))
-  }, [activeFarm, summary.years])
-
-  return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-8 py-10">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold text-text-primary">
-          Here's what we found in your data
-        </h1>
-        <p className="max-w-[820px] text-md text-text-secondary">
-          We detected {summary.farms.total} farms, {summary.fields.total} fields
-          and {summary.totalRecords.toLocaleString()} records across the
-          uploaded files. Browse a farm to inspect its fields.
-        </p>
-      </header>
-
-      <section className="flex h-[450px] flex-col overflow-hidden rounded-xl border-2 border-border-tertiary bg-bg-primary lg:flex-row">
-        <div className="flex min-h-0 w-full flex-col border-b-2 border-border-tertiary lg:w-[360px] lg:shrink-0 lg:border-b-0 lg:border-r-2">
-          <header className="px-5 pt-4 pb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Farms ({farms.length})
-            </p>
-          </header>
-          <ol className="flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto p-3">
-            {farms.map((farm) => (
-              <li key={farm.id}>
-                <FarmRow
-                  farm={farm}
-                  active={farm.id === activeFarmId}
-                  onSelect={() => setActiveFarmId(farm.id)}
-                />
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex items-baseline justify-between px-5 pt-4 pb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Fields on {activeFarm?.name ?? '—'} ({fields.length})
-            </p>
-            <p className="text-xs text-text-secondary">
-              {fields.reduce((a, b) => a + b.records, 0).toLocaleString()}{' '}
-              records total
-            </p>
-          </header>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-10 bg-bg-secondary text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                <tr>
-                  <th className="px-3 py-2 text-left">Field</th>
-                  <th className="w-[160px] px-3 py-2 text-left">Years</th>
-                  <th className="w-[120px] px-3 py-2 text-right">Records</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fields.map((f, idx) => (
-                  <tr
-                    key={f.name}
-                    className={clsx(
-                      'align-middle',
-                      idx > 0 && 'border-t border-border-tertiary',
-                    )}
-                  >
-                    <td className="px-3 py-2 text-md text-text-primary">
-                      {f.name}
-                    </td>
-                    <td className="px-3 py-2 text-md tabular-nums text-text-secondary">
-                      {f.years.join(', ')}
-                    </td>
-                    <td className="px-3 py-2 text-right text-md tabular-nums text-text-secondary">
-                      {f.records.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
 /* Issue panel                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -265,15 +81,16 @@ const IssuePanel = ({
   issues,
   state,
   onCommit,
-  onAllResolved,
+  preview,
 }: {
   title: string
   blurb: string
   issues: Issue[]
   state: Record<string, IssueState>
   onCommit: (issueId: string) => (next: IssueState) => void
-  /** Called when the user resolves the final outstanding issue in this panel. */
-  onAllResolved: () => void
+  /** Optional preview element rendered above the issues list — used by the
+   *  identity panel to surface a farms + fields summary. */
+  preview?: ReactNode
 }) => {
   const [activeId, setActiveId] = useState<string | null>(
     () => issues.find((i) => isUnresolved(i, state))?.id ?? null,
@@ -310,25 +127,38 @@ const IssuePanel = ({
     setCelebrating(true)
   }
 
-  // Hide the toast + advance after a short beat once everything's resolved.
+  // Hide the toast after a short beat once everything's resolved. We
+  // intentionally don't auto-advance to the next panel — the user always
+  // moves on by clicking Next / Continue in the bottom nav.
   useEffect(() => {
     if (!celebrating) return
-    const t = setTimeout(() => {
-      setCelebrating(false)
-      onAllResolved()
-    }, 1400)
+    const t = setTimeout(() => setCelebrating(false), 1400)
     return () => clearTimeout(t)
-  }, [celebrating, onAllResolved])
+  }, [celebrating])
 
   return (
     <div className="relative mx-auto flex w-full max-w-[860px] flex-col gap-6 px-8 py-10">
       <CompletionToast visible={celebrating} label={`${title} — complete`} />
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold text-text-primary">{title}</h1>
-        {blurb ? (
-          <p className="max-w-[820px] text-md text-text-secondary">{blurb}</p>
-        ) : null}
       </header>
+
+      {preview ? (
+        // Preview cascades in first — the summary card is the anchor for
+        // the rest of the cascade so it gets the earliest delay.
+        <div className="animate-fade-up" style={{ animationDelay: '0ms' }}>
+          {preview}
+        </div>
+      ) : null}
+
+      {blurb ? (
+        <p
+          className="max-w-[760px] text-lg text-text-primary animate-fade-up"
+          style={{ animationDelay: '180ms' }}
+        >
+          {blurb}
+        </p>
+      ) : null}
 
       {issues.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-border-tertiary bg-bg-primary px-6 py-10 text-center">
@@ -338,11 +168,19 @@ const IssuePanel = ({
         </div>
       ) : (
         <ol className="flex flex-col gap-3">
-          {issues.map((issue) => {
+          {issues.map((issue, idx) => {
             const adapter = adapterFor(issue)
             if (!adapter) return null
+            // Stagger each card after the blurb so the page reads as a
+            // single coherent cascade. Cap the delay so a long list still
+            // finishes within ~1s.
+            const delayMs = Math.min(320 + idx * 90, 900)
             return (
-              <li key={issue.id}>
+              <li
+                key={issue.id}
+                className="animate-fade-up"
+                style={{ animationDelay: `${delayMs}ms` }}
+              >
                 <IssueCard
                   issue={issue}
                   state={state[issue.id]}
@@ -484,7 +322,6 @@ export const RefinePage = ({
   // Bucket issues by panel.
   const issuesByPanel = useMemo(() => {
     const buckets: Record<PanelId, Issue[]> = {
-      summary: [],
       identity: [],
       schema: [],
       'value-mapping': [],
@@ -544,30 +381,30 @@ export const RefinePage = ({
               idx !== activeIndex && 'hidden',
             )}
           >
-            {panelId === 'summary' ? (
-              <SummaryPanel summary={summary} />
-            ) : (
-              <IssuePanel
-                title={
-                  panelId === 'identity'
-                    ? 'Match farms and fields to Sandy'
-                    : panelId === 'schema'
-                      ? 'Help us read your file structure'
-                      : 'Map your data to Sandy values'
-                }
-                blurb={
-                  panelId === 'identity'
-                    ? "Sandy didn't recognise some of the farms or fields in your upload. Match them to existing records or create new ones."
-                    : panelId === 'schema'
-                      ? ''
-                      : 'Source values that need translating into Sandy reference vocabularies (crop varieties, units, …).'
-                }
-                issues={issuesByPanel[panelId]}
-                state={state}
-                onCommit={commitFor}
-                onAllResolved={() => goTo(idx + 1)}
-              />
-            )}
+            <IssuePanel
+              title={
+                panelId === 'identity'
+                  ? 'Match farms and fields to Sandy'
+                  : panelId === 'schema'
+                    ? 'Help us read your file structure'
+                    : 'Map your data to Sandy values'
+              }
+              blurb={
+                panelId === 'identity'
+                  ? 'We couldn\u2019t automatically recognise some of the farms and fields listed in your files.'
+                  : panelId === 'schema'
+                    ? ''
+                    : ''
+              }
+              issues={issuesByPanel[panelId]}
+              state={state}
+              onCommit={commitFor}
+              preview={
+                panelId === 'identity' ? (
+                  <IdentityPreview summary={summary} />
+                ) : null
+              }
+            />
           </section>
         ))}
       </div>
@@ -584,12 +421,6 @@ export const RefinePage = ({
         }
         next={(() => {
           const activePanel = PANEL_ORDER[activeIndex]
-          if (activePanel === 'summary') {
-            return {
-              label: 'Looks right',
-              onClick: () => goTo(activeIndex + 1),
-            }
-          }
           // Hide the panel's Continue/Done button until every issue in the
           // active panel carries a non-pending resolution. The top-level
           // wizard Next is similarly gated, so users still have a clear way
@@ -600,8 +431,12 @@ export const RefinePage = ({
             panelIssues.every((i) => !isUnresolved(i, state))
           if (!allResolved) return undefined
           const isLast = activeIndex === PANEL_ORDER.length - 1
+          // On the final panel we let the wizard's top-right Next own the
+          // hand-off out of the step — surfacing a second Done button here
+          // would be redundant. Inline Continue still shows between panels.
+          if (isLast) return undefined
           return {
-            label: isLast ? 'Done' : 'Continue',
+            label: 'Continue',
             onClick: () => goTo(activeIndex + 1),
           }
         })()}

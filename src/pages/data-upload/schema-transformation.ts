@@ -309,6 +309,12 @@ export type SchemaRuleProgram = {
   sheetName: string
   /** Per-canonical-field expression. */
   rules: Record<string, Expression>
+  /**
+   * Where the program came from — drives the review-panel title so the user
+   * can tell "Sandy's AI proposal" apart from "your manual mapping".
+   * Optional for backwards compatibility with already-committed states.
+   */
+  source?: 'ai' | 'manual'
 }
 
 /** Empty starter program for a given sheet. */

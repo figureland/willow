@@ -25,8 +25,15 @@ const setSeen = () => {
 type Stage = 'loading' | 'intro' | 'page'
 
 export const FixIssuesPage = () => {
+  // Backstage debug flag — `?skipFixLoading=1` bypasses the loader + intro
+  // stages and goes straight to the data so we don't have to sit through the
+  // simulated processing every time. Treat any truthy value as enabled.
+  const [searchParams] = useSearchParams()
+  const skip = searchParams.get('skipFixLoading')
+  const skipLoading = skip !== null && skip !== '0' && skip !== 'false'
+
   const [stage, setStage] = useState<Stage>(() =>
-    hasSeenIntro ? 'page' : 'loading',
+    skipLoading || hasSeenIntro ? 'page' : 'loading',
   )
 
   if (stage === 'loading') {
@@ -210,7 +217,7 @@ const FixPage = () => {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-6 gap-y-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
+      <div className="sticky top-[88px] z-20 flex flex-wrap items-center gap-x-6 gap-y-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-text-secondary">
             Group issues by:

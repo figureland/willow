@@ -63,6 +63,13 @@ export type IssueModalProps = {
    * Describe button — bypasses the user's usual click to open the tray.
    */
   openDescribeOnMount?: boolean
+  /**
+   * When true, seed the panel stack with [root, optionsPanel] so the
+   * "How should we handle this …?" chooser is the first thing the user
+   * sees. Triggered by the card's "Other options" button — clicking Back
+   * inside the modal returns to the default root with the data table.
+   */
+  openOnOptions?: boolean
 }
 
 export type RootPanelParams = {
@@ -106,6 +113,7 @@ export const IssueModal = ({
   onCommit,
   renderRoot,
   openDescribeOnMount = false,
+  openOnOptions = false,
 }: IssueModalProps) => {
   const affected = adapter.affected(issue)
   const affectedSheet = affected
@@ -131,6 +139,7 @@ export const IssueModal = ({
           nav.close()
         },
         state,
+        () => nav.close(),
       )
     }
     return defaultRootPanel({ issue, state, adapter, nav, onCommit })
@@ -149,8 +158,25 @@ export const IssueModal = ({
         setStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev)),
       close: () => onOpenChange(false),
     }
-    setStack([buildRoot(nav)])
-  }, [open, issue.id, state, adapter])
+    // When the card asked us to open straight onto the options chooser,
+    // seed the stack with ONLY the options panel. There's no underlying
+    // default root to "back into" — the chooser IS the root in this flow,
+    // so the modal's Back button stays hidden and clicking close exits.
+    if (openOnOptions && !adapter.skipChooseAction && !renderRoot) {
+      const options = adapter.optionsPanel(
+        issue,
+        (next) => {
+          onCommit(next)
+          nav.close()
+        },
+        state,
+        () => nav.close(),
+      )
+      setStack([options])
+    } else {
+      setStack([buildRoot(nav)])
+    }
+  }, [open, issue.id, state, adapter, openOnOptions])
 
   if (stack.length === 0) {
     // Modal not yet seeded; render nothing to avoid a one-frame blank.
@@ -217,7 +243,11 @@ export const IssueModal = ({
               {active.body ? (
                 <div className="flex flex-col gap-5 pb-6">{active.body}</div>
               ) : null}
-              {isRoot && affected && affectedSheet ? (
+              {/* Affected-data sheet view only renders on the modal's
+                  default root (panel id 'root') — the chooser/options
+                  panels supply their own context (subject + origin) and
+                  shouldn't carry a stale sheet view underneath. */}
+              {isRoot && active.id === 'root' && affected && affectedSheet ? (
                 <div className="pb-6">
                   <SheetView
                     filename={affected.source.filename}
@@ -276,6 +306,7 @@ export const IssueModal = ({
                     params.nav.close()
                   },
                   params.state,
+                  () => params.nav.close(),
                 ),
               )
             }}

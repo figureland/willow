@@ -10,7 +10,7 @@ import {
 } from '../../../components/ui'
 import { DescribeTray } from '../refine/DescribeTray'
 import { AFFECTED_RECORDS } from './affected-records'
-import { AffectedDataGrid, type FixIssue } from './IssuesView'
+import { AffectedDataGrid, type FixIssue } from './IssuesView.legacy'
 import type { IssueCode } from './row-issues'
 
 /* -------------------------------------------------------------------------- */

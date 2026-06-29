@@ -84,6 +84,9 @@ export type IssueAdapter = {
     issue: Issue,
     commit: (next: IssueState) => void,
     currentState?: IssueState,
+    /** Close the surrounding modal — wired to Cancel buttons inside the
+     *  panel body so the user can back out without committing. */
+    cancel?: () => void,
   ) => IssuePanel
   /**
    * When true, the modal skips the default "Choose an action" root and
@@ -121,5 +124,47 @@ export type IssueAdapter = {
     hint?: string
     /** Build the IssueState to commit when the simulated assist completes. */
     apply: (currentState: IssueState | undefined) => IssueState
+    /**
+     * Optional inventory of expected properties + whether Sandy already
+     * found them. Rendered above the textarea so the user can see at a
+     * glance what's still missing.
+     */
+    expectedProperties?: { label: string; presence: 'found' | 'missing' }[]
+    /** Custom heading for the inventory block. */
+    expectedPropertiesTitle?: string
+    /** Custom singular/plural noun for the "X still missing" summary. */
+    expectedPropertiesMissingLabel?: { one: string; many: string }
   } | null
+  /**
+   * Optional "Map columns" affordance — surfaces a second card-level button
+   * for issues where the user might prefer to wire each property up by hand
+   * instead of describing it in prose. The card opens the supplied modal
+   * via the same draft → confirm flow as Describe.
+   */
+  mapColumns?: (issue: Issue) => {
+    triggerLabel: string
+  } | null
+  /**
+   * Optional "Map values" affordance — the value-mapping equivalent of
+   * mapColumns. The card opens a per-value lookup modal; the modal commits
+   * a draft IssueState that the resolver modal then walks through.
+   */
+  mapValues?: (issue: Issue) => {
+    triggerLabel: string
+  } | null
+  /**
+   * Optional "Review" affordance — replaces the card's standard Yes /
+   * Describe / Map / Resolve action set with a single CTA. When present
+   * the card renders the supplied trigger label and opens a dedicated
+   * review modal that owns the full review → describe → manual flow.
+   */
+  review?: (issue: Issue) => {
+    triggerLabel: string
+  } | null
+  /**
+   * Optional provenance footer rendered at the bottom of the active card.
+   * Use for "Reading from <file> · <sheet>" chips so the headline can stay
+   * clean and the data lineage sits out of the way.
+   */
+  provenance?: (issue: Issue) => ReactNode | null
 }

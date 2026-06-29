@@ -30,10 +30,10 @@ export const Tooltip = ({
         {children}
       </BaseTooltip.Trigger>
       <BaseTooltip.Portal>
-        <BaseTooltip.Positioner sideOffset={6} side={side}>
+        <BaseTooltip.Positioner sideOffset={6} side={side} className="z-[60]">
           <BaseTooltip.Popup
             className={clsx(
-              'z-30 max-w-[280px] rounded-md border-2 border-border-tertiary bg-bg-primary',
+              'z-[60] max-w-[280px] rounded-md border-2 border-border-tertiary bg-bg-primary',
               'px-3 py-2 shadow-[0_8px_8px_-2px_rgba(0,0,0,0.05)]',
               'text-sm text-text-primary outline-none',
               'origin-[var(--transform-origin)] transition-opacity duration-150 ease-out',

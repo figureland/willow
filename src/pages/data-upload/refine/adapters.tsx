@@ -1,5 +1,12 @@
-import { useState } from 'react'
-import { Button, Select, TextInput } from '../../../components/ui'
+import clsx from 'clsx'
+import { type ReactNode, useMemo, useState } from 'react'
+import {
+  Button,
+  Radio,
+  RadioGroup,
+  Select,
+  TextInput,
+} from '../../../components/ui'
 import type { IssueState } from '../IssueResolverModal'
 import {
   defaultResolutionForIssue,
@@ -14,13 +21,17 @@ import {
   EXAMPLE_WORKBOOK,
   type SchemaRuleProgram,
 } from '../schema-transformation'
-import { CANONICAL_VOCAB, type ValueMappingDecisions } from '../value-mapping'
+import type { ValueMappingDecisions } from '../value-mapping'
 import type { IssuePanel } from './IssueModal'
 import { IssueToken } from './IssueToken'
 import type { CellHighlight, IssueAdapter } from './issue-adapter'
-import { FileChip, SchemaMappingPanel } from './SchemaMappingPanel'
-import { operationsPropertiesForSheet } from './schema-properties'
-import { ValueMappingPanel } from './ValueMappingPanel'
+import { FileChip } from './SchemaMappingPanel'
+import { SchemaMappingReview } from './SchemaMappingReview'
+import {
+  buildPropertyStatuses,
+  operationsPropertiesForSheet,
+} from './schema-properties'
+import { ValueMappingReview } from './ValueMappingModal'
 
 /* -------------------------------------------------------------------------- */
 /* Demo highlights — used by the data table inside the IssueModal              */
@@ -46,69 +57,67 @@ const matchLabel = (
 }
 
 /* -------------------------------------------------------------------------- */
-/* Shared "options" panel composer — chunky option list for the No flow        */
+/* Origin + associated-record helpers — demo data for the chooser context     */
 /* -------------------------------------------------------------------------- */
 
-type OptionsListPanelParams = {
-  title: string
-  options: {
-    id: string
-    title: string
-    description?: string
-    tone?: 'default' | 'danger'
-    panel: IssuePanel
-  }[]
+/**
+ * Stable per-name row number so the demo's "Row 42" reference doesn't shift
+ * between renders.
+ */
+const stableRowFor = (name: string, base: number): number => {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
+  return base + (Math.abs(h) % 200)
 }
 
-const buildOptionsPanel = (
-  params: OptionsListPanelParams,
-  nav: { push: (p: IssuePanel) => void; pop: () => void },
-): IssuePanel => ({
-  id: 'options',
-  title: params.title,
-  body: (
-    <div className="flex flex-col gap-3">
-      {params.options.map((opt) => (
-        <OptionRow
-          key={opt.id}
-          title={opt.title}
-          description={opt.description}
-          tone={opt.tone}
-          onClick={() => nav.push(opt.panel)}
-        />
-      ))}
-    </div>
-  ),
-  // No bottom-pinned actions on this panel — option rows are the actions.
-  actions: <span />,
+const farmOriginFor = (issue: FarmMissingIssue) => ({
+  filename: EXAMPLE_WORKBOOK.filename,
+  location: FARM_SOURCE_SHEET,
+  rowRef: `Row ${stableRowFor(issue.sourceName, 12)}`,
+  columnName: FARM_SOURCE_COLUMN,
 })
 
-const OptionRow = ({
-  title,
-  description,
-  tone = 'default',
-  onClick,
-}: {
-  title: string
-  description?: string
-  tone?: 'default' | 'danger'
-  onClick: () => void
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={
-      tone === 'danger'
-        ? 'flex w-full flex-col gap-1 rounded-xl border-2 border-border-tertiary px-5 py-4 text-left text-support-fg-red transition-colors hover:border-support-fg-red hover:bg-support-bg-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40'
-        : 'flex w-full flex-col gap-1 rounded-xl border-2 border-border-tertiary px-5 py-4 text-left text-text-primary transition-colors hover:border-border-secondary-hover hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40'
-    }
-  >
-    <span className="text-md font-semibold">{title}</span>
-    {description ? (
-      <span className="text-sm text-text-secondary">{description}</span>
-    ) : null}
-  </button>
-)
+const fieldOriginFor = (issue: FieldMissingIssue) => ({
+  filename: EXAMPLE_WORKBOOK.filename,
+  location: FIELD_SOURCE_SHEET,
+  rowRef: `Row ${stableRowFor(issue.sourceName, 16)}`,
+  columnName: FIELD_SOURCE_COLUMN,
+})
+
+const batchOriginFor = (_issue: FieldMissingBatchIssue) => ({
+  filename: EXAMPLE_WORKBOOK.filename,
+  location: FIELD_SOURCE_SHEET,
+  // For batches we don't pin to a single row — leave rowRef off.
+  columnName: FIELD_SOURCE_COLUMN,
+})
+
+/**
+ * Build a small demo set of records that reference the given source name —
+ * used by the Exclude confirm step so the user can see what would be skipped.
+ */
+const sampleAssociatedFor = (
+  sourceName: string,
+  affects: number | undefined,
+) => {
+  const total = affects ?? 3
+  const take = Math.min(total, 5)
+  const out: AssociatedRecord[] = []
+  for (let i = 0; i < take; i++) {
+    const row = stableRowFor(`${sourceName}-${i}`, 100)
+    out.push({
+      id: `${sourceName}-${i}`,
+      cells: {
+        row: `${row}`,
+        date: `2024-${String(3 + (i % 6)).padStart(2, '0')}-${String(2 + i * 3).padStart(2, '0')}`,
+        operation: ['Fertilising', 'Spraying', 'Drilling', 'Cultivation'][
+          i % 4
+        ],
+        product: ['Nitram', 'Yara Mila', 'Roundup', 'CAN 27'][i % 4],
+      },
+    })
+  }
+  return out
+}
 
 /* -------------------------------------------------------------------------- */
 /* Inner panel renderers — shared by farm/field/batch adapters                 */
@@ -132,10 +141,6 @@ const SelectMatchBody = ({
     placeholder={placeholder}
     clearable={false}
   />
-)
-
-const ExcludeConfirmBody = ({ summary }: { summary: string }) => (
-  <p className="text-md text-text-primary">{summary} Confirm?</p>
 )
 
 const CreateNewBody = ({
@@ -222,6 +227,8 @@ export const farmMissingAdapter: IssueAdapter = {
       sourceName: issue.sourceName,
       options: issue.existingFarms,
       affectsCount: issue.affects,
+      origin: farmOriginFor(issue),
+      associatedRecords: sampleAssociatedFor(issue.sourceName, issue.affects),
     })
   },
 }
@@ -291,6 +298,8 @@ export const fieldMissingAdapter: IssueAdapter = {
       sourceName: issue.sourceName,
       options: issue.existingFields,
       affectsCount: issue.affects,
+      origin: fieldOriginFor(issue),
+      associatedRecords: sampleAssociatedFor(issue.sourceName, issue.affects),
     })
   },
 }
@@ -390,26 +399,35 @@ export const schemaAdapter: IssueAdapter = {
     const issue = raw as SchemaTransformationIssue
     if (issue.recognised) {
       return (
-        <div className="flex flex-col gap-2">
-          <p>
-            We read your <IssueToken>{issue.dataCategory}</IssueToken> data.
-            {issue.recognisedSummary ? <> {issue.recognisedSummary}</> : null}{' '}
-            Does this look right?
-          </p>
-          <div className="flex flex-col gap-1">
-            <p className="text-sm text-text-secondary">Reading from</p>
-            <FileChip filename={issue.filename} sheetName={issue.sheetName} />
-          </div>
-        </div>
+        <p>
+          We read your <IssueToken>{issue.dataCategory}</IssueToken> data.
+          {issue.recognisedSummary ? <> {issue.recognisedSummary}</> : null}{' '}
+          Does this look right?
+        </p>
+      )
+    }
+    if (issue.missingDataCount && issue.missingDataCount > 0) {
+      return (
+        <p>
+          We couldn't find{' '}
+          <IssueToken>
+            {issue.missingDataCount}{' '}
+            {issue.missingDataCount === 1 ? 'type' : 'types'} of data
+          </IssueToken>{' '}
+          in your sheet. Help us understand your file.
+        </p>
       )
     }
     return (
-      <div className="flex flex-col gap-2">
-        <p>We don't recognise this template. Help us understand the layout.</p>
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-text-secondary">Reading from</p>
-          <FileChip filename={issue.filename} sheetName={issue.sheetName} />
-        </div>
+      <p>We couldn't find your records, help us to understand the layout.</p>
+    )
+  },
+  provenance: (raw) => {
+    const issue = raw as SchemaTransformationIssue
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+        <span className="leading-none">Reading from</span>
+        <FileChip filename={issue.filename} sheetName={issue.sheetName} />
       </div>
     )
   },
@@ -418,14 +436,9 @@ export const schemaAdapter: IssueAdapter = {
   // not recognised, the resolver IS the modal (no Yes/No fork) so we skip the
   // chooser.
   skipChooseAction: true,
-  acceptSuggestion: (raw) => {
-    const issue = raw as SchemaTransformationIssue
-    if (!issue.recognised) return null
-    // Yes confirms the auto-drafted layout that Sandy would have proposed
-    // (mirrors the assist-guess we use elsewhere).
-    const program = suggestedSchemaProgramWithAssist(issue.sheetName)
-    return { resolution: { kind: 'rule-program', program } }
-  },
+  // No Yes path at the card level — every schema-transformation issue
+  // routes through the Review modal, which owns Confirm internally.
+  acceptSuggestion: () => null,
   affected: () => null,
   resolvedLabel: (state) => {
     if (state.resolution.kind !== 'rule-program') return null
@@ -435,7 +448,7 @@ export const schemaAdapter: IssueAdapter = {
     if (!program?.rules || Object.keys(program.rules).length === 0) return null
     return 'Mapping saved'
   },
-  optionsPanel: (raw, commit, currentState) => {
+  optionsPanel: (raw, commit, currentState, cancel) => {
     const issue = raw as SchemaTransformationIssue
     // Seed the editor from the currently-committed state when present —
     // this is what lets the "Describe → review in modal" flow show the
@@ -444,78 +457,32 @@ export const schemaAdapter: IssueAdapter = {
       currentState?.resolution.kind === 'rule-program'
         ? (currentState.resolution.program as SchemaRuleProgram)
         : undefined
+    // AI-suggested drafts get a different title from the manual flow: when
+    // Sandy proposed the layout we tell the user what we did; when they
+    // mapped it themselves we just ask them to confirm.
+    const title =
+      initialProgram?.source === 'ai'
+        ? "Here's how we think your file is structured."
+        : 'Does this look right?'
     return {
       id: 'schema-resolve',
-      title: 'Does this look right?',
+      title,
       fullBleed: true,
       body: (
-        <SchemaMappingPanel
+        <SchemaMappingReview
           issue={issue}
           initialProgram={initialProgram}
           onCommit={(next) => commit(next)}
-          // Cancel is best-effort here — the IssueModal owns close. We
-          // can't reach into nav from this adapter callback so we just
-          // commit nothing; the user can hit the modal's X.
-          onCancel={() => {}}
+          onCancel={() => cancel?.()}
         />
       ),
       actions: null,
     }
   },
-  // Card-level Describe shortcut — produces a rule-program seeded from the
-  // spec defaults with `cropVariety` filled by Sandy's guess. Mirrors what
-  // the in-modal tray does so the outcome is the same.
-  describe: (raw) => {
-    const issue = raw as SchemaTransformationIssue
-    // Recognised: Sandy already proposed a layout — frame the prompt as
-    // "what did we get wrong?". Unrecognised: ask for a layout from scratch.
-    if (issue.recognised) {
-      return {
-        triggerLabel: 'No',
-        title: "Tell us what we've missed",
-        placeholder:
-          "e.g. Crop variety actually lives in the 'variety_code' column, not the one we picked. The harvest year is in column F.",
-        hint: 'Sandy will re-read the sheet with your corrections.',
-        apply: () => {
-          const program = suggestedSchemaProgramWithAssist(issue.sheetName)
-          return { resolution: { kind: 'rule-program', program } }
-        },
-      }
-    }
-    return {
-      triggerLabel: 'Describe',
-      title: 'Describe this file',
-      placeholder:
-        "e.g. Each row is one fertiliser application. The crop variety lives in the 'variety' column — it's a code that maps to the master Fields_Crops sheet.",
-      hint: 'Sandy will read the sheet and try to fill in the gaps.',
-      apply: () => {
-        const program = suggestedSchemaProgramWithAssist(issue.sheetName)
-        return { resolution: { kind: 'rule-program', program } }
-      },
-    }
-  },
-}
-
-/**
- * Build a SchemaRuleProgram that includes every property's default
- * expression *plus* an assistive guess for cropVariety (the only slot the
- * default spec deliberately leaves blank).
- */
-const suggestedSchemaProgramWithAssist = (sheetName: string) => {
-  const props = operationsPropertiesForSheet(sheetName)
-  const rules: Record<string, unknown> = {}
-  for (const p of props) {
-    if (p.defaultExpression) rules[p.property] = p.defaultExpression
-  }
-  rules.cropVariety = {
-    kind: 'join',
-    sourceSheet: sheetName,
-    sourceMatchColumn: 'variety',
-    lookupSheet: 'Fields_Crops',
-    lookupMatchColumn: 'variety',
-    lookupReturnColumn: 'varietyName',
-  }
-  return { sheetName, rules }
+  // Single card-level CTA — opens the unified review modal that owns the
+  // review → describe → manual editor flow. Replaces the older mix of
+  // Yes / Describe / Map columns buttons.
+  review: () => ({ triggerLabel: 'Review' }),
 }
 
 /* -------------------------------------------------------------------------- */
@@ -526,79 +493,61 @@ export const valueMappingAdapter: IssueAdapter = {
   problem: (raw) => {
     const issue = raw as ValueMappingIssue
     const n = issue.sourceValues.length
+    // Friendlier headline keyed off the canonical target — uses "crop types"
+    // rather than the raw column name so the prompt reads like a question
+    // a person would ask, not a system message.
+    const noun = issue.targetLabel.toLowerCase()
+    // Paired targets ("Crop and variety") read better with "combinations"
+    // appended than with a brittle pluralisation hack.
+    const isPair = issue.sourceValues.some((sv) => sv.secondary !== undefined)
+    const head = isPair
+      ? `We didn't recognise these ${n} ${noun} combination${n === 1 ? '' : 's'}.`
+      : `We didn't recognise these ${n} ${noun}${n === 1 ? '' : 's'}.`
     return (
       <div className="flex flex-col gap-2">
-        <p>
-          We spotted{' '}
-          <IssueToken>
-            {n} unknown {n === 1 ? 'value' : 'values'}
-          </IssueToken>{' '}
-          in <IssueToken>{issue.sourceColumn}</IssueToken>. Help us map them to{' '}
-          <IssueToken>{issue.targetLabel}</IssueToken>.
-        </p>
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-text-secondary">Reading from</p>
-          <FileChip filename={issue.filename} sheetName={issue.sheetName} />
-        </div>
+        <p>{head} Help us work out what they mean.</p>
       </div>
     )
   },
   solution: () => null,
-  // Before/after preview on the active card. Shows the source value and the
-  // canonical match Sandy proposed (the user can confirm or override in the
-  // resolver modal). Cap rows so the card stays scannable — full table lives
-  // inside the modal.
+  // Simple flat list of the unknown values — readable at a glance, no
+  // mini-data-table. We drop the "+N more" overflow hint since the rest
+  // are always one click away via the action buttons.
   details: (raw) => {
     const issue = raw as ValueMappingIssue
-    const options = CANONICAL_VOCAB[issue.category]
-    const labelFor = (id: string | undefined) =>
-      options.find((o) => o.value === id)?.label
-    const PREVIEW_CAP = 4
+    const PREVIEW_CAP = 8
     const previewed = issue.sourceValues.slice(0, PREVIEW_CAP)
-    const overflow = issue.sourceValues.length - previewed.length
     return (
-      <div className="flex flex-col gap-2 rounded-lg border-2 border-border-tertiary bg-bg-secondary px-3 py-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-          Proposed quick fix
-        </p>
-        <table className="w-full table-fixed border-separate border-spacing-y-0.5 text-sm">
-          <thead>
-            <tr className="text-left text-xs font-medium text-text-secondary">
-              <th className="w-2/5 font-medium">Source value</th>
-              <th className="w-3/5 font-medium">Will become</th>
-            </tr>
-          </thead>
-          <tbody>
-            {previewed.map((sv) => {
-              const matched = sv.suggestion ? labelFor(sv.suggestion) : null
-              return (
-                <tr key={sv.value}>
-                  <td className="text-text-primary">
-                    <span className="rounded-md bg-bg-primary px-1.5 py-0.5">
-                      {sv.value}
-                    </span>
-                    <span className="ml-2 text-text-secondary">
-                      ({sv.occurrences.toLocaleString()} rows)
-                    </span>
-                  </td>
-                  <td className="text-text-primary">
-                    {matched ?? (
-                      <span className="text-support-fg-amber">
-                        Needs mapping
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {overflow > 0 ? (
-          <p className="text-xs text-text-secondary">
-            +{overflow} more {overflow === 1 ? 'value' : 'values'} — open to
-            review all
-          </p>
-        ) : null}
+      <ul className="flex flex-wrap gap-1.5">
+        {previewed.map((sv, i) => {
+          const label =
+            sv.secondary !== undefined
+              ? `${sv.value} · ${sv.secondary || '—'}`
+              : sv.value
+          return (
+            <li
+              // biome-ignore lint/suspicious/noArrayIndexKey: paired fixtures can repeat the primary value (e.g. "WW · SKY" + "WW · EXT") so we key on slot index
+              key={`${label}-${i}`}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-border-tertiary bg-bg-primary px-2.5 py-0.5 text-xs font-medium text-text-primary"
+            >
+              {label}
+              <span className="text-text-secondary">
+                · {sv.occurrences.toLocaleString()}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    )
+  },
+  // Provenance — file + sheet — lives at the bottom of the card so the
+  // headline can stay clean.
+  provenance: (raw) => {
+    const issue = raw as ValueMappingIssue
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+        <span className="leading-none">Reading from</span>
+        <FileChip filename={issue.filename} sheetName={issue.sheetName} />
       </div>
     )
   },
@@ -656,7 +605,7 @@ export const valueMappingAdapter: IssueAdapter = {
   },
   // No yes/no fork — Resolve opens straight into the mapping UI.
   skipChooseAction: true,
-  optionsPanel: (raw, commit, currentState) => {
+  optionsPanel: (raw, commit, currentState, cancel) => {
     const issue = raw as ValueMappingIssue
     // Seed the editor from the committed state when present — gives the
     // Describe → review flow a populated table to confirm.
@@ -669,11 +618,12 @@ export const valueMappingAdapter: IssueAdapter = {
       title: 'Does this look right?',
       fullBleed: true,
       body: (
-        <ValueMappingPanel
+        <ValueMappingReview
           issue={issue}
           initialDecisions={initialDecisions}
-          onCommit={(next) => commit(next)}
-          onCancel={() => {}}
+          onConfirm={(next) => commit(next)}
+          onCancel={() => cancel?.()}
+          embedded
         />
       ),
       actions: null,
@@ -683,11 +633,27 @@ export const valueMappingAdapter: IssueAdapter = {
   // fuzzy-matched canonical option. Mirrors the in-modal tray's behaviour.
   describe: (raw) => {
     const issue = raw as ValueMappingIssue
+    // Build a "what we're looking at" inventory for the tray — one chip
+    // per raw value. Green when Sandy already has a confident-ish guess;
+    // amber when the value has no suggestion at all.
+    const inventory = issue.sourceValues.map((sv) => ({
+      label:
+        sv.secondary !== undefined
+          ? `${sv.value} · ${sv.secondary || '—'}`
+          : sv.value,
+      presence: sv.suggestion ? ('found' as const) : ('missing' as const),
+    }))
     return {
-      triggerLabel: 'Describe',
+      triggerLabel: 'Describe these values',
       title: 'Describe these values',
       placeholder: `e.g. These are abbreviations for ${issue.targetLabel.toLowerCase()} — match them to the closest Sandy option, even if the spelling differs.`,
       hint: 'Sandy will read your hint and map the remaining values.',
+      expectedProperties: inventory,
+      expectedPropertiesTitle: 'Values we found',
+      expectedPropertiesMissingLabel: {
+        one: 'still needs mapping',
+        many: 'still need mapping',
+      },
       apply: (currentState) => {
         const existing =
           currentState?.resolution.kind === 'value-mapping'
@@ -720,6 +686,9 @@ export const valueMappingAdapter: IssueAdapter = {
       },
     }
   },
+  // Manual fallback — bypass the AI tray and walk through each raw value
+  // one row at a time. Same handoff as the schema "Map columns" path.
+  mapValues: () => ({ triggerLabel: 'Map values manually' }),
 }
 
 /* -------------------------------------------------------------------------- */
@@ -752,6 +721,29 @@ type SharedOptionsConfig = {
   sourceName: string
   options: { value: string; label: string }[]
   affectsCount?: number
+  /** Sandy's pointer back into the upload — surfaced as a minimal block
+   *  under the subject so the user can cross-reference the file. */
+  origin?: OriginRef
+  /** Sample of the records that reference this farm/field. Shown inside
+   *  the Exclude confirm step so the user can see what they're about to
+   *  drop. */
+  associatedRecords?: AssociatedRecord[]
+}
+
+export type OriginRef = {
+  filename: string
+  /** Sheet tab name OR "Page N" for PDFs. */
+  location?: string
+  /** Source row reference inside the file (e.g. "Row 42"). */
+  rowRef?: string
+  /** Column inside that row where Sandy spotted the source name. */
+  columnName?: string
+}
+
+export type AssociatedRecord = {
+  id: string
+  /** Display columns + values for the snippet table. */
+  cells: Record<string, string>
 }
 
 const makeOptionsPanelForIssue = (
@@ -765,6 +757,8 @@ const makeOptionsPanelForIssue = (
   actions: <span />,
 })
 
+type OptionId = 'select' | 'create' | 'exclude'
+
 const SharedOptionsBody = ({
   cfg,
   commit,
@@ -772,114 +766,164 @@ const SharedOptionsBody = ({
   cfg: SharedOptionsConfig
   commit: (next: IssueState) => void
 }) => {
-  const [stage, setStage] = useState<'root' | 'select' | 'create' | 'exclude'>(
-    'root',
-  )
+  const [choice, setChoice] = useState<OptionId>('select')
   const [selectValue, setSelectValue] = useState<string | null>(null)
   const [createName, setCreateName] = useState<string>(cfg.sourceName)
+  // Two-stage exclude: user picks Exclude → Confirm switches to a
+  // destructive review with the associated records below.
+  const [stage, setStage] = useState<'pick' | 'confirm-delete'>('pick')
 
-  if (stage === 'select') {
-    return (
-      <div className="flex flex-col gap-5">
-        <SelectMatchBody
-          options={cfg.options}
-          placeholder={`Select a ${cfg.noun}`}
-          value={selectValue}
-          onChange={setSelectValue}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setStage('root')}>
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!selectValue}
-            onClick={() =>
-              selectValue &&
-              commit({
-                resolution: { kind: 'match-existing', value: selectValue },
-              })
-            }
-          >
-            Confirm
-          </Button>
-        </div>
-      </div>
-    )
+  const Noun = cfg.noun === 'farm' ? 'Farm' : 'Field'
+
+  // Inline-control validity gates the Confirm button per choice.
+  const canConfirm =
+    choice === 'select'
+      ? !!selectValue
+      : choice === 'create'
+        ? createName.trim().length > 0
+        : true
+
+  const handleConfirm = () => {
+    if (choice === 'select' && selectValue) {
+      commit({ resolution: { kind: 'match-existing', value: selectValue } })
+    } else if (choice === 'create') {
+      commit({ resolution: { kind: 'create-new', name: createName.trim() } })
+    } else if (choice === 'exclude') {
+      const records = cfg.associatedRecords ?? []
+      if (records.length > 0) {
+        setStage('confirm-delete')
+      } else {
+        commit({ resolution: { kind: 'ignore' } })
+      }
+    }
   }
 
-  if (stage === 'create') {
+  if (stage === 'confirm-delete') {
     return (
-      <div className="flex flex-col gap-5">
-        <CreateNewBody
-          label={`${cfg.noun === 'farm' ? 'Farm' : 'Field'} name`}
-          name={createName}
-          onChange={setCreateName}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setStage('root')}>
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!createName.trim()}
-            onClick={() =>
-              commit({
-                resolution: { kind: 'create-new', name: createName.trim() },
-              })
-            }
-          >
-            Create
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (stage === 'exclude') {
-    return (
-      <div className="flex flex-col gap-5">
-        <ExcludeConfirmBody
-          summary={`This ${cfg.noun} references ${
-            cfg.affectsCount?.toLocaleString() ?? 'an unknown number of'
-          } records.`}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setStage('root')}>
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => commit({ resolution: { kind: 'ignore' } })}
-          >
-            Exclude
-          </Button>
-        </div>
-      </div>
+      <DeleteConfirmBody
+        noun={cfg.noun}
+        subjects={[cfg.sourceName]}
+        affectsCount={cfg.affectsCount}
+        records={cfg.associatedRecords ?? []}
+        onBack={() => setStage('pick')}
+        onConfirm={() => commit({ resolution: { kind: 'ignore' } })}
+      />
     )
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <OptionRow
-        title={`Select another ${cfg.noun}`}
-        description={`Match this to a ${cfg.noun} that already exists on Sandy.`}
-        onClick={() => setStage('select')}
-      />
-      <OptionRow
-        title={`Create a new ${cfg.noun}`}
-        description={`Add ${cfg.sourceName} as a new ${cfg.noun} on Sandy.`}
-        onClick={() => setStage('create')}
-      />
-      <OptionRow
-        title={`Exclude this ${cfg.noun} from the upload`}
-        description="Skip every row that references it."
-        tone="danger"
-        onClick={() => setStage('exclude')}
-      />
+    <div className="flex flex-col gap-5">
+      <SubjectsList noun={cfg.noun} names={[cfg.sourceName]} />
+      {cfg.origin ? <OriginRow origin={cfg.origin} /> : null}
+
+      <RadioGroup<OptionId> value={choice} onValueChange={setChoice}>
+        <OptionRadio
+          value="select"
+          title={`Select another ${cfg.noun}`}
+          description={`Match this to a ${cfg.noun} that already exists on Sandy.`}
+          active={choice === 'select'}
+        >
+          <SelectMatchBody
+            options={cfg.options}
+            placeholder={`Select a ${cfg.noun}`}
+            value={selectValue}
+            onChange={setSelectValue}
+          />
+        </OptionRadio>
+
+        <OptionRadio
+          value="create"
+          title={`Create a new ${cfg.noun}`}
+          description={`Add ${cfg.sourceName} as a new ${cfg.noun} on Sandy.`}
+          active={choice === 'create'}
+        >
+          <CreateNewBody
+            label={`${Noun} name`}
+            name={createName}
+            onChange={setCreateName}
+          />
+        </OptionRadio>
+
+        <OptionRadio
+          value="exclude"
+          title={`Exclude this ${cfg.noun} from the upload`}
+          description="Skip every row that references it."
+          tone="danger"
+          active={choice === 'exclude'}
+        >
+          <p className="text-sm text-text-secondary">
+            {`This ${cfg.noun} references ${
+              cfg.affectsCount?.toLocaleString() ?? 'an unknown number of'
+            } records — they'll be skipped on import.`}
+          </p>
+        </OptionRadio>
+      </RadioGroup>
+
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          disabled={!canConfirm}
+          onClick={handleConfirm}
+        >
+          Confirm
+        </Button>
+      </div>
     </div>
   )
 }
+
+/**
+ * One radio row in the consolidated chooser. The radio acts as the option
+ * marker; the title + description sit next to it; and when the row is
+ * active we reveal whatever inline control the option needs (Select for
+ * "Select another", TextInput for "Create new", helper text for "Exclude").
+ */
+const OptionRadio = ({
+  value,
+  title,
+  description,
+  active,
+  tone = 'default',
+  children,
+}: {
+  value: OptionId
+  title: string
+  description: string
+  active: boolean
+  tone?: 'default' | 'danger'
+  children: ReactNode
+}) => (
+  // biome-ignore lint/a11y/noLabelWithoutControl: the Radio root supplies the input; wrapping it in <label> extends the click target to the whole card
+  <label
+    className={clsx(
+      'flex cursor-pointer flex-col gap-3 rounded-xl border-2 px-4 py-3 transition-colors',
+      'focus-within:ring-2 focus-within:ring-sandy-600/40',
+      active
+        ? tone === 'danger'
+          ? 'border-support-fg-red bg-support-bg-red'
+          : 'border-border-primary bg-bg-secondary'
+        : 'border-border-tertiary bg-bg-primary hover:border-border-secondary-hover',
+    )}
+  >
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5">
+        <Radio value={value} />
+      </span>
+      <div className="flex flex-1 flex-col gap-0.5">
+        <span
+          className={clsx(
+            'text-md font-semibold',
+            tone === 'danger' ? 'text-support-fg-red' : 'text-text-primary',
+          )}
+        >
+          {title}
+        </span>
+        <span className="text-sm text-text-secondary">{description}</span>
+      </div>
+    </div>
+    {active ? <div className="pl-7">{children}</div> : null}
+  </label>
+)
 
 /* -------------------------------------------------------------------------- */
 /* Batch options panel — separate because the options differ                    */
@@ -895,6 +939,8 @@ const makeBatchOptionsPanel = (
   actions: <span />,
 })
 
+type BatchOptionId = 'select' | 'create' | 'exclude'
+
 const BatchOptionsBody = ({
   issue,
   commit,
@@ -902,81 +948,247 @@ const BatchOptionsBody = ({
   issue: FieldMissingBatchIssue
   commit: (next: IssueState) => void
 }) => {
-  const [stage, setStage] = useState<'root' | 'select' | 'exclude'>('root')
+  const [choice, setChoice] = useState<BatchOptionId>('select')
   const [value, setValue] = useState<string | null>(null)
+  const [stage, setStage] = useState<'pick' | 'confirm-delete'>('pick')
 
-  if (stage === 'select') {
-    return (
-      <div className="flex flex-col gap-5">
-        <SelectMatchBody
-          options={issue.existingFarms}
-          placeholder="Select a farm"
-          value={value}
-          onChange={setValue}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setStage('root')}>
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!value}
-            onClick={() =>
-              value && commit({ resolution: { kind: 'match-existing', value } })
-            }
-          >
-            Confirm
-          </Button>
-        </div>
-      </div>
-    )
+  // Roll up a sample of associated records across the batch — small enough
+  // to fit inside the confirm step's snippet table.
+  const associated = useMemo(() => {
+    const out: AssociatedRecord[] = []
+    for (const name of issue.sourceNames) {
+      const sample = sampleAssociatedFor(name, undefined).slice(0, 2)
+      for (const r of sample) out.push(r)
+      if (out.length >= 5) break
+    }
+    return out.slice(0, 5)
+  }, [issue.sourceNames])
+
+  const totalAffected = issue.sourceNames.length
+
+  const canConfirm = choice === 'select' ? !!value : true
+
+  const handleConfirm = () => {
+    if (choice === 'select' && value) {
+      commit({ resolution: { kind: 'match-existing', value } })
+    } else if (choice === 'create') {
+      commit({ resolution: { kind: 'create-new', name: '' } })
+    } else if (choice === 'exclude') {
+      if (associated.length > 0) {
+        setStage('confirm-delete')
+      } else {
+        commit({ resolution: { kind: 'ignore' } })
+      }
+    }
   }
 
-  if (stage === 'exclude') {
+  if (stage === 'confirm-delete') {
     return (
-      <div className="flex flex-col gap-5">
-        <ExcludeConfirmBody
-          summary={`${issue.sourceNames.length} fields will be skipped along with every row that references them.`}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setStage('root')}>
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => commit({ resolution: { kind: 'ignore' } })}
-          >
-            Exclude
-          </Button>
-        </div>
-      </div>
+      <DeleteConfirmBody
+        noun="field"
+        subjects={issue.sourceNames}
+        affectsCount={totalAffected}
+        records={associated}
+        onBack={() => setStage('pick')}
+        onConfirm={() => commit({ resolution: { kind: 'ignore' } })}
+      />
     )
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <OptionRow
-        title="Attach to another farm"
-        description="Pick the farm these fields belong to."
-        onClick={() => setStage('select')}
-      />
-      <OptionRow
-        title="Create new fields"
-        description="Add these as new fields under the suggested farm."
-        onClick={() => {
-          commit({ resolution: { kind: 'create-new', name: '' } })
-        }}
-      />
-      <OptionRow
-        title="Exclude these fields from the upload"
-        description="Skip every row that references them."
-        tone="danger"
-        onClick={() => setStage('exclude')}
-      />
+    <div className="flex flex-col gap-5">
+      <SubjectsList noun="field" names={issue.sourceNames} />
+      <OriginRow origin={batchOriginFor(issue)} />
+
+      <RadioGroup<BatchOptionId> value={choice} onValueChange={setChoice}>
+        <OptionRadio
+          value="select"
+          title="Attach to another farm"
+          description="Pick the farm these fields belong to."
+          active={choice === 'select'}
+        >
+          <SelectMatchBody
+            options={issue.existingFarms}
+            placeholder="Select a farm"
+            value={value}
+            onChange={setValue}
+          />
+        </OptionRadio>
+
+        <OptionRadio
+          value="create"
+          title="Create new fields"
+          description="Add these as new fields under the suggested farm."
+          active={choice === 'create'}
+        >
+          <p className="text-sm text-text-secondary">
+            {`${issue.sourceNames.length} new fields will be created under ${issue.suggestedFarmName ?? 'the suggested farm'}.`}
+          </p>
+        </OptionRadio>
+
+        <OptionRadio
+          value="exclude"
+          title="Exclude these fields from the upload"
+          description="Skip every row that references them."
+          tone="danger"
+          active={choice === 'exclude'}
+        >
+          <p className="text-sm text-text-secondary">
+            {`${issue.sourceNames.length} fields will be skipped along with every row that references them.`}
+          </p>
+        </OptionRadio>
+      </RadioGroup>
+
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          disabled={!canConfirm}
+          onClick={handleConfirm}
+        >
+          Confirm
+        </Button>
+      </div>
     </div>
   )
 }
 
-// `buildOptionsPanel` is exposed for future option lists that don't fit the
-// shared SharedOptionsBody shape; not used yet, but documented above.
-export { buildOptionsPanel }
+/* -------------------------------------------------------------------------- */
+/* Shared sub-components for the options panel                                */
+/* -------------------------------------------------------------------------- */
+
+const SubjectsList = ({
+  noun,
+  names,
+}: {
+  noun: 'farm' | 'field'
+  names: string[]
+}) => {
+  if (names.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        {names.length === 1
+          ? `${noun === 'farm' ? 'Farm' : 'Field'} in question`
+          : `${noun === 'farm' ? 'Farms' : 'Fields'} in question`}
+      </p>
+      <ul className="flex flex-wrap gap-1.5">
+        {names.map((name) => (
+          <li
+            key={name}
+            className="rounded-md bg-bg-tertiary px-2 py-0.5 text-md text-text-primary"
+          >
+            {name}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const OriginRow = ({ origin }: { origin: OriginRef }) => (
+  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-secondary">
+    <span className="font-semibold uppercase tracking-wide">From</span>
+    <span className="text-text-primary">{origin.filename}</span>
+    {origin.location ? (
+      <>
+        <span aria-hidden="true">·</span>
+        <span>{origin.location}</span>
+      </>
+    ) : null}
+    {origin.rowRef ? (
+      <>
+        <span aria-hidden="true">·</span>
+        <span>{origin.rowRef}</span>
+      </>
+    ) : null}
+    {origin.columnName ? (
+      <>
+        <span aria-hidden="true">·</span>
+        <span className="font-mono text-xs">{origin.columnName}</span>
+      </>
+    ) : null}
+  </p>
+)
+
+const DeleteConfirmBody = ({
+  noun,
+  subjects,
+  affectsCount,
+  records,
+  onBack,
+  onConfirm,
+}: {
+  noun: 'farm' | 'field'
+  subjects: string[]
+  affectsCount?: number
+  records: AssociatedRecord[]
+  onBack: () => void
+  onConfirm: () => void
+}) => {
+  const subjectLabel =
+    subjects.length === 1
+      ? `${noun === 'farm' ? 'this farm' : 'this field'}`
+      : `${subjects.length} ${noun === 'farm' ? 'farms' : 'fields'}`
+  const count = affectsCount ?? records.length
+  const columns = records[0] ? Object.keys(records[0].cells) : []
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="mx-auto flex max-w-[520px] flex-col gap-2 rounded-xl border-2 border-support-border-red bg-support-bg-red px-5 py-4 text-center">
+        <p className="text-md font-medium text-support-fg-red">
+          {`${subjectLabel.charAt(0).toUpperCase()}${subjectLabel.slice(1)} is associated with ${count.toLocaleString()} other ${count === 1 ? 'record' : 'records'}.`}
+        </p>
+        <p className="text-sm text-text-primary">
+          Are you sure you want to delete?
+        </p>
+      </div>
+
+      {records.length > 0 && columns.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border-2 border-border-tertiary bg-bg-primary">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-bg-secondary text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              <tr>
+                {columns.map((col) => (
+                  <th key={col} className="px-3 py-2 text-left">
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, idx) => (
+                <tr
+                  key={r.id}
+                  className={clsx(
+                    'align-middle',
+                    idx > 0 && 'border-t border-border-tertiary',
+                  )}
+                >
+                  {columns.map((col) => (
+                    <td
+                      key={col}
+                      className="px-3 py-2 text-md text-text-primary"
+                    >
+                      {r.cells[col] || (
+                        <span className="text-text-secondary">—</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onBack}>
+          Back
+        </Button>
+        <Button variant="destructive" onClick={onConfirm}>
+          Delete
+        </Button>
+      </div>
+    </div>
+  )
+}

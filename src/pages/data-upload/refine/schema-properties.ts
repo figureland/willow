@@ -1,4 +1,4 @@
-import type { Expression } from '../schema-transformation'
+import { EXAMPLE_WORKBOOK, type Expression } from '../schema-transformation'
 
 /* -------------------------------------------------------------------------- */
 /* Canonical property spec for the Operations data-category schema panel       */
@@ -181,3 +181,90 @@ export const operationsPropertiesForSheet = (
     defaultExpression: col(sourceSheet, 'doseUnit'),
   },
 ]
+
+/* -------------------------------------------------------------------------- */
+/* "Found vs missing" classification — drives the Describe + Map UIs          */
+/* -------------------------------------------------------------------------- */
+
+export type PropertyPresence = 'found' | 'missing'
+
+export type PropertyStatus = {
+  property: string
+  label: string
+  presence: PropertyPresence
+  /** Sheet the value was found on, if any. */
+  sheet?: string
+  /** Column name on that sheet, if any. */
+  column?: string
+}
+
+/**
+ * Decide whether each expected property can be sourced from the supplied
+ * sheet directly. A property counts as `found` when its default expression
+ * resolves to a column that actually exists on either the operations sheet
+ * or the lookup sheet referenced by a join. Everything else lands as
+ * `missing` so the Describe + Map UIs can highlight the gaps to the user.
+ *
+ * This is intentionally heuristic — the goal is to surface a realistic
+ * mixture of "we found it" / "you need to tell us" for the demo.
+ */
+export const buildPropertyStatuses = (
+  sourceSheet: string,
+): PropertyStatus[] => {
+  const props = operationsPropertiesForSheet(sourceSheet)
+  const knownColumnsBySheet = new Map<string, Set<string>>()
+  for (const sheet of EXAMPLE_WORKBOOK.sheets) {
+    knownColumnsBySheet.set(
+      sheet.name,
+      new Set(sheet.columns.map((c) => c.name)),
+    )
+  }
+  const has = (sheet: string, column: string) =>
+    knownColumnsBySheet.get(sheet)?.has(column) ?? false
+
+  // Properties Sandy intentionally leaves blank are forced into "missing" —
+  // and a few common ones masquerade as missing so the demo always shows a
+  // believable mix. Source-of-truth for the demo, not the production system.
+  const forcedMissing = new Set([
+    'cropVariety',
+    'cropId',
+    'cropType',
+    'fieldSize',
+  ])
+
+  return props.map<PropertyStatus>((p) => {
+    if (forcedMissing.has(p.property)) {
+      return { property: p.property, label: p.label, presence: 'missing' }
+    }
+    const expr = p.defaultExpression
+    if (!expr) {
+      return { property: p.property, label: p.label, presence: 'missing' }
+    }
+    if (expr.kind === 'column' && has(expr.sheet, expr.column)) {
+      return {
+        property: p.property,
+        label: p.label,
+        presence: 'found',
+        sheet: expr.sheet,
+        column: expr.column,
+      }
+    }
+    if (
+      expr.kind === 'join' &&
+      has(expr.sourceSheet, expr.sourceMatchColumn) &&
+      has(expr.lookupSheet, expr.lookupReturnColumn)
+    ) {
+      return {
+        property: p.property,
+        label: p.label,
+        presence: 'found',
+        sheet: expr.lookupSheet,
+        column: expr.lookupReturnColumn,
+      }
+    }
+    if (expr.kind === 'constant') {
+      return { property: p.property, label: p.label, presence: 'found' }
+    }
+    return { property: p.property, label: p.label, presence: 'missing' }
+  })
+}

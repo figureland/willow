@@ -19,11 +19,14 @@ import { type IssueSeverity, issueFor, type RowIssue } from './row-issues'
 const FARM_NAMES = ['Brookside Leys', 'Foxglove Hill', 'Amber Harvest Farm']
 
 const FIELD_NAMES = [
+  // Fields that carry issues in the demo dataset (kept to a small set so the
+  // sidebar doesn't look like every field is on fire).
   'Millpond',
   'Orchard Fold',
   "Cobbett's Hollow",
   'Mill Lane',
   'Saltway',
+  // Clean fields — fully populated records that show the happy path.
   'Stone Pightle',
   'Lower Coppice',
   'Top Meadow',
@@ -34,7 +37,18 @@ const FIELD_NAMES = [
   'Hayrick',
   'Marlpit',
   'Old Barn Field',
+  'Greenways',
+  'Bramble Patch',
+  'Foxglove Lane',
+  'Hollybush',
+  'Yew Tree',
 ]
+
+/**
+ * Names that may carry broken fields in the mock dataset. Everything else is
+ * fully populated so a typical Fix step has a healthy "no issues" majority.
+ */
+const BROKEN_FIELD_NAMES: Set<string> = new Set(FIELD_NAMES.slice(0, 5))
 
 const CROP_NAMES = [
   'Winter wheat',
@@ -186,7 +200,9 @@ export type OperationRecord = {
 /* Classifiers — produce RowIssue lists from the raw row values               */
 /* -------------------------------------------------------------------------- */
 
-const classifyCropping = (row: Omit<CroppingRecord, 'issues'>): RowIssue[] => {
+export const classifyCropping = (
+  row: Omit<CroppingRecord, 'issues'>,
+): RowIssue[] => {
   const out: RowIssue[] = []
   if (row.workingArea === null)
     out.push(issueFor('required-missing', 'Working area'))
@@ -196,12 +212,17 @@ const classifyCropping = (row: Omit<CroppingRecord, 'issues'>): RowIssue[] => {
   if (row.plantingDate && row.harvestDate && row.plantingDate > row.harvestDate)
     out.push(issueFor('planting-after-harvest', 'Planting date'))
   if (row.yield === 0) out.push(issueFor('yield-zero', 'Yield'))
-  if (row.id.endsWith('-10') || row.id.endsWith('-21'))
+  // Duplicate flags are only seeded on rows that belong to the broken-field
+  // demo set — keeps the rest of the upload clean.
+  if (
+    BROKEN_FIELD_NAMES.has(row.fieldName) &&
+    (row.id.endsWith('-10') || row.id.endsWith('-21'))
+  )
     out.push(issueFor('duplicate-cropping'))
   return out
 }
 
-const classifyOperation = (
+export const classifyOperation = (
   row: Omit<OperationRecord, 'issues'>,
 ): RowIssue[] => {
   const out: RowIssue[] = []
@@ -209,7 +230,10 @@ const classifyOperation = (
   if (row.unit === null) out.push(issueFor('required-missing', 'Unit'))
   if (row.appliedArea !== null && row.appliedArea > 30)
     out.push(issueFor('crop-area-exceeds-field', 'Applied area'))
-  if (row.id.endsWith('-7') || row.id.endsWith('-19'))
+  if (
+    BROKEN_FIELD_NAMES.has(row.fieldName) &&
+    (row.id.endsWith('-7') || row.id.endsWith('-19'))
+  )
     out.push(issueFor('duplicate-operation'))
   return out
 }
@@ -241,30 +265,27 @@ export const CROPPING_RECORDS: CroppingRecord[] = Array.from(
     const yieldVal = num(i, 6, 3.2, 11, 2)
     const totalYield = Math.round(yieldVal * workingArea * 10) / 10
     const source = CROPPING_SOURCE_FILES[i % CROPPING_SOURCE_FILES.length]
+    const fieldName = pick(FIELD_NAMES, i)
+    // Only the small set of broken-fields can carry missing values. Records
+    // on every other field stay fully populated so the demo doesn't look
+    // like a total failure.
+    const broken = BROKEN_FIELD_NAMES.has(fieldName)
+    const m = <T>(value: T, salt: number, p: number): T | null =>
+      broken ? maybeMissing(value, i, salt, p) : value
     const base = {
       id: `crop-${i}`,
-      fieldName: pick(FIELD_NAMES, i),
+      fieldName,
       farmName: pick(FARM_NAMES, i),
       harvestYear: year,
       cropName,
-      cropType: maybeMissing(
-        pickHashed(['Main crop', 'Cover crop'], i, 7),
-        i,
-        50,
-        0.3,
-      ),
-      cropVariety: maybeMissing(variety, i, 51, 0.4),
-      workingArea: maybeMissing(workingArea, i, 53, 0.15),
-      tillage: maybeMissing(pickHashed(TILLAGE_METHODS, i, 8), i, 54, 0.45),
-      yield: maybeMissing(yieldVal, i, 55, 0.3),
-      plantingDate: maybeMissing(
-        dateForYear(year - 1, 270 + (i % 30)),
-        i,
-        57,
-        0.5,
-      ),
-      harvestDate: maybeMissing(dateForYear(year, 200 + (i % 30)), i, 58, 0.35),
-      totalYield: maybeMissing(totalYield, i, 59, 0.4),
+      cropType: m(pickHashed(['Main crop', 'Cover crop'], i, 7), 50, 0.3),
+      cropVariety: m(variety, 51, 0.4),
+      workingArea: m(workingArea, 53, 0.15),
+      tillage: m(pickHashed(TILLAGE_METHODS, i, 8), 54, 0.45),
+      yield: m(yieldVal, 55, 0.3),
+      plantingDate: m(dateForYear(year - 1, 270 + (i % 30)), 57, 0.5),
+      harvestDate: m(dateForYear(year, 200 + (i % 30)), 58, 0.35),
+      totalYield: m(totalYield, 59, 0.4),
       provenance: {
         filename: source.filename,
         sheetName: source.sheetName,
@@ -281,28 +302,24 @@ export const OPERATION_RECORDS: OperationRecord[] = Array.from(
     const group = pick(OPERATION_GROUPS, i)
     const year = 2024 + (i % 3)
     const source = OPERATION_SOURCE_FILES[i % OPERATION_SOURCE_FILES.length]
+    const fieldName = pick(FIELD_NAMES, i + 2)
+    const broken = BROKEN_FIELD_NAMES.has(fieldName)
+    const m = <T>(value: T, salt: number, p: number): T | null =>
+      broken ? maybeMissing(value, i, salt, p) : value
     const base = {
       id: `op-${i}`,
       farmName: pick(FARM_NAMES, i),
-      fieldName: pick(FIELD_NAMES, i + 2),
+      fieldName,
       harvestYear: year,
       operationGroup: group,
       operationType: pick(OPERATION_TYPES[group] ?? ['—'], i),
-      operationDate: maybeMissing(
-        dateForYear(year, 90 + ((i * 11) % 180)),
-        i,
-        73,
-        0.3,
-      ),
-      productName: maybeMissing(
-        pick(PRODUCTS_BY_GROUP[group] ?? ['—'], i),
-        i,
-        74,
-        0.35,
-      ),
-      quantity: maybeMissing(num(i, 13, 0.5, 220, 2), i, 75, 0.3),
-      unit: maybeMissing(pick(UNITS_BY_GROUP[group] ?? ['—'], i), i, 76, 0.35),
-      appliedArea: maybeMissing(num(i, 14, 2.5, 28, 1), i, 77, 0.4),
+      operationDate: m(dateForYear(year, 90 + ((i * 11) % 180)), 73, 0.3),
+      productName: m(pick(PRODUCTS_BY_GROUP[group] ?? ['—'], i), 74, 0.35),
+      quantity: m(num(i, 13, 0.5, 220, 2), 75, 0.3),
+      unit: m(pick(UNITS_BY_GROUP[group] ?? ['—'], i), 76, 0.35),
+      appliedArea: broken
+        ? maybeMissing(num(i, 14, 2.5, 28, 1), i, 77, 0.4)
+        : num(i, 14, 2.5, 22, 1),
       provenance: {
         filename: source.filename,
         sheetName: source.sheetName,

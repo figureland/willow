@@ -289,19 +289,23 @@ export const UploadStep = ({
    */
   const reprocessFiles = (ids: string[]) => {
     if (ids.length === 0) return
-    // Drop the affected files' processed-flags + clear their timers FIRST,
-    // so the "all processed" gate can't briefly evaluate true between
-    // setReprocessing and setProcessed and immediately clear reprocessing.
+    // Clear any in-flight timers BEFORE touching state — never put side
+    // effects inside a setState updater, because StrictMode invokes it twice
+    // and the second invocation would also `clearTimeout` the NEW timer we
+    // schedule below, leaving the file stuck in the loading state forever.
+    for (const id of ids) {
+      const existing = timersRef.current.get(id)
+      if (existing) {
+        clearTimeout(existing)
+        timersRef.current.delete(id)
+      }
+    }
+    // Drop the affected files' processed-flags FIRST so the "all processed"
+    // gate can't briefly evaluate true between setReprocessing and
+    // setProcessed and immediately clear reprocessing.
     setProcessed((prev) => {
       const next = { ...prev }
-      for (const id of ids) {
-        const timer = timersRef.current.get(id)
-        if (timer) {
-          clearTimeout(timer)
-          timersRef.current.delete(id)
-        }
-        delete next[id]
-      }
+      for (const id of ids) delete next[id]
       return next
     })
     setReprocessing(true)
