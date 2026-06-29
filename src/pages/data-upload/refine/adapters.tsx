@@ -27,10 +27,6 @@ import { IssueToken } from './IssueToken'
 import type { CellHighlight, IssueAdapter } from './issue-adapter'
 import { FileChip } from './SchemaMappingPanel'
 import { SchemaMappingReview } from './SchemaMappingReview'
-import {
-  buildPropertyStatuses,
-  operationsPropertiesForSheet,
-} from './schema-properties'
 import { ValueMappingReview } from './ValueMappingModal'
 
 /* -------------------------------------------------------------------------- */

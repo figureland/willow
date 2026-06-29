@@ -12,7 +12,7 @@ import {
 } from './draft-sessions'
 import { FixIssuesPage } from './fix/FixIssuesPage'
 import { FixStateProvider, useFixState } from './fix/fix-state'
-import { IntroStep } from './IntroStep'
+import { type DraftStepId, IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
