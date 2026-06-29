@@ -1,11 +1,12 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
   DataTable,
   type GridColDef,
   IconArrowLeft,
+  IconArrowRight,
 } from '../../components/ui'
 import type { CompletenessTable } from './CompletenessModal'
 import { CompletenessSummary } from './CompletenessSummary'
@@ -338,76 +339,85 @@ export const CompletenessStep = () => {
     ? (ISSUES.find((i) => i.id === panelId) ?? null)
     : null
 
-  const goToList = () =>
-    navigate('/data-upload/completeness', { replace: true })
-  const goToIssue = (id: string) =>
-    navigate(`/data-upload/completeness/${id}`, { replace: true })
+  // Navigation is plain history — the detail page is a real route at
+  // /data-upload/completeness/:panelId. Cards link to it (so middle-click /
+  // cmd-click / Back all work); accept and skip pop the history entry so
+  // the back button still feels natural after committing a decision.
+  const closeDetail = () => navigate(-1)
 
   if (activeIssue) {
     return (
       <CompletenessDetail
         issue={activeIssue}
         resolution={resolutions[activeIssue.id]}
-        onBack={goToList}
+        onBack={closeDetail}
         onAccept={() => {
           setResolution(activeIssue.id, 'accepted')
-          goToList()
+          closeDetail()
         }}
         onSkip={() => {
           setResolution(activeIssue.id, 'skipped')
-          goToList()
+          closeDetail()
         }}
       />
     )
   }
 
   return (
-    <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 py-10 pb-24">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold text-text-primary">
-          Our recommended changes
-        </h1>
-      </header>
+    <div className="flex flex-col pb-24">
+      {/* Full-bleed header band — matches the green hero on the detail page
+          in shape (edge-to-edge), but stays neutral here so the brand
+          treatment is reserved for the moment the user is making a call. */}
+      <section className="bg-bg-tertiary">
+        <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
+          <h1 className="text-3xl font-semibold text-text-primary">
+            Our recommended changes
+          </h1>
+        </div>
+      </section>
 
-      <CompletenessSummary appliedImprovements={appliedImprovements} />
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 pt-8">
+        <CompletenessSummary appliedImprovements={appliedImprovements} />
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {TIER_ORDER.map((tier) => {
-          const pool = issuesByTier[tier]
-          return (
-            <section
-              key={tier}
-              className="flex flex-col gap-3 rounded-xl bg-bg-secondary p-4"
-            >
-              <header className="flex flex-col gap-1.5">
-                <h2 className="text-xl font-semibold text-text-primary">
-                  {TIER_LABEL[tier]}
-                </h2>
-                <p className="text-md text-text-secondary">
-                  {TIER_DESCRIPTION[tier]}
-                </p>
-              </header>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          {TIER_ORDER.map((tier) => {
+            const pool = issuesByTier[tier]
+            return (
+              <section
+                key={tier}
+                className="flex flex-col gap-3 rounded-xl bg-bg-secondary p-4"
+              >
+                {/* Fixed-height header — keeps the first card row aligned
+                    across the three tiers, regardless of body length. */}
+                <header className="flex h-20 flex-col gap-1.5">
+                  <h2 className="text-xl font-semibold text-text-primary">
+                    {TIER_LABEL[tier]}
+                  </h2>
+                  <p className="text-sm text-text-secondary">
+                    {TIER_DESCRIPTION[tier]}
+                  </p>
+                </header>
 
-              <ol className="flex flex-col gap-2">
-                {pool.length === 0 ? (
-                  <li className="rounded-lg border-2 border-dashed border-border-tertiary px-4 py-6 text-center text-sm text-text-secondary">
-                    Nothing here.
-                  </li>
-                ) : (
-                  pool.map((issue) => (
-                    <li key={issue.id}>
-                      <CompletenessCard
-                        issue={issue}
-                        resolution={resolutions[issue.id]}
-                        onView={() => goToIssue(issue.id)}
-                      />
+                <ol className="flex flex-col gap-2">
+                  {pool.length === 0 ? (
+                    <li className="rounded-lg border-2 border-dashed border-border-tertiary px-4 py-6 text-center text-sm text-text-secondary">
+                      Nothing here.
                     </li>
-                  ))
-                )}
-              </ol>
-            </section>
-          )
-        })}
+                  ) : (
+                    pool.map((issue) => (
+                      <li key={issue.id}>
+                        <CompletenessCard
+                          issue={issue}
+                          resolution={resolutions[issue.id]}
+                        />
+                      </li>
+                    ))
+                  )}
+                </ol>
+              </section>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -432,6 +442,8 @@ const TIER_CARD: Record<
     text: string
     body: string
     titleResolved: string
+    arrowBg: string
+    arrowFg: string
   }
 > = {
   required: {
@@ -439,42 +451,46 @@ const TIER_CARD: Record<
     text: 'text-text-primary-inverse',
     body: 'text-text-primary-inverse/80',
     titleResolved: 'text-sandy-300',
+    arrowBg: 'bg-sandy-800',
+    arrowFg: 'text-text-primary-inverse',
   },
   encouraged: {
     surface: 'bg-bayer-200',
     text: 'text-bayer-950',
     body: 'text-bayer-900/80',
     titleResolved: 'text-bayer-800',
+    arrowBg: 'bg-bayer-400',
+    arrowFg: 'text-bayer-950',
   },
   optional: {
     surface: 'bg-sandy-100',
     text: 'text-text-primary',
     body: 'text-text-secondary',
     titleResolved: 'text-text-secondary',
+    arrowBg: 'bg-sandy-200',
+    arrowFg: 'text-text-primary',
   },
 }
 
 const CompletenessCard = ({
   issue,
   resolution,
-  onView,
 }: {
   issue: CompletenessIssue
   resolution: Resolution
-  onView: () => void
 }) => {
   const resolved = isResolved(resolution)
   const resolvedLabel = resolvedLabelFor(resolution)
   const tone = TIER_CARD[issue.tier]
 
   return (
-    <button
-      type="button"
-      onClick={onView}
+    <Link
+      to={`/data-upload/completeness/${issue.id}`}
       className={clsx(
-        'group flex w-full flex-col gap-2 rounded-xl px-5 py-4 text-left transition-all duration-200',
+        'group relative flex h-44 w-full flex-col gap-2 overflow-hidden rounded-xl px-5 py-4 text-left',
+        'transition-all duration-200 ease-out will-change-transform',
+        'shadow-none hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-        'hover:shadow-md',
         tone.surface,
         tone.text,
         resolved && 'opacity-70',
@@ -492,7 +508,21 @@ const CompletenessCard = ({
           {resolvedLabel}
         </p>
       ) : null}
-    </button>
+      {/* Hover affordance — arrow fades in bottom-right, mirrors the card's
+          tone so it's legible on both light and dark surfaces. */}
+      <span
+        aria-hidden="true"
+        className={clsx(
+          'pointer-events-none absolute bottom-3 right-3 grid size-8 place-items-center rounded-full',
+          'opacity-0 translate-y-1 transition-all duration-200 ease-out',
+          'group-hover:opacity-100 group-hover:translate-y-0',
+          tone.arrowBg,
+          tone.arrowFg,
+        )}
+      >
+        <IconArrowRight size={16} />
+      </span>
+    </Link>
   )
 }
 
