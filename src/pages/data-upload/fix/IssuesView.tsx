@@ -120,31 +120,105 @@ const IssueCardItem = ({
 const IssueCardList = ({
   groups,
   resolvedIds,
+  totalRecords,
+  affectedFarms,
+  affectedFields,
   onSelect,
 }: {
   groups: IssueGroup[]
   resolvedIds: Set<string>
+  totalRecords: number
+  affectedFarms: number
+  affectedFields: number
   onSelect: (id: string) => void
-}) => (
-  <div className="mx-auto flex w-full max-w-[840px] flex-col gap-4">
-    <header className="flex flex-col gap-1">
-      <h1 className="text-2xl font-semibold text-text-primary">
-        Resolve {groups.length} {groups.length === 1 ? 'issue' : 'issues'}
-      </h1>
-      <p className="text-md text-text-secondary">
-        Pick an issue to open its records and apply a fix.
-      </p>
-    </header>
-    <div className="flex flex-col gap-3">
-      {groups.map((group) => (
-        <IssueCardItem
-          key={group.id}
-          group={group}
-          resolved={resolvedIds.has(group.id)}
-          onSelect={() => onSelect(group.id)}
+}) => {
+  const unresolved = groups.filter((g) => !resolvedIds.has(g.id))
+  const mustFix = unresolved.filter((g) => g.severity === 'blocking').length
+  const worthALook = unresolved.filter((g) => g.severity === 'warning').length
+  return (
+    <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold text-text-primary">
+          We've checked all your records.
+        </h1>
+        <p className="text-md text-text-secondary">
+          We need to fix a few issues before we can proceed.
+        </p>
+      </header>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <SummaryTile
+          stat={mustFix}
+          label="Must fix"
+          hint="Issues we can't import"
+          tone="blocking"
         />
-      ))}
+        <SummaryTile
+          stat={worthALook}
+          label="Worth a look"
+          hint="Warnings we'd flag"
+          tone="warning"
+        />
+        <SummaryTile
+          stat={totalRecords}
+          label="Records checked"
+          hint="Across cropping + operations"
+          tone="neutral"
+        />
+        <SummaryTile
+          stat={`${affectedFields}/${affectedFarms}`}
+          label="Fields / farms affected"
+          hint="At least one issue surfaced"
+          tone="neutral"
+        />
+      </div>
+      <div className="flex flex-col gap-3">
+        {groups.map((group) => (
+          <IssueCardItem
+            key={group.id}
+            group={group}
+            resolved={resolvedIds.has(group.id)}
+            onSelect={() => onSelect(group.id)}
+          />
+        ))}
+      </div>
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* SummaryTile — large stat + label + hint                                     */
+/* -------------------------------------------------------------------------- */
+
+const TILE_TONE: Record<'blocking' | 'warning' | 'neutral', string> = {
+  blocking:
+    'bg-support-bg-red border-support-border-red text-support-fg-red',
+  warning:
+    'bg-support-bg-amber border-support-border-amber text-support-fg-amber',
+  neutral: 'bg-bg-secondary border-border-tertiary text-text-primary',
+}
+
+const SummaryTile = ({
+  stat,
+  label,
+  hint,
+  tone,
+}: {
+  stat: number | string
+  label: string
+  hint: string
+  tone: 'blocking' | 'warning' | 'neutral'
+}) => (
+  <div
+    className={clsx(
+      'flex flex-col gap-1 rounded-xl border-2 px-4 py-3',
+      TILE_TONE[tone],
+    )}
+  >
+    <span className="text-3xl font-semibold leading-none tabular-nums text-text-primary">
+      {stat}
+    </span>
+    <span className="text-sm font-medium text-text-primary">{label}</span>
+    <span className="text-xs text-text-secondary">{hint}</span>
   </div>
 )
 
@@ -589,11 +663,11 @@ export const IssuesView = () => {
     setSearchParams(params, { replace: true })
   }
 
-  // Layout style — controlled by `?issueLayout=cards` so it's easy to flip
-  // between the sidebar (default) and the card-list variant. The card-list
-  // variant routes through a list view at the issue level.
+  // Layout style — defaults to the card-list view. Opt into the legacy
+  // sidebar variant via `?issueLayout=sidebar` for the cases where the
+  // narrower master/detail layout reads better.
   const layout =
-    searchParams.get('issueLayout') === 'cards' ? 'cards' : 'sidebar'
+    searchParams.get('issueLayout') === 'sidebar' ? 'sidebar' : 'cards'
   // Track which issues the user has resolved during this visit so the
   // sidebar can keep them visible with a green pip even though
   // `buildIssueGroups` drops them once their records are edited.
@@ -640,6 +714,28 @@ export const IssuesView = () => {
     for (const r of operationRecords)
       map.set(r.id, projectRecord(r, 'operation'))
     return map
+  }, [croppingRecords, operationRecords])
+
+  // Headline stats for the card-view summary tiles.
+  const summaryStats = useMemo(() => {
+    const totalRecords = croppingRecords.length + operationRecords.length
+    const farmsAffected = new Set<string>()
+    const fieldsAffected = new Set<string>()
+    for (const r of croppingRecords) {
+      if (r.issues.length === 0) continue
+      farmsAffected.add(r.farmName)
+      fieldsAffected.add(`${r.farmName}::${r.fieldName}`)
+    }
+    for (const r of operationRecords) {
+      if (r.issues.length === 0) continue
+      farmsAffected.add(r.farmName)
+      fieldsAffected.add(`${r.farmName}::${r.fieldName}`)
+    }
+    return {
+      totalRecords,
+      affectedFarms: farmsAffected.size,
+      affectedFields: fieldsAffected.size,
+    }
   }, [croppingRecords, operationRecords])
 
   const onApply = (
@@ -834,6 +930,9 @@ export const IssuesView = () => {
             <IssueCardList
               groups={sidebarGroups}
               resolvedIds={resolvedIssueIds}
+              totalRecords={summaryStats.totalRecords}
+              affectedFarms={summaryStats.affectedFarms}
+              affectedFields={summaryStats.affectedFields}
               onSelect={setActiveId}
             />
           )}

@@ -89,7 +89,7 @@ const FixLoader = ({ onDone }: { onDone: () => void }) => {
   const current = LOADER_STEPS[Math.min(index, LOADER_STEPS.length - 1)]
 
   return (
-    <div className="flex flex-1 min-h-0 items-center justify-center bg-bg-secondary px-8 py-16">
+    <div className="flex flex-1 min-h-0 items-center justify-center bg-bg-primary px-8 py-16">
       <div className="flex max-w-[480px] flex-col items-center gap-6 text-center">
         <ThinkingDots />
         {/*
@@ -149,19 +149,60 @@ const ThinkingDots = () => (
 
 const FixIntro = ({ onContinue }: { onContinue: () => void }) => (
   <div className="flex flex-1 min-h-0 items-center justify-center bg-bg-secondary px-8 py-16">
-    <div className="flex max-w-[520px] flex-col items-center gap-6 text-center">
-      <h1 className="text-3xl font-semibold text-text-primary">
+    <div className="flex max-w-[640px] flex-col items-center gap-10 text-center">
+      <CompletedTick />
+      <h1
+        className="max-w-[560px] text-5xl font-medium leading-[1.05] tracking-tight text-text-primary animate-fade-up"
+        style={{ animationDelay: '320ms' }}
+      >
         We've processed your data
       </h1>
-      <p className="text-md leading-relaxed text-text-secondary">
-        We picked up a few issues that we couldn't resolve automatically. Let's
-        go through them together.
+      <p
+        className="max-w-[460px] text-md leading-relaxed text-text-secondary animate-fade-up"
+        style={{ animationDelay: '440ms' }}
+      >
+        We picked up a few issues that we couldn't resolve automatically.
+        Let's go through them together.
       </p>
-      <Button variant="primary" onClick={onContinue}>
-        Review issues
-      </Button>
+      <div
+        className="animate-fade-up"
+        style={{ animationDelay: '560ms' }}
+      >
+        <Button variant="primary" onClick={onContinue}>
+          Review issues
+        </Button>
+      </div>
     </div>
   </div>
+)
+
+/**
+ * Lime-circle tick that fades in + slides up on mount — same fade-up rhythm
+ * as the rest of the intro so the icon reads as the "anchor" of the cascade.
+ */
+const CompletedTick = () => (
+  <span
+    aria-hidden="true"
+    className="grid size-20 place-items-center rounded-full bg-sandy-300 shadow-md animate-fade-up"
+  >
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <title>Completed</title>
+      <path
+        d="M5 12.5l4.5 4.5L19 7"
+        stroke="#0a0a0a"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
 )
 
 /* -------------------------------------------------------------------------- */
@@ -183,10 +224,12 @@ const isFixView = (v: string | null): v is FixView =>
 
 type SeverityFilter = 'all' | 'blocking' | 'warning'
 
+// User-facing language: "Importance" replaces the internal "severity" word,
+// and the two non-default tiers read as plain-English actions.
 const SEVERITY_OPTIONS = [
   { value: 'all' as const, label: 'All' },
-  { value: 'blocking' as const, label: 'Blocking' },
-  { value: 'warning' as const, label: 'Warning' },
+  { value: 'blocking' as const, label: 'Must fix' },
+  { value: 'warning' as const, label: 'Worth a look' },
 ]
 
 const isSeverityFilter = (v: string | null): v is SeverityFilter =>
@@ -231,10 +274,10 @@ const FixPage = () => {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-text-secondary">
-            Severity:
+            Importance:
           </span>
           <SegmentedControl<SeverityFilter>
-            ariaLabel="Filter by severity"
+            ariaLabel="Filter by importance"
             options={SEVERITY_OPTIONS}
             value={severity}
             onValueChange={setSeverity}

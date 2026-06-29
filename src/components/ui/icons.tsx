@@ -91,9 +91,13 @@ export const IconChevronUp = (props: IconProps) => (
 
 export const IconClose = (props: IconProps) => (
   <FigmaIcon {...props}>
+    {/* Heavier-weight cross — drawn as two stroked diagonals so the icon
+        reads boldly across modal close buttons. */}
     <path
-      d="M18.3 5.71L17.59 5L12 10.59L6.41 5L5.7 5.71L11.29 11.3L5.7 16.89L6.41 17.6L12 12L17.59 17.6L18.3 16.89L12.71 11.3L18.3 5.71Z"
-      fill="currentColor"
+      d="M6 6L18 18M18 6L6 18"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
     />
   </FigmaIcon>
 )

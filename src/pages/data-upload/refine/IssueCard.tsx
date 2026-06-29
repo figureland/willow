@@ -1,12 +1,13 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
 import { Button } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type {
   Issue,
   SchemaTransformationIssue,
   ValueMappingIssue,
 } from '../issues'
+import type { SchemaRuleProgram } from '../schema-transformation'
 import type { ValueMappingDecisions } from '../value-mapping'
 import { ColumnMappingModal } from './ColumnMappingModal'
 import { DescribeTray } from './DescribeTray'
@@ -14,7 +15,6 @@ import { IssueModal } from './IssueModal'
 import type { IssueAdapter } from './issue-adapter'
 import { SchemaReviewModal } from './SchemaReviewModal'
 import { ValueMappingModal } from './ValueMappingModal'
-import type { SchemaRuleProgram } from '../schema-transformation'
 
 /* -------------------------------------------------------------------------- */
 /* Resolved tick — subtle iconographic check                                  */

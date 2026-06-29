@@ -1,9 +1,10 @@
 import clsx from 'clsx'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import { Link } from 'react-router-dom'
 import { Spinner } from './Spinner'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive'
-type Size = 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant
@@ -15,6 +16,14 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean
   leadingIcon?: ReactNode
   trailingIcon?: ReactNode
+  /**
+   * When supplied, the Button renders as a `<Link>` to this route instead of
+   * a `<button>`. Use for pure navigation CTAs so cmd-click / middle-click /
+   * "open in new tab" work and the URL is visible on hover. Disables
+   * `onClick`-style behaviours (`loading`, `disabled`) — those only apply to
+   * real buttons.
+   */
+  to?: string
   ref?: Ref<HTMLButtonElement>
 }
 
@@ -57,6 +66,8 @@ const variants: Record<Variant, string> = {
 }
 
 const sizes: Record<Size, string> = {
+  // Compact 28px tall — for in-row affordances (e.g. file list Edit button).
+  sm: 'text-sm leading-[20px] py-[4px] pl-[8px] pr-[10px] gap-1',
   // Mirrors Figma's button: 16/24 text, ~16px icon-to-text gap on a 42-44px tall surface
   md: 'text-md leading-[24px] py-[8px] pl-[10px] pr-[13px]',
   lg: 'text-md leading-[24px] py-[10px] px-[16px]',
@@ -70,6 +81,7 @@ export const Button = ({
   leadingIcon,
   trailingIcon,
   disabled,
+  to,
   children,
   ref,
   ...rest
@@ -78,16 +90,14 @@ export const Button = ({
   // overall width don't jump. If the caller passed no leading icon we still
   // reserve the same slot for the spinner.
   const renderedLeading = loading ? <Spinner /> : leadingIcon
-
-  return (
-    <button
-      ref={ref}
-      disabled={disabled || loading}
-      data-loading={loading || undefined}
-      aria-busy={loading || undefined}
-      className={clsx(base, variants[variant], sizes[size], className)}
-      {...rest}
-    >
+  const composedClassName = clsx(
+    base,
+    variants[variant],
+    sizes[size],
+    className,
+  )
+  const inner = (
+    <>
       {renderedLeading ? (
         <span className="size-6 grid place-items-center shrink-0">
           {renderedLeading}
@@ -102,6 +112,27 @@ export const Button = ({
           {trailingIcon}
         </span>
       ) : null}
+    </>
+  )
+
+  if (to !== undefined) {
+    return (
+      <Link to={to} className={composedClassName}>
+        {inner}
+      </Link>
+    )
+  }
+
+  return (
+    <button
+      ref={ref}
+      disabled={disabled || loading}
+      data-loading={loading || undefined}
+      aria-busy={loading || undefined}
+      className={composedClassName}
+      {...rest}
+    >
+      {inner}
     </button>
   )
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { AppShell } from '../../components/shell/AppShell'
 import {
   Button,
@@ -159,7 +159,6 @@ const FILE_COLUMNS: GridColDef<UploadFile>[] = [
  * reads as the same surface, just frozen in time.
  */
 export const UploadSummaryPage = () => {
-  const navigate = useNavigate()
   const { uploadId } = useParams<{ uploadId: string }>()
   const entry = useMemo(
     () => (uploadId ? getUploadEntry(uploadId) : undefined),
@@ -172,7 +171,7 @@ export const UploadSummaryPage = () => {
         header={{
           title: 'Upload not found',
           showBack: true,
-          onBack: () => navigate('/data-upload/past'),
+          backTo: '/data-upload/past',
         }}
       >
         <Card>
@@ -190,9 +189,9 @@ export const UploadSummaryPage = () => {
       header={{
         title: entry.title,
         showBack: true,
-        onBack: () => navigate('/data-upload/past'),
+        backTo: '/data-upload/past',
         actions: (
-          <Button variant="primary" onClick={() => navigate('/data-upload')}>
+          <Button variant="primary" to="/data-upload">
             Start a new upload
           </Button>
         ),

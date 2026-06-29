@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Modal, MultiSelect, Select } from '../../components/ui'
-import { DescribePopover } from './DescribePopover'
+import { TemplateDescribeTray } from './TemplateDescribeTray'
 import { FileThumb, rowToneClasses, thumbStateFor } from './FileRecognitionRow'
 import {
   BUILTIN_TEMPLATES,
@@ -290,12 +290,12 @@ const FileReviewPanel = ({
         </div>
       </div>
 
-      {/* Error surface — only the hard "invalid Sandy template" case keeps
-          its red treatment. The softer "no matching custom template" case
-          is rolled into the Template panel below as plain copy. */}
+      {/* Info surface — every recognition failure surfaces in amber. The
+          softer "no matching custom template" case is rolled into the
+          Template panel below as plain copy. */}
       {isError && recognition.errorVariant === 'invalid-sandy-template' ? (
-        <div className="flex flex-col gap-3 rounded-xl border-2 border-support-border-red bg-support-bg-red px-4 py-4">
-          <p className="text-lg font-medium text-support-fg-red">
+        <div className="flex flex-col gap-3 rounded-xl bg-support-bg-amber px-4 py-4">
+          <p className="text-lg font-medium text-support-fg-amber">
             {recognition.errorMessage}
           </p>
           <div className="flex items-center gap-3">
@@ -328,68 +328,73 @@ const FileReviewPanel = ({
           <div className="flex items-center justify-between gap-3">
             <p className="text-md font-medium text-text-primary">Template</p>
             {!changingTemplate && activeTemplate ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    // Drop the binding, flip into "creating new" mode, and
-                    // open the Describe popover so the user can immediately
-                    // author a new custom template.
-                    removeTemplate()
-                    setCreateNewTemplate(true)
-                    setDescribeOpen(true)
-                  }}
-                >
-                  Create new instead
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setChangingTemplate(true)}
-                >
-                  Change
-                </Button>
-              </div>
+              <Button
+                variant="secondary"
+                onClick={() => setChangingTemplate(true)}
+              >
+                Change
+              </Button>
             ) : null}
           </div>
 
           {changingTemplate ? (
             <>
-              <Select<string>
-                aria-label="Saved template"
-                value={review.matchedTemplateId ?? activeTemplate?.id ?? ''}
-                onValueChange={(v) => {
-                  if (!v) return
-                  setTemplateId(v)
-                  setChangingTemplate(false)
-                }}
-                items={[
-                  {
-                    label: 'Built-in',
-                    options: BUILTIN_TEMPLATES.map((t) => ({
-                      value: t.id,
-                      label: t.name,
-                      hint: t.lastUsedLabel,
-                    })),
-                  },
-                  {
-                    label: 'Your templates',
-                    options: CUSTOM_TEMPLATES.map((t) => ({
-                      value: t.id,
-                      label: t.name,
-                      hint: t.lastUsedLabel,
-                    })),
-                  },
-                ]}
-                clearable={false}
-                placeholder="Pick a template"
-              />
-              <div className="flex justify-end">
+              <div className="flex items-stretch gap-2">
+                <div className="flex-1">
+                  <Select<string>
+                    aria-label="Saved template"
+                    value={review.matchedTemplateId ?? activeTemplate?.id ?? ''}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      setTemplateId(v)
+                      setChangingTemplate(false)
+                    }}
+                    items={[
+                      {
+                        label: 'Built-in',
+                        options: BUILTIN_TEMPLATES.map((t) => ({
+                          value: t.id,
+                          label: t.name,
+                          hint: t.lastUsedLabel,
+                        })),
+                      },
+                      {
+                        label: 'Your templates',
+                        options: CUSTOM_TEMPLATES.map((t) => ({
+                          value: t.id,
+                          label: t.name,
+                          hint: t.lastUsedLabel,
+                        })),
+                      },
+                    ]}
+                    clearable={false}
+                    placeholder="Pick a template"
+                  />
+                </div>
                 <Button
                   variant="secondary"
                   onClick={() => setChangingTemplate(false)}
                 >
                   Cancel
                 </Button>
+              </div>
+              {/* Create-new sits in its own row below the picker —
+                  separate from the preset dropdown + Cancel pair. Opening
+                  the AI describe tray does NOT clear the current binding;
+                  the user can back out without losing their pick. */}
+              <div className="flex flex-col gap-1 border-t border-border-tertiary pt-3">
+                <p className="text-sm text-text-secondary">
+                  Don't see a match? Tell Sandy how this file is laid out and
+                  we'll mint a new template for you.
+                </p>
+                <div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDescribeOpen(true)}
+                  >
+                    Create new template
+                  </Button>
+                </div>
               </div>
             </>
           ) : activeTemplate ? (
@@ -437,7 +442,7 @@ const FileReviewPanel = ({
                       setNewTemplateName('')
                     }}
                   >
-                    Delete
+                    Remove
                   </Button>
                 </div>
               </div>
@@ -452,26 +457,31 @@ const FileReviewPanel = ({
           ) : (
             <>
               <p className="text-sm text-text-secondary">
-                We couldn't match this file to a saved template. We'll create a
-                new one for you.
+                We couldn't match this file to a saved template. Link it to
+                one Sandy already knows, or describe it so we can mint a new
+                template.
               </p>
-              <div className="flex items-center gap-3">
+              <div>
                 <Button
                   variant="secondary"
                   onClick={() => setChangingTemplate(true)}
                 >
                   Link to existing template
                 </Button>
-                <span className="text-sm text-text-secondary">or</span>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setCreateNewTemplate(true)
-                    setDescribeOpen(true)
-                  }}
-                >
-                  Create new template
-                </Button>
+              </div>
+              <div className="flex flex-col gap-1 border-t border-border-tertiary pt-3">
+                <p className="text-sm text-text-secondary">
+                  Or describe how the file is laid out and Sandy will draft a
+                  new template for you.
+                </p>
+                <div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDescribeOpen(true)}
+                  >
+                    Create new template
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -496,20 +506,28 @@ const FileReviewPanel = ({
         </div>
       ) : null}
 
-      <DescribePopover
+      <TemplateDescribeTray
         open={describeOpen}
         onClose={() => setDescribeOpen(false)}
-        value={review.description ?? ''}
-        onSave={(next) => setDescription(next)}
         title="Describe this file"
-        // Only expose the template-name field when we're actually about to
-        // create a new template (no saved one attached yet).
-        templateName={
-          activeTemplate ? undefined : (review.newTemplateName ?? '')
-        }
-        onTemplateNameSave={
-          activeTemplate ? undefined : (next) => setNewTemplateName(next)
-        }
+        initialName={review.newTemplateName ?? ''}
+        initialDescription={review.description ?? ''}
+        onApply={({ name, description }) => {
+          // AI assist finished — record the user's draft + flip the file
+          // into "creating new template" mode so the custom-template slot
+          // appears. We DON'T touch matchedTemplateId here: the user
+          // explicitly asked to create a new one, but if they then change
+          // their mind the picker still works because we only show the
+          // custom-template slot when no template is bound.
+          setNewTemplateName(name)
+          setDescription(description)
+          setCreateNewTemplate(true)
+          // Also drop any existing template binding now that the new
+          // template has been authored — the custom slot replaces it.
+          if (activeTemplate) removeTemplate()
+          // Close the picker if it was open.
+          setChangingTemplate(false)
+        }}
       />
     </div>
   )

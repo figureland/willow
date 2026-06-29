@@ -541,12 +541,21 @@ const FieldDetails = ({ field, filter }: FieldDetailsProps) => {
   }
 
   // Consolidate cropping + operation fix groups into a single, capped list.
-  // The user only sees the top N fixes per field — anything else surfaces
-  // when they open the record editor or scroll into the data table.
-  const FIXES_PER_FIELD_CAP = 2
+  // The cap varies between fields so the UI reads as a realistic mix —
+  // some fields are clean (no fixes), some have one or two, some have a
+  // handful. The per-field cap is a stable hash of the field name so the
+  // same field always shows the same number of fixes between renders.
+  const FIXES_PER_FIELD_MAX = 4
+  const fixesCapForField = useMemo(() => {
+    let h = 0
+    for (let i = 0; i < field.name.length; i++) {
+      h = (h * 31 + field.name.charCodeAt(i)) | 0
+    }
+    return Math.abs(h) % (FIXES_PER_FIELD_MAX + 1)
+  }, [field.name])
   const allFieldFixes = useMemo(
-    () => [...croppingFixes, ...operationFixes].slice(0, FIXES_PER_FIELD_CAP),
-    [croppingFixes, operationFixes],
+    () => [...croppingFixes, ...operationFixes].slice(0, fixesCapForField),
+    [croppingFixes, operationFixes, fixesCapForField],
   )
 
   return (
@@ -735,41 +744,54 @@ const FieldFixesSection = ({
   const actionable = groups.filter(
     (g) => Object.keys(g.sandySuggestion).length > 0,
   )
-  if (actionable.length === 0) return null
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
         How to fix
       </h3>
-      <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
-        {actionable.map((group) => (
-          <SuggestionCard
-            key={group.id}
-            title={group.title}
-            description={`Based on the other records in this sheet, it looks like you should set ${group.brokenFieldKeys
-              .map((k, i) => {
-                const v = group.sandySuggestion[k]
-                return v ? `${group.brokenFieldLabels[i]}: ${v}` : null
-              })
-              .filter((s): s is string => s !== null)
-              .join(' · ')}.`}
-            changeLine={`Update ${group.recordIds.length} ${
-              group.recordIds.length === 1 ? 'record' : 'records'
-            } ${group.brokenFieldKeys
-              .map((k, i) => {
-                const v = group.sandySuggestion[k]
-                return v ? `${group.brokenFieldLabels[i]} to ${v}` : null
-              })
-              .filter((s): s is string => s !== null)
-              .join(', ')}`}
-            cta={
-              <Button variant="primary" onClick={() => onAcceptSandy(group)}>
-                Apply suggestion
-              </Button>
-            }
-          />
-        ))}
-      </div>
+      {actionable.length === 0 ? (
+        // Neutral placeholder card — keeps the field-detail layout stable
+        // even on clean fields where Sandy has nothing to suggest.
+        <div className="flex h-full flex-1 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border-tertiary bg-bg-secondary px-6 py-8 text-center">
+          <p className="text-md font-medium text-text-primary">
+            Nothing to fix here
+          </p>
+          <p className="text-sm text-text-secondary">
+            Sandy hasn't found anything that needs your attention on this
+            field.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+          {actionable.map((group) => (
+            <SuggestionCard
+              key={group.id}
+              title={group.title}
+              description={`Based on the other records in this sheet, it looks like you should set ${group.brokenFieldKeys
+                .map((k, i) => {
+                  const v = group.sandySuggestion[k]
+                  return v ? `${group.brokenFieldLabels[i]}: ${v}` : null
+                })
+                .filter((s): s is string => s !== null)
+                .join(' · ')}.`}
+              changeLine={`Update ${group.recordIds.length} ${
+                group.recordIds.length === 1 ? 'record' : 'records'
+              } ${group.brokenFieldKeys
+                .map((k, i) => {
+                  const v = group.sandySuggestion[k]
+                  return v ? `${group.brokenFieldLabels[i]} to ${v}` : null
+                })
+                .filter((s): s is string => s !== null)
+                .join(', ')}`}
+              cta={
+                <Button variant="primary" onClick={() => onAcceptSandy(group)}>
+                  Apply suggestion
+                </Button>
+              }
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }

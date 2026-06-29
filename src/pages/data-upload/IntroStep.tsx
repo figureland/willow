@@ -1,5 +1,6 @@
+import { Link } from 'react-router-dom'
 import { Button } from '../../components/ui'
-import { type DraftSession, useDraftSessions } from './draft-sessions'
+import { useDraftSessions } from './draft-sessions'
 
 /* -------------------------------------------------------------------------- */
 /* Drafts                                                                      */
@@ -41,18 +42,19 @@ const formatRelative = (iso: string): string => {
 /* -------------------------------------------------------------------------- */
 
 export type IntroStepProps = {
-  /** Begin a brand-new upload — wizard enters at the Add documents step. */
-  onStartNew: () => void
-  /** Resume an existing draft — caller routes to the saved step + session. */
-  onResumeDraft: (draft: DraftSession) => void
-  /** Navigate to the past-uploads directory. */
-  onViewPastUploads: () => void
+  /** Route to start a brand-new upload (typically the first wizard step). */
+  startNewHref: string
+  /** Route to the past-uploads directory. */
+  pastUploadsHref: string
+  /** Build the resume URL for a draft. Lets the parent control how the
+   *  session id is attached without IntroStep needing to know the scheme. */
+  resumeHref: (draft: { id: string; resumeAt: DraftStepId }) => string
 }
 
 export const IntroStep = ({
-  onStartNew,
-  onResumeDraft,
-  onViewPastUploads,
+  startNewHref,
+  pastUploadsHref,
+  resumeHref,
 }: IntroStepProps) => {
   const drafts = useDraftSessions()
   return (
@@ -66,7 +68,7 @@ export const IntroStep = ({
           Drop in spreadsheets, PDFs or exports. Sandy reads them, lines them up
           with your farms, and flags anything that needs a second look.
         </p>
-        <Button variant="primary" onClick={onStartNew}>
+        <Button variant="primary" to={startNewHref}>
           Start a new upload
         </Button>
       </section>
@@ -77,13 +79,12 @@ export const IntroStep = ({
           <h2 className="text-md font-semibold uppercase tracking-wide text-text-secondary">
             Pick up where you left off
           </h2>
-          <button
-            type="button"
-            onClick={onViewPastUploads}
+          <Link
+            to={pastUploadsHref}
             className="rounded-sm text-sm font-semibold text-text-brand-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
           >
             View all past uploads →
-          </button>
+          </Link>
         </div>
         {drafts.length === 0 ? (
           <p className="text-md text-text-secondary">
@@ -96,9 +97,8 @@ export const IntroStep = ({
                 key={draft.id}
                 className="border-b border-border-tertiary last:border-0"
               >
-                <button
-                  type="button"
-                  onClick={() => onResumeDraft(draft)}
+                <Link
+                  to={resumeHref(draft)}
                   className="group flex w-full items-center justify-between gap-6 px-1 py-4 text-left transition-colors hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
                 >
                   <div className="flex flex-1 min-w-0 flex-col gap-1">
@@ -119,7 +119,7 @@ export const IntroStep = ({
                   >
                     Resume →
                   </span>
-                </button>
+                </Link>
               </li>
             ))}
           </ul>

@@ -8,45 +8,48 @@
  * module owns a lot more incidental state (status tiers, action kinds,
  * sticky-fix column, etc.) — keeping a separate, simpler dataset here means
  * the views in this folder stay self-contained.
+ *
+ * Field / farm pairs are sourced from the real Sandy data (`@/data`) so the
+ * record editor's Farm/Field dropdowns can resolve each row back to a real
+ * farm and field id. Inventing names here would break that lookup and the
+ * Farm/Field selects would land on an unselected state.
  */
 
+import { FARMS, FIELDS, getFarm } from '../../../data'
 import { type IssueSeverity, issueFor, type RowIssue } from './row-issues'
 
 /* -------------------------------------------------------------------------- */
-/* Seed pools                                                                  */
+/* Seed pools — sourced from the live Sandy data so every record references a */
+/* real (farm, field) pair                                                     */
 /* -------------------------------------------------------------------------- */
 
-const FARM_NAMES = ['Brookside Leys', 'Foxglove Hill', 'Amber Harvest Farm']
+/**
+ * Every (farm, field) pair the demo will draw from. Built from the live
+ * Sandy fixtures so the editor's farm/field selects resolve cleanly.
+ */
+const FIELD_PAIRS: { fieldName: string; farmName: string }[] = FIELDS.map(
+  (field) => ({
+    fieldName: field.name,
+    farmName: getFarm(field.farmId)?.name ?? FARMS[0]?.name ?? '—',
+  }),
+)
 
-const FIELD_NAMES = [
-  // Fields that carry issues in the demo dataset (kept to a small set so the
-  // sidebar doesn't look like every field is on fire).
-  'Millpond',
-  'Orchard Fold',
-  "Cobbett's Hollow",
-  'Mill Lane',
-  'Saltway',
-  // Clean fields — fully populated records that show the happy path.
-  'Stone Pightle',
-  'Lower Coppice',
-  'Top Meadow',
-  'Long Acre',
-  'Spinney',
-  'River Bend',
-  'South Ridge',
-  'Hayrick',
-  'Marlpit',
-  'Old Barn Field',
-  'Greenways',
-  'Bramble Patch',
-  'Foxglove Lane',
-  'Hollybush',
-  'Yew Tree',
-]
+const FIELD_NAMES: string[] = FIELD_PAIRS.map((p) => p.fieldName)
+
+/**
+ * Resolve the farm a field belongs to using the real Sandy data. Falls back
+ * to the first farm only if the field name is somehow off-grid.
+ */
+const farmForField = (fieldName: string): string =>
+  FIELD_PAIRS.find((p) => p.fieldName === fieldName)?.farmName ??
+  FARMS[0]?.name ??
+  '—'
 
 /**
  * Names that may carry broken fields in the mock dataset. Everything else is
  * fully populated so a typical Fix step has a healthy "no issues" majority.
+ * Kept to the first five real field names so editing one of them surfaces
+ * the same farm/field pair every time.
  */
 const BROKEN_FIELD_NAMES: Set<string> = new Set(FIELD_NAMES.slice(0, 5))
 
@@ -200,10 +203,26 @@ export type OperationRecord = {
 /* Classifiers — produce RowIssue lists from the raw row values               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Stable hash for a row id → produces deterministic but varied "which extra
+ * issues should this row carry" decisions. Same row id always produces the
+ * same set; reshuffling the fixture seed would shuffle the issues.
+ */
+const hashOf = (s: string): number => {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/** Deterministic bucket — `rowId % buckets === target`. */
+const inBucket = (id: string, buckets: number, target: number): boolean =>
+  hashOf(id) % buckets === target
+
 export const classifyCropping = (
   row: Omit<CroppingRecord, 'issues'>,
 ): RowIssue[] => {
   const out: RowIssue[] = []
+  // Per-row real validation — null required values + cross-field rules.
   if (row.workingArea === null)
     out.push(issueFor('required-missing', 'Working area'))
   if (row.yield === null) out.push(issueFor('required-missing', 'Yield'))
@@ -212,13 +231,69 @@ export const classifyCropping = (
   if (row.plantingDate && row.harvestDate && row.plantingDate > row.harvestDate)
     out.push(issueFor('planting-after-harvest', 'Planting date'))
   if (row.yield === 0) out.push(issueFor('yield-zero', 'Yield'))
-  // Duplicate flags are only seeded on rows that belong to the broken-field
-  // demo set — keeps the rest of the upload clean.
-  if (
-    BROKEN_FIELD_NAMES.has(row.fieldName) &&
-    (row.id.endsWith('-10') || row.id.endsWith('-21'))
-  )
+
+  // Beyond the per-row checks we seed a wider variety of catalogue codes so
+  // every fixes.* type shows up at least once. Each bucket targets a small
+  // slice of the broken-fields set so we don't blanket every row.
+  if (!BROKEN_FIELD_NAMES.has(row.fieldName)) return out
+
+  if (inBucket(row.id, 12, 0)) {
     out.push(issueFor('duplicate-cropping'))
+  }
+  if (inBucket(row.id, 14, 1)) {
+    out.push(
+      issueFor(
+        'max-length-exceeded',
+        'Crop variety',
+        'Sandy caps variety names at 60 characters.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 16, 2)) {
+    out.push(
+      issueFor(
+        'year-invalid',
+        'Harvest year',
+        'Year reads as 5 digits — expected a 4-digit value.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 18, 3)) {
+    out.push(
+      issueFor(
+        'date-invalid',
+        'Planting date',
+        'Date does not parse — check the formatting in your file.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 20, 4)) {
+    out.push(
+      issueFor(
+        'decimal-out-of-range',
+        'Yield',
+        'Yield outside the 0–25 t/ha range Sandy expects.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 22, 5)) {
+    out.push(
+      issueFor(
+        'crop-area-exceeds-field',
+        'Working area',
+        'Working area is larger than the parent field.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 24, 6)) {
+    out.push(
+      issueFor(
+        'harvest-gt-total',
+        'Yield',
+        'Yield × area exceeds the total harvest on file.',
+      ),
+    )
+  }
   return out
 }
 
@@ -230,13 +305,77 @@ export const classifyOperation = (
   if (row.unit === null) out.push(issueFor('required-missing', 'Unit'))
   if (row.appliedArea !== null && row.appliedArea > 30)
     out.push(issueFor('crop-area-exceeds-field', 'Applied area'))
-  if (
-    BROKEN_FIELD_NAMES.has(row.fieldName) &&
-    (row.id.endsWith('-7') || row.id.endsWith('-19'))
-  )
+
+  if (!BROKEN_FIELD_NAMES.has(row.fieldName)) return out
+
+  if (inBucket(row.id, 12, 0)) {
     out.push(issueFor('duplicate-operation'))
+  }
+  if (inBucket(row.id, 14, 1)) {
+    out.push(issueFor('duplicate-fertiliser'))
+  }
+  if (inBucket(row.id, 16, 2)) {
+    out.push(
+      issueFor(
+        'positive-int-required',
+        'Quantity',
+        'Quantity recorded as a negative number.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 18, 3)) {
+    out.push(
+      issueFor(
+        'date-invalid',
+        'Operation date',
+        'Operation date does not parse — Sandy expects DD-MMM-YY.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 20, 4)) {
+    out.push(
+      issueFor(
+        'max-length-exceeded',
+        'Product name',
+        'Product name longer than the 80-character cap.',
+      ),
+    )
+  }
+  // Cross-record cases — emitted here against single rows so the demo
+  // surfaces them without needing a real cross-record join. The copy hints
+  // at the relationship (a missing cropping key / a deletion in the file).
+  if (inBucket(row.id, 18, 5)) {
+    out.push(
+      issueFor(
+        'orphan-operation',
+        undefined,
+        'No cropping record matches this operation — pick one or exclude.',
+      ),
+    )
+  }
+  if (inBucket(row.id, 26, 6)) {
+    out.push(
+      issueFor(
+        'deletion-not-allowed',
+        undefined,
+        'File asks to delete a crop-protection record — not allowed via upload.',
+      ),
+    )
+  }
   return out
 }
+
+/**
+ * Synthetic farm-duplicate issue — surfaces a single fixes.farm.duplicate-sandy-id
+ * issue at the start of the fixture so the IssuesView card list always shows
+ * the full breadth of catalogue codes. The classifier above can't naturally
+ * emit this one (it's about farm-level metadata, not per-row data).
+ */
+export const SYNTHETIC_FARM_DUPLICATE_ISSUE: RowIssue = issueFor(
+  'duplicate-farm',
+  'Farm name',
+  'Two farms in this upload share the same Sandy ID.',
+)
 
 /* -------------------------------------------------------------------------- */
 /* Fixtures                                                                    */
@@ -275,7 +414,9 @@ export const CROPPING_RECORDS: CroppingRecord[] = Array.from(
     const base = {
       id: `crop-${i}`,
       fieldName,
-      farmName: pick(FARM_NAMES, i),
+      // Paired against the real Sandy data so the editor's Farm/Field
+      // selects can resolve to a known (farmId, fieldId) pair.
+      farmName: farmForField(fieldName),
       harvestYear: year,
       cropName,
       cropType: m(pickHashed(['Main crop', 'Cover crop'], i, 7), 50, 0.3),
@@ -308,7 +449,9 @@ export const OPERATION_RECORDS: OperationRecord[] = Array.from(
       broken ? maybeMissing(value, i, salt, p) : value
     const base = {
       id: `op-${i}`,
-      farmName: pick(FARM_NAMES, i),
+      // Paired against the real Sandy data so the editor's Farm/Field
+      // selects can resolve to a known (farmId, fieldId) pair.
+      farmName: farmForField(fieldName),
       fieldName,
       harvestYear: year,
       operationGroup: group,

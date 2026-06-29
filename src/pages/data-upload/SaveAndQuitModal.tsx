@@ -1,5 +1,3 @@
-import { Dialog as BaseDialog } from '@base-ui/react/dialog'
-import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { Button, Modal, TextInput } from '../../components/ui'
 
@@ -72,47 +70,31 @@ export const SaveAndQuitModal = ({
         </div>
       </Modal>
 
-      <BaseDialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
-        <BaseDialog.Portal>
-          <BaseDialog.Backdrop
-            className={clsx(
-              'fixed inset-0 z-40 bg-black/40',
-              'transition-opacity duration-200 ease-out',
-              'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
-            )}
-          />
-          <BaseDialog.Popup
-            className={clsx(
-              'fixed inset-0 z-50 m-auto h-fit w-[92vw] max-w-[380px]',
-              'flex flex-col gap-4 rounded-xl border-2 border-border-tertiary bg-bg-primary p-5 shadow-xl outline-none',
-              'transition-[opacity,transform] duration-150 ease-out',
-              'data-[starting-style]:opacity-0 data-[starting-style]:scale-95',
-              'data-[ending-style]:opacity-0 data-[ending-style]:scale-95',
-            )}
-          >
-            <BaseDialog.Title className="text-md font-semibold text-text-primary">
-              Discard upload?
-            </BaseDialog.Title>
-            <BaseDialog.Description className="text-sm text-text-secondary">
-              You'll lose any unsaved progress. This can't be undone.
-            </BaseDialog.Description>
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="secondary" onClick={() => setDiscardOpen(false)}>
-                No, keep editing
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDiscardOpen(false)
-                  onDiscard()
-                }}
-              >
-                Yes, discard
-              </Button>
-            </div>
-          </BaseDialog.Popup>
-        </BaseDialog.Portal>
-      </BaseDialog.Root>
+      <Modal
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        title="Discard upload?"
+        description="You'll lose any unsaved progress. This can't be undone."
+        maxWidth="380px"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDiscardOpen(false)}>
+              No, keep editing
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDiscardOpen(false)
+                onDiscard()
+              }}
+            >
+              Yes, discard
+            </Button>
+          </>
+        }
+      >
+        <div className="sr-only" />
+      </Modal>
     </>
   )
 }

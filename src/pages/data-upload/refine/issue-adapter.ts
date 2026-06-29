@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type { Issue } from '../issues'
 import type { HighlightRef } from '../schema-transformation'
 import type { IssuePanel } from './IssueModal'

@@ -8,9 +8,9 @@ import {
   IconArrowLeft,
   IconArrowRight,
 } from '../../components/ui'
-import type { CompletenessTable } from './CompletenessModal'
 import { CompletenessSummary } from './CompletenessSummary'
 import type { CompletenessImprovement } from './completeness-summary'
+import type { CompletenessTable } from './completeness-table'
 
 /* -------------------------------------------------------------------------- */
 /* Model                                                                       */
@@ -350,7 +350,6 @@ export const CompletenessStep = () => {
       <CompletenessDetail
         issue={activeIssue}
         resolution={resolutions[activeIssue.id]}
-        onBack={closeDetail}
         onAccept={() => {
           setResolution(activeIssue.id, 'accepted')
           closeDetail()
@@ -435,17 +434,26 @@ const resolvedLabelFor = (r: Resolution): string | null => {
 
 const isResolved = (r: Resolution) => r !== 'pending'
 
-const TIER_CARD: Record<
-  Tier,
-  {
-    surface: string
-    text: string
-    body: string
-    titleResolved: string
-    arrowBg: string
-    arrowFg: string
-  }
-> = {
+type TierTone = {
+  /** Card surface + the matching full-page hero band. */
+  surface: string
+  text: string
+  body: string
+  titleResolved: string
+  arrowBg: string
+  arrowFg: string
+  /** Eyebrow / accent text used in the detail hero (Problem / Fix labels,
+   *  Resolved pill, "Why this matters"). */
+  accent: string
+  /** Stat-column inset surface — sits on top of the hero band. */
+  statBg: string
+  /** Back-to-list chip in the detail hero. */
+  backChip: string
+  /** Focus ring colour to use on the detail-hero back chip. */
+  backChipRing: string
+}
+
+const TIER_CARD: Record<Tier, TierTone> = {
   required: {
     surface: 'bg-sandy-900',
     text: 'text-text-primary-inverse',
@@ -453,6 +461,11 @@ const TIER_CARD: Record<
     titleResolved: 'text-sandy-300',
     arrowBg: 'bg-sandy-800',
     arrowFg: 'text-text-primary-inverse',
+    accent: 'text-sandy-300',
+    statBg: 'bg-sandy-800/60',
+    backChip:
+      'bg-sandy-800/60 text-text-primary-inverse/90 hover:bg-sandy-800',
+    backChipRing: 'focus-visible:ring-sandy-300/60',
   },
   encouraged: {
     surface: 'bg-bayer-200',
@@ -461,6 +474,10 @@ const TIER_CARD: Record<
     titleResolved: 'text-bayer-800',
     arrowBg: 'bg-bayer-400',
     arrowFg: 'text-bayer-950',
+    accent: 'text-bayer-800',
+    statBg: 'bg-bayer-300/70',
+    backChip: 'bg-bayer-300/70 text-bayer-950 hover:bg-bayer-300',
+    backChipRing: 'focus-visible:ring-bayer-700/40',
   },
   optional: {
     surface: 'bg-sandy-100',
@@ -469,6 +486,10 @@ const TIER_CARD: Record<
     titleResolved: 'text-text-secondary',
     arrowBg: 'bg-sandy-200',
     arrowFg: 'text-text-primary',
+    accent: 'text-text-brand-dark',
+    statBg: 'bg-sandy-200/70',
+    backChip: 'bg-sandy-200/70 text-text-primary hover:bg-sandy-200',
+    backChipRing: 'focus-visible:ring-sandy-600/40',
   },
 }
 
@@ -637,13 +658,11 @@ const PreviewTable = ({ table }: { table: CompletenessTable }) => {
 const CompletenessDetail = ({
   issue,
   resolution,
-  onBack,
   onAccept,
   onSkip,
 }: {
   issue: CompletenessIssue
   resolution: Resolution
-  onBack: () => void
   onAccept: () => void
   onSkip: () => void
 }) => {
@@ -656,6 +675,7 @@ const CompletenessDetail = ({
     'Sandy can use your data and information from your region to create highly accurate estimated imputed data.'
   const stat = headlineStatFor(issue)
   const resolvedLabel = resolvedLabelFor(resolution)
+  const tone = TIER_CARD[issue.tier]
   // Tables that only add new rows get a "we'll create these new records"
   // framing; tables that patch existing rows get a plain title.
   const addsNewRows = preview?.tables.some((t) =>
@@ -664,31 +684,41 @@ const CompletenessDetail = ({
 
   return (
     <div className="flex flex-col gap-10 pb-24">
-      {/* Full-bleed green hero — gives the page real presence + signals that
-          accepting this is a clear positive action. */}
-      <section className="bg-sandy-900 text-text-primary-inverse">
+      {/* Full-bleed tier hero — the same surface colour the card used on the
+          list view carries through, so the user keeps a visual through-line
+          from "I picked the required card" to "I'm on the required page". */}
+      <section className={clsx(tone.surface, tone.text)}>
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 py-10">
           <div className="self-start">
-            <button
-              type="button"
-              onClick={onBack}
+            <Link
+              to="/data-upload/completeness"
               className={clsx(
-                'inline-flex items-center gap-2 rounded-md px-3 py-1.5',
-                'text-sm font-semibold text-text-primary-inverse/90',
-                'bg-sandy-800/60 hover:bg-sandy-800',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-300/60',
+                'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold',
+                tone.backChip,
+                'focus-visible:outline-none focus-visible:ring-2',
+                tone.backChipRing,
               )}
             >
               <IconArrowLeft size={16} />
               Back to recommendations
-            </button>
+            </Link>
           </div>
           <header className="flex flex-col gap-2">
-            <h1 className="max-w-[820px] text-3xl font-semibold leading-tight text-text-primary-inverse">
+            <h1
+              className={clsx(
+                'max-w-[820px] text-3xl font-semibold leading-tight',
+                tone.text,
+              )}
+            >
               {issue.title}
             </h1>
             {resolvedLabel ? (
-              <p className="text-sm font-semibold uppercase tracking-wide text-sandy-300">
+              <p
+                className={clsx(
+                  'text-sm font-semibold uppercase tracking-wide',
+                  tone.accent,
+                )}
+              >
                 {resolvedLabel}
               </p>
             ) : null}
@@ -696,9 +726,9 @@ const CompletenessDetail = ({
 
           {/* Problem · Fix · Stat — three columns reading left → right. */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <DetailColumn label="Problem" body={problem} />
-            <DetailColumn label="Fix" body={fix} />
-            <StatColumn value={stat.value} label={stat.label} />
+            <DetailColumn label="Problem" body={problem} tone={tone} />
+            <DetailColumn label="Fix" body={fix} tone={tone} />
+            <StatColumn value={stat.value} label={stat.label} tone={tone} />
           </div>
         </div>
       </section>
@@ -734,25 +764,51 @@ const CompletenessDetail = ({
   )
 }
 
-const DetailColumn = ({ label, body }: { label: string; body: string }) => (
+const DetailColumn = ({
+  label,
+  body,
+  tone,
+}: {
+  label: string
+  body: string
+  tone: TierTone
+}) => (
   <div className="flex flex-col gap-2">
-    <p className="text-xs font-semibold uppercase tracking-wide text-sandy-300">
+    <p
+      className={clsx(
+        'text-xs font-semibold uppercase tracking-wide',
+        tone.accent,
+      )}
+    >
       {label}
     </p>
-    <p className="text-md leading-snug text-text-primary-inverse/90">{body}</p>
+    <p className={clsx('text-md leading-snug', tone.body)}>{body}</p>
   </div>
 )
 
-const StatColumn = ({ value, label }: { value: string; label: string }) => (
-  <div className="flex flex-col gap-2 rounded-xl bg-sandy-800/60 p-4">
-    <p className="text-xs font-semibold uppercase tracking-wide text-sandy-300">
+const StatColumn = ({
+  value,
+  label,
+  tone,
+}: {
+  value: string
+  label: string
+  tone: TierTone
+}) => (
+  <div className={clsx('flex flex-col gap-2 rounded-xl p-4', tone.statBg)}>
+    <p
+      className={clsx(
+        'text-xs font-semibold uppercase tracking-wide',
+        tone.accent,
+      )}
+    >
       Why this matters
     </p>
     <div className="flex flex-col gap-1">
-      <span className="text-3xl font-semibold leading-none text-text-primary-inverse">
+      <span className={clsx('text-3xl font-semibold leading-none', tone.text)}>
         {value}
       </span>
-      <span className="text-sm text-text-primary-inverse/80">{label}</span>
+      <span className={clsx('text-sm', tone.body)}>{label}</span>
     </div>
   </div>
 )

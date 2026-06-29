@@ -1,4 +1,4 @@
-import type { IssueState } from './IssueResolverModal'
+import type { IssueState } from './issue-state'
 import type { Issue } from './issues'
 import { RefinePage } from './refine/RefinePage'
 import type { DetectionSummary } from './summary'

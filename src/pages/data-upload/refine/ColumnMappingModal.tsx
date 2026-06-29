@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Modal, Select } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import {
   EXAMPLE_WORKBOOK,
   type SchemaRuleProgram,

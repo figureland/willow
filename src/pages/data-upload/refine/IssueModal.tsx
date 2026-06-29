@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { type ReactNode, useEffect, useState } from 'react'
 import { Button, IconArrowLeft, Modal } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type { Issue } from '../issues'
 import { EXAMPLE_WORKBOOK } from '../schema-transformation'
 import { DescribeAutoOpenContext } from './DescribeTray'

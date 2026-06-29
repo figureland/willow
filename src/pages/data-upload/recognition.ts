@@ -74,7 +74,7 @@ export type SavedTemplate = {
 export const BUILTIN_TEMPLATES: SavedTemplate[] = [
   {
     id: 'builtin-sandy-template',
-    name: 'Sandy official template',
+    name: 'Sandy official',
     kind: 'builtin',
     lastUsedLabel: 'Built-in template',
   },
@@ -102,19 +102,19 @@ export const BUILTIN_TEMPLATES: SavedTemplate[] = [
 export const CUSTOM_TEMPLATES: SavedTemplate[] = [
   {
     id: 'arable-data',
-    name: 'Arable data template',
+    name: 'Arable data',
     kind: 'custom',
     lastUsedLabel: 'Last used: 2024/25 Harvest data Stage 2',
   },
   {
     id: 'agronomist-export',
-    name: 'Agronomist export template',
+    name: 'Agronomist export',
     kind: 'custom',
     lastUsedLabel: 'Last used: 2024 Autumn spray plans',
   },
   {
     id: 'precision-yield',
-    name: 'Precision yield template',
+    name: 'Precision yield',
     kind: 'custom',
     lastUsedLabel: 'Last used: 2023 Combine telemetry import',
   },
@@ -182,7 +182,9 @@ export const recogniseFile = (
   }
 
   // Cycle the remaining files through custom-template → unrecognised → error
-  // so the demo always shows every state.
+  // so the demo always shows every state. None of these come from the
+  // structured FMS / Sandy template paths above, so we can't credibly say
+  // we know what kind of data is in them — leave detectedCategory null.
   const remainder = idx % 3
   if (remainder === 0) {
     // Rotate through the user's custom templates so multiple custom-template
@@ -192,7 +194,7 @@ export const recogniseFile = (
       kind: 'custom-template',
       templateLabel: tpl.name,
       templateNote: tpl.lastUsedLabel,
-      detectedCategory: detectCategory(lower),
+      detectedCategory: null,
       matchedTemplateId: tpl.id,
     }
   }
@@ -200,15 +202,13 @@ export const recogniseFile = (
     return {
       kind: 'unrecognised',
       templateLabel: 'Unrecognised layout',
-      detectedCategory: detectCategory(lower),
+      detectedCategory: null,
     }
   }
   return {
     kind: 'error',
     templateLabel: 'Custom template',
-    detectedCategory: detectCategory(lower),
-    errorMessage:
-      "We couldn't find a matching template for this file. We'll create a new one for you.",
+    detectedCategory: null,
     errorVariant: 'no-existing-template',
   }
 }

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { IconChevronRight, IconClose } from '../../components/ui'
+import { Button, IconClose } from '../../components/ui'
 import {
   CATEGORY_LABEL,
   type DataCategoryTag,
@@ -11,7 +11,13 @@ import type { UploadedFile } from './UploadStep'
 /* Thumbnail — outline pulses while loading, glyph fades in once resolved      */
 /* -------------------------------------------------------------------------- */
 
-export type ThumbState = 'loading' | 'done' | 'warning' | 'error'
+/**
+ * Single non-success state — every recognition failure (unrecognised template,
+ * Sandy parse error, etc.) lands in the same amber "warning" treatment. The
+ * row body always carries a sentence explaining what's wrong, so we don't
+ * need a louder red state on top.
+ */
+export type ThumbState = 'loading' | 'done' | 'warning'
 
 export const FileThumb = ({
   kind,
@@ -50,11 +56,8 @@ const ThumbStatusOutline = ({ state }: { state: ThumbState }) => {
   const stroke =
     state === 'loading'
       ? 'stroke-text-brand-dark'
-      : state === 'warning'
-        ? 'stroke-support-fg-amber'
-        : 'stroke-support-fg-red'
-  const dasharray =
-    state === 'loading' ? '20 60' : state === 'error' ? '4 4' : undefined
+      : 'stroke-support-fg-amber'
+  const dasharray = state === 'loading' ? '20 60' : undefined
   return (
     <svg
       aria-hidden
@@ -87,9 +90,7 @@ const ThumbStatusGlyph = ({
   const tone =
     state === 'done'
       ? 'bg-support-fg-green text-text-primary-inverse'
-      : state === 'warning'
-        ? 'bg-support-fg-amber text-text-primary-inverse'
-        : 'bg-support-fg-red text-text-primary-inverse'
+      : 'bg-support-fg-amber text-text-primary-inverse'
   return (
     <span
       aria-hidden
@@ -112,21 +113,11 @@ const ThumbStatusGlyph = ({
               strokeLinejoin="round"
             />
           </svg>
-        ) : state === 'warning' ? (
+        ) : (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <title>Warning</title>
             <path
               d="M12 7v6M12 17h.01"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <title>Error</title>
-            <path
-              d="M6 6l12 12M18 6L6 18"
               stroke="currentColor"
               strokeWidth="3"
               strokeLinecap="round"
@@ -148,8 +139,12 @@ export const thumbStateFor = (
 ): ThumbState => {
   if (loading) return 'loading'
   if (!recognition) return 'done'
-  if (recognition.kind === 'error') return 'error'
-  if (recognition.kind === 'unrecognised') return 'warning'
+  // Every recognition failure — hard errors, unrecognised templates, missing
+  // tabs, etc. — folds into the single amber "warning" state. The row body
+  // carries a sentence explaining what's wrong.
+  if (recognition.kind === 'error' || recognition.kind === 'unrecognised') {
+    return 'warning'
+  }
   return 'done'
 }
 
@@ -158,9 +153,9 @@ export const rowToneClasses = (state: ThumbState): string => {
     case 'loading':
       return 'border-border-tertiary bg-bg-secondary'
     case 'warning':
-      return 'border-support-border-amber bg-support-bg-amber hover:bg-support-bg-amber/80'
-    case 'error':
-      return 'border-support-border-red bg-support-bg-red hover:bg-support-bg-red/80'
+      // Background-only — no outline. Keeps the row visually softer than
+      // the old red/outlined error state while still flagging attention.
+      return 'border-transparent bg-support-bg-amber hover:bg-support-bg-amber/80'
     default:
       return 'border-border-tertiary bg-bg-primary hover:border-border-secondary hover:bg-bg-secondary'
   }
@@ -218,20 +213,39 @@ export const FileRecognitionRow = ({
                 </>
               ) : null}
             </p>
-            <p className="text-sm text-text-secondary">
-              {cats.length > 0
-                ? cats.map((c) => CATEGORY_LABEL[c]).join(' · ')
-                : 'No category detected'}
-            </p>
-            {recognition.errorMessage ? (
-              <p className="text-sm font-medium text-support-fg-red">
-                {recognition.errorMessage}
+            {/* Skip the category line when there's no detected category
+                — the empty "No category detected" line just adds noise. */}
+            {cats.length > 0 ? (
+              <p className="text-sm text-text-secondary">
+                {cats.map((c) => CATEGORY_LABEL[c]).join(' · ')}
+              </p>
+            ) : null}
+            {/* Every warning state surfaces the same single info line so
+                the user knows the file needs their attention. The row is
+                already clickable; the copy nudges them to open it. */}
+            {state === 'warning' ? (
+              <p className="text-sm font-medium text-support-fg-amber">
+                We didn't recognise this file. Click here to help Sandy
+                understand and import your data.
               </p>
             ) : null}
           </>
         ) : null}
       </div>
-      {!loading && onClick ? <IconChevronRight size={20} /> : null}
+      {!loading && onClick ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          // Same handler as the row's onClick — clicking either pushes the
+          // user into review. Stop the row click from firing twice.
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick()
+          }}
+        >
+          Edit
+        </Button>
+      ) : null}
       {onRemove ? (
         <button
           type="button"
@@ -260,7 +274,9 @@ export const FileRecognitionRow = ({
         type="button"
         onClick={onClick}
         className={clsx(
-          'flex w-full items-center gap-4 rounded-xl border-2 px-4 py-3 text-left transition-colors',
+          'flex w-full items-center gap-4 rounded-xl border-2 px-4 py-3 text-left',
+          'transition-[box-shadow,transform,background-color,border-color] duration-150',
+          'shadow-none hover:shadow-md hover:-translate-y-px',
           tone,
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
         )}

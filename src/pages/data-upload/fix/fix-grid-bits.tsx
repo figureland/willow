@@ -97,7 +97,7 @@ export const SelectionActionBar = ({
   onClear: () => void
 }) => (
   <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-6 pb-6">
-    <div className="pointer-events-auto flex items-center gap-4 rounded-pill border-2 border-border-tertiary bg-bg-primary px-4 py-2 shadow-xl">
+    <div className="pointer-events-auto flex items-center gap-5 rounded-xl bg-bg-primary px-5 py-3 shadow-xl">
       <div className="flex items-center gap-3">
         <span className="text-md font-medium text-text-primary">
           {count} {count === 1 ? recordLabel : `${recordLabel}s`} selected

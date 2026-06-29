@@ -3,6 +3,7 @@ import { type DragEvent, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '../../components/ui'
 import { CompletionToast } from './CompletionToast'
+import { DownloadTemplateModal } from './DownloadTemplateModal'
 import { FileRecognitionRow } from './FileRecognitionRow'
 import { FileReviewModal } from './FileReviewModal'
 import {
@@ -447,7 +448,6 @@ export const UploadStep = ({
             })}
           </ul>
 
-          {allProcessed && !reprocessing ? <ConfirmationPanel /> : null}
         </div>
       ) : (
         <EmptyHero onBrowseClick={() => acceptFiles(simulateRandomFiles())} />
@@ -535,24 +535,6 @@ const changedFileIds = (
   return out
 }
 
-/**
- * Once every file is scanned we surface a quiet, non-blocking panel that
- * names the "Does this look right?" question. The wizard's own Continue
- * button (in the top bar) advances the user out of this step — we don't
- * need a second one here.
- */
-const ConfirmationPanel = () => (
-  <div className="flex flex-col gap-1 rounded-xl border-2 border-border-tertiary bg-bg-secondary px-5 py-4 animate-fade-up">
-    <p className="text-lg font-medium text-text-primary">
-      Does this look right?
-    </p>
-    <p className="text-md text-text-secondary">
-      Tap any file to review or correct its details, then hit Continue to move
-      on.
-    </p>
-  </div>
-)
-
 /* -------------------------------------------------------------------------- */
 /* Hero (no files yet) — centred, large title, secondary CTA with file+ icon  */
 /* -------------------------------------------------------------------------- */
@@ -588,24 +570,84 @@ const IconFilePlus = ({ size = 20 }: { size?: number }) => (
   </svg>
 )
 
-const EmptyHero = ({ onBrowseClick }: { onBrowseClick: () => void }) => (
-  <div className="flex flex-1 flex-col items-center justify-center gap-12 py-16 text-center animate-fade-up">
-    <h1 className="max-w-[560px] text-5xl font-medium leading-[1.05] tracking-tight text-text-primary">
-      Drop files to get started
-    </h1>
-    <div className="flex flex-col items-center gap-3">
-      <Button
-        variant="secondary"
-        onClick={onBrowseClick}
-        leadingIcon={<IconFilePlus size={20} />}
-      >
-        Add files
-      </Button>
-      <p className="text-sm text-text-secondary">
-        We can import Excel, CSV Spreadsheet, PDF.
-      </p>
+const EmptyHero = ({ onBrowseClick }: { onBrowseClick: () => void }) => {
+  const [downloadOpen, setDownloadOpen] = useState(false)
+  return (
+    <div className="flex flex-1 flex-col items-center pt-32 pb-10 text-center animate-fade-up">
+      <h1 className="max-w-[560px] text-5xl font-medium leading-[1.05] tracking-tight text-text-primary">
+        Drop files to get started
+      </h1>
+      <div className="mt-12 flex flex-col items-center gap-3">
+        <Button
+          variant="secondary"
+          onClick={onBrowseClick}
+          leadingIcon={<IconFilePlus size={20} />}
+        >
+          Add files
+        </Button>
+        <p className="text-sm text-text-secondary">
+          We can import Excel, CSV Spreadsheet, PDF.
+        </p>
+      </div>
+
+      {/* Template card sits flush against the bottom of the viewport —
+          `mt-auto` lifts the rest of the hero into the upper third. */}
+      <div className="mt-auto flex w-full max-w-[440px] items-center justify-between gap-4 rounded-xl bg-bg-tertiary px-5 py-4 text-left">
+        <div className="flex flex-col gap-0.5">
+          <p className="text-md font-medium text-text-primary">
+            Need a template to get started?
+          </p>
+          <p className="text-sm text-text-secondary">
+            Download our smart Sandy template for Excel.
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => setDownloadOpen(true)}
+          leadingIcon={<IconDownload size={18} />}
+        >
+          Download
+        </Button>
+      </div>
+
+      <DownloadTemplateModal
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+      />
     </div>
-  </div>
+  )
+}
+
+const IconDownload = ({ size = 18 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <title>Download</title>
+    <path
+      d="M12 4v11"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M7 11l5 5 5-5"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M5 19h14"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
 )
 
 /* -------------------------------------------------------------------------- */

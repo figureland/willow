@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useMemo, useState } from 'react'
 import { Button, Select } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type { ValueMappingIssue } from '../issues'
 import type { CellHighlight } from '../SheetSnippet'
 import { SheetSnippet } from '../SheetSnippet'

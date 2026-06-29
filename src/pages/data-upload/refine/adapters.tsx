@@ -7,7 +7,7 @@ import {
   Select,
   TextInput,
 } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import {
   defaultResolutionForIssue,
   type FarmMissingIssue,

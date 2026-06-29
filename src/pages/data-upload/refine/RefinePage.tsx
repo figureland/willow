@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Tooltip } from '../../../components/ui'
 import { CompletionToast } from '../CompletionToast'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type { Issue } from '../issues'
 import type { DetectionSummary } from '../summary'
 import { adapterFor } from './adapters'
@@ -172,9 +172,13 @@ const IssuePanel = ({
             const adapter = adapterFor(issue)
             if (!adapter) return null
             // Stagger each card after the blurb so the page reads as a
-            // single coherent cascade. Cap the delay so a long list still
-            // finishes within ~1s.
-            const delayMs = Math.min(320 + idx * 90, 900)
+            // single coherent cascade. When a preview sits above the list
+            // (identity panel), hold the issues back a beat so the
+            // farms-and-fields summary has time to settle before the
+            // issue stack starts cascading in.
+            const startMs = preview ? 1100 : 320
+            const capMs = preview ? 1700 : 900
+            const delayMs = Math.min(startMs + idx * 90, capMs)
             return (
               <li
                 key={issue.id}
@@ -367,7 +371,7 @@ export const RefinePage = ({
     totalSteps === 0 ? 0 : Math.round((completedSteps / totalSteps) * 100)
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bg-secondary">
+    <div className="flex h-full min-h-0 flex-col bg-bg-primary">
       <div className="relative flex flex-1 min-h-0">
         {/* Inactive panels are display:none so they can't influence layout
             or steal focus; only the active panel is mounted into the flex

@@ -13,7 +13,7 @@ import {
 import { FixIssuesPage } from './fix/FixIssuesPage'
 import { FixStateProvider, useFixState } from './fix/fix-state'
 import { type DraftStepId, IntroStep } from './IntroStep'
-import type { IssueState } from './IssueResolverModal'
+import type { IssueState } from './issue-state'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
 import { ReviewStep } from './ReviewStep'
 import { isUnresolved } from './refine/RefinePage'
@@ -308,6 +308,7 @@ const DataUploadWizardInner = () => {
         id: 'completeness',
         label: 'Completeness',
         content: <CompletenessStep />,
+        bare: true,
       },
       {
         id: 'anomaly-detection',
@@ -411,13 +412,11 @@ const DataUploadWizardInner = () => {
     return (
       <div className="flex flex-1 flex-col justify-center p-16">
         <IntroStep
-          onStartNew={() => navigate(`${DATA_UPLOAD_BASE}/${steps[0].id}`)}
-          onResumeDraft={(draft) =>
-            navigate(
-              `${DATA_UPLOAD_BASE}/${draft.resumeAt}?sessionId=${draft.id}`,
-            )
+          startNewHref={`${DATA_UPLOAD_BASE}/${steps[0].id}`}
+          pastUploadsHref={`${DATA_UPLOAD_BASE}/past`}
+          resumeHref={(draft) =>
+            `${DATA_UPLOAD_BASE}/${draft.resumeAt}?sessionId=${draft.id}`
           }
-          onViewPastUploads={() => navigate(`${DATA_UPLOAD_BASE}/past`)}
         />
       </div>
     )

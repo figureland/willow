@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Modal, Select } from '../../../components/ui'
-import type { IssueState } from '../IssueResolverModal'
+import type { IssueState } from '../issue-state'
 import type { SchemaTransformationIssue } from '../issues'
 import {
   EXAMPLE_WORKBOOK,
@@ -241,7 +241,7 @@ export const SchemaReviewModal = ({
         : 'Map your file structure'
     }
     if (issue.recognised) {
-      return `We read your ${issue.dataCategory} data — does this look right?`
+      return `We read your ${issue.dataCategory} data. Does this look right?`
     }
     return "We couldn't find your records. Help us understand the layout."
   })()
@@ -249,7 +249,7 @@ export const SchemaReviewModal = ({
   const sublabel =
     mode === 'manual'
       ? 'Pick the sheet and column each Sandy property lives on. Focus a property to highlight its column in your file.'
-      : 'Here is the raw data Sandy read from your file. Confirm if it looks right, or describe / map it manually.'
+      : 'Here is the raw data Sandy read from your file. Confirm if it looks right, or describe and map it manually.'
 
   return (
     <Modal
@@ -387,16 +387,10 @@ const ReviewPane = ({
   const missing = properties.filter((p) => !found.includes(p))
   return (
     <div className="flex flex-col gap-4 overflow-y-auto p-6">
-      <div>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
-          What we found
-        </h3>
-        <p className="mt-1 text-md text-text-primary">
-          Sandy recognised {found.length} of {properties.length} Sandy
-          properties in this sheet.
-        </p>
-      </div>
-      <PropertyList properties={found} picks={picks} tone="found" />
+      {/* Missing properties lead — they're the rows that need the user's
+          attention. The recognised list still appears below for
+          confirmation but starts collapsed-feeling so it doesn't drown out
+          the action items at the top. */}
       {missing.length > 0 ? (
         <>
           <div>
@@ -412,6 +406,16 @@ const ReviewPane = ({
           <PropertyList properties={missing} picks={picks} tone="missing" />
         </>
       ) : null}
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+          What we found
+        </h3>
+        <p className="mt-1 text-md text-text-primary">
+          Sandy recognised {found.length} of {properties.length} Sandy
+          properties in this sheet.
+        </p>
+      </div>
+      <PropertyList properties={found} picks={picks} tone="found" />
       {issue.recognisedSummary ? (
         <p className="rounded-md bg-bg-primary px-3 py-2 text-sm text-text-secondary">
           {issue.recognisedSummary}

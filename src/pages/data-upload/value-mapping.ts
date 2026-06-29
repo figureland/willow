@@ -79,6 +79,18 @@ export const UNIT_OPTIONS: CanonicalValue[] = [
   { value: 'ml-ha', label: 'mL/ha' },
 ]
 
+/** Fuel-type vocabulary — covers the common on-farm fuels Sandy tracks. */
+export const FUEL_TYPE_OPTIONS: CanonicalValue[] = [
+  { value: 'diesel-red', label: 'Diesel · Red (gas oil)' },
+  { value: 'diesel-white', label: 'Diesel · White (road)' },
+  { value: 'biodiesel', label: 'Biodiesel (B100)' },
+  { value: 'petrol', label: 'Petrol' },
+  { value: 'lpg', label: 'LPG' },
+  { value: 'kerosene', label: 'Kerosene' },
+  { value: 'electricity-grid', label: 'Electricity · Grid' },
+  { value: 'electricity-onsite', label: 'Electricity · On-site renewable' },
+]
+
 /** Tillage method vocabulary. */
 export const TILLAGE_METHOD_OPTIONS: CanonicalValue[] = [
   { value: 'conventional', label: 'Conventional tillage' },
@@ -300,6 +312,31 @@ export const MOCK_VALUE_MAPPING_FIXTURES: ValueMappingFixture[] = [
       { value: 'NT', occurrences: 36, suggestion: 'no-till' },
       { value: 'Strip', occurrences: 12, suggestion: 'strip-till' },
       { value: 'DD', occurrences: 8 },
+    ],
+  },
+  {
+    category: 'operational',
+    filename: 'farm-fuel-log-2024.xlsx',
+    sheetName: 'Fuel',
+    sourceColumn: 'fuelType',
+    targetLabel: 'Fuel type',
+    canonicalOverride: FUEL_TYPE_OPTIONS,
+    values: [
+      // High-confidence rows — common shorthand for red diesel.
+      { value: 'Red diesel', occurrences: 482, suggestion: 'diesel-red' },
+      { value: 'Gas oil', occurrences: 64, suggestion: 'diesel-red' },
+      // White / road diesel aliases.
+      { value: 'White diesel', occurrences: 98, suggestion: 'diesel-white' },
+      { value: 'DERV', occurrences: 22, suggestion: 'diesel-white' },
+      // Single-word entries that need a guess.
+      { value: 'Petrol', occurrences: 18, suggestion: 'petrol' },
+      { value: 'Kero', occurrences: 11, suggestion: 'kerosene' },
+      { value: 'LPG', occurrences: 9, suggestion: 'lpg' },
+      // Things Sandy can't confidently place — left blank to exercise the
+      // amber "needs attention" path in the mapping modal.
+      { value: 'B100', occurrences: 6 },
+      { value: 'Solar PV', occurrences: 4 },
+      { value: 'Mains', occurrences: 2 },
     ],
   },
 ]
