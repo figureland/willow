@@ -131,15 +131,15 @@ export const DescribeTray = ({
           mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0',
         )}
       >
-        <div className="flex items-center justify-between gap-2 px-5 pt-4">
-          <p className="text-md font-medium text-text-primary">{title}</p>
+        <div className="flex items-center justify-between gap-2 px-6 pt-5">
+          <p className="text-lg font-medium text-text-primary">{title}</p>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
             className="rounded-md p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <title>Close</title>
               <path
                 d="M6 6l12 12M18 6L6 18"
@@ -152,7 +152,7 @@ export const DescribeTray = ({
         </div>
 
         {phase === 'idle' ? (
-          <div className="flex flex-col gap-3 px-5 pb-4 pt-3">
+          <div className="flex flex-col gap-3 px-6 pb-5 pt-3">
             <textarea
               ref={textareaRef}
               value={text}
@@ -167,12 +167,12 @@ export const DescribeTray = ({
               rows={4}
               className={clsx(
                 'w-full resize-none rounded-lg border-2 border-border-tertiary bg-bg-primary px-3 py-2',
-                'text-sm text-text-primary placeholder:text-text-placeholder',
+                'text-md text-text-primary placeholder:text-text-placeholder',
                 'focus:border-border-primary focus:outline-none',
               )}
             />
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-secondary">
+              <p className="text-sm text-text-secondary">
                 {hint ?? 'Sandy will read your description and fill the gaps.'}
               </p>
               <Button
@@ -185,19 +185,19 @@ export const DescribeTray = ({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 px-5 pb-5 pt-3">
-            <div className="rounded-lg bg-bg-secondary px-3 py-2 text-sm text-text-primary">
+          <div className="flex flex-col gap-3 px-6 pb-6 pt-3">
+            <div className="rounded-lg bg-bg-secondary px-4 py-3 text-md text-text-primary">
               {text}
             </div>
             <div className="flex items-center gap-3 px-1 py-2">
               {phase === 'thinking' ? (
-                <Spinner size={16} className="text-text-secondary" />
+                <Spinner size={18} className="text-text-secondary" />
               ) : (
                 <span
                   aria-hidden
-                  className="grid size-4 place-items-center rounded-full bg-support-fg-green text-text-primary-inverse"
+                  className="grid size-5 place-items-center rounded-full bg-support-fg-green text-text-primary-inverse"
                 >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                     <title>Done</title>
                     <path
                       d="M5 12l4 4L19 7"
@@ -209,7 +209,7 @@ export const DescribeTray = ({
                   </svg>
                 </span>
               )}
-              <p className="text-sm text-text-primary transition-opacity duration-200">
+              <p className="text-md text-text-primary transition-opacity duration-200">
                 {phase === 'done'
                   ? 'Mapping drafted — review below.'
                   : ASSIST_STEPS[stepIndex]}

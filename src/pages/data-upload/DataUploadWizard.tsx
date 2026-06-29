@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
-import { CategoriseFilesModal } from './CategoriseFilesModal'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import { FixIssuesPage } from './fix/FixIssuesPage'
 import { IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
+import { RecogniseFilesModal } from './RecogniseFilesModal'
 import { ReviewStep } from './ReviewStep'
 import { generateSummary } from './summary'
 import { type UploadedFile, UploadStep } from './UploadStep'
@@ -157,10 +157,9 @@ export const DataUploadWizard = () => {
   const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
 
   // Lifted out of UploadStep so the wizard footer can gate Continue on at
-  // least one file having been added and finished analysing.
+  // least one file having been added.
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const canContinueUpload =
-    uploadedFiles.length > 0 && uploadedFiles.every((f) => f.status === 'ready')
+  const canContinueUpload = uploadedFiles.length > 0
 
   // Categorise-files modal — pops up after Continue on the Upload step and
   // gates the move into Review until the user confirms a data category for
@@ -272,7 +271,7 @@ export const DataUploadWizard = () => {
         onComplete={exit}
         finishLabel="Finish upload"
       />
-      <CategoriseFilesModal
+      <RecogniseFilesModal
         open={categoriseOpen}
         onOpenChange={setCategoriseOpen}
         files={uploadedFiles}

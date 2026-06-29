@@ -197,7 +197,13 @@ export const IssueCard = ({
           title={describe.title}
           placeholder={describe.placeholder}
           hint={describe.hint}
-          onApply={() => onCommit(describe.apply(state))}
+          onApply={() => {
+            // Stash Sandy's draft as the working state, then open the
+            // resolver modal so the user can review + confirm "Does this
+            // look right?" instead of silently accepting the AI result.
+            onCommit(describe.apply(state))
+            setModalOpen(true)
+          }}
           portal
         />
       ) : null}

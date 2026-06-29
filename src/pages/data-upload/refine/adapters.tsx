@@ -10,7 +10,11 @@ import {
   type SchemaTransformationIssue,
   type ValueMappingIssue,
 } from '../issues'
-import { EXAMPLE_WORKBOOK } from '../schema-transformation'
+import {
+  EXAMPLE_WORKBOOK,
+  type SchemaRuleProgram,
+} from '../schema-transformation'
+import type { ValueMappingDecisions } from '../value-mapping'
 import type { IssuePanel } from './IssueModal'
 import { IssueToken } from './IssueToken'
 import type { CellHighlight, IssueAdapter } from './issue-adapter'
@@ -408,15 +412,23 @@ export const schemaAdapter: IssueAdapter = {
     if (!program?.rules || Object.keys(program.rules).length === 0) return null
     return 'Mapping saved'
   },
-  optionsPanel: (raw, commit) => {
+  optionsPanel: (raw, commit, currentState) => {
     const issue = raw as SchemaTransformationIssue
+    // Seed the editor from the currently-committed state when present —
+    // this is what lets the "Describe → review in modal" flow show the
+    // AI-drafted mapping for confirmation instead of starting blank.
+    const initialProgram =
+      currentState?.resolution.kind === 'rule-program'
+        ? (currentState.resolution.program as SchemaRuleProgram)
+        : undefined
     return {
       id: 'schema-resolve',
-      title: 'Help us understand the layout',
+      title: 'Does this look right?',
       fullBleed: true,
       body: (
         <SchemaMappingPanel
           issue={issue}
+          initialProgram={initialProgram}
           onCommit={(next) => commit(next)}
           // Cancel is best-effort here — the IssueModal owns close. We
           // can't reach into nav from this adapter callback so we just
@@ -542,15 +554,22 @@ export const valueMappingAdapter: IssueAdapter = {
   },
   // No yes/no fork — Resolve opens straight into the mapping UI.
   skipChooseAction: true,
-  optionsPanel: (raw, commit) => {
+  optionsPanel: (raw, commit, currentState) => {
     const issue = raw as ValueMappingIssue
+    // Seed the editor from the committed state when present — gives the
+    // Describe → review flow a populated table to confirm.
+    const initialDecisions =
+      currentState?.resolution.kind === 'value-mapping'
+        ? (currentState.resolution.decisions as ValueMappingDecisions)
+        : undefined
     return {
       id: 'value-mapping-resolve',
-      title: 'Map values',
+      title: 'Does this look right?',
       fullBleed: true,
       body: (
         <ValueMappingPanel
           issue={issue}
+          initialDecisions={initialDecisions}
           onCommit={(next) => commit(next)}
           onCancel={() => {}}
         />

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
-import { type DragEvent, useEffect, useRef, useState } from 'react'
+import { type DragEvent, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Button, IconPlus, Spinner } from '../../components/ui'
+import { Button, IconClose } from '../../components/ui'
 
 /* -------------------------------------------------------------------------- */
 /* Model                                                                       */
@@ -22,19 +22,7 @@ export type UploadedFile = {
   name: string
   size: number
   kind: AcceptedFileKind
-  /**
-   * Lifecycle:
-   *   - `analysing` — file just landed, mock backend "analyse" running
-   *   - `ready`     — analysis finished, file ready for the next step
-   */
-  status: 'analysing' | 'ready'
 }
-
-/** Base analyse time before per-file jitter is layered on top. */
-const ANALYSE_BASE_MS = 900
-/** Max additional random delay per file — stagger so ready states don't all
- *  flip at the same instant, which makes the UI feel mechanical. */
-const ANALYSE_JITTER_MS = 2400
 
 const extOf = (name: string) => {
   const i = name.lastIndexOf('.')
@@ -65,29 +53,6 @@ const inferKind = (name: string): FileKind => {
     default:
       return 'invalid'
   }
-}
-
-/** Human-friendly label rendered in the file list row. */
-const labelForKind = (kind: FileKind): string => {
-  switch (kind) {
-    case 'csv':
-      return 'Spreadsheet'
-    case 'excel':
-      return 'Excel spreadsheet'
-    case 'excel-template':
-      return 'Sandy import template'
-    case 'pdf':
-      return 'Document'
-    case 'invalid':
-      return 'Invalid file type'
-  }
-}
-
-/** 1.2 MB / 740 KB / 312 B — short and bold for the file list. */
-const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const newId = () =>
@@ -146,19 +111,6 @@ const IconDocument = ({
       d="M14 3v4h4"
       stroke="currentColor"
       strokeWidth={strokeWidth}
-      strokeLinejoin="round"
-    />
-  </SignageIcon>
-)
-
-/** Thick rubbish-bin glyph used for row deletion. */
-const IconTrash = ({ size = 20 }: { size?: number }) => (
-  <SignageIcon size={size}>
-    <path
-      d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
       strokeLinejoin="round"
     />
   </SignageIcon>
@@ -235,37 +187,17 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragging, setDragging] = useState(false)
   // Bubble up file changes so the wizard footer can disable Continue until
-  // at least one file has been added and finished analysing. The callback
-  // is stable from the wizard; we only need to react to local file state.
+  // at least one file has been added.
   // biome-ignore lint/correctness/useExhaustiveDependencies: stable callback
   useEffect(() => {
     onFilesChange?.(files)
   }, [files])
-  // Track timers so unmount / delete clears them and we don't flip a removed
-  // file's status after the fact.
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
-  )
-
-  const startAnalysis = (id: string) => {
-    const delay = ANALYSE_BASE_MS + Math.random() * ANALYSE_JITTER_MS
-    const timer = setTimeout(() => {
-      setFiles((curr) =>
-        curr.map((f) => (f.id === id ? { ...f, status: 'ready' } : f)),
-      )
-      timersRef.current.delete(id)
-    }, delay)
-    timersRef.current.set(id, timer)
-  }
 
   const acceptFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming)
     const valid: UploadedFile[] = []
     for (const file of arr) {
       const kind = inferKind(file.name)
-      // Invalid files never enter the list — surface them as a toast and
-      // drop on the floor. Keeping them out of state means there's nothing
-      // to delete and no red row to apologise for in the UI.
       if (kind === 'invalid') {
         toast.error(`${file.name} isn't a supported file type`, {
           description: 'Accepted formats: CSV, Excel, PDF.',
@@ -277,20 +209,13 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
         name: file.name,
         size: file.size,
         kind,
-        status: 'analysing',
       })
     }
     if (valid.length === 0) return
     setFiles((curr) => [...valid, ...curr])
-    for (const f of valid) startAnalysis(f.id)
   }
 
   const deleteFile = (id: string) => {
-    const timer = timersRef.current.get(id)
-    if (timer) {
-      clearTimeout(timer)
-      timersRef.current.delete(id)
-    }
     setFiles((curr) => curr.filter((f) => f.id !== id))
   }
 
@@ -319,201 +244,108 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: page-level drop target
     <div
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       className={clsx(
-        'grid flex-1 min-h-0 gap-6',
-        // Animated track: when there are files, the right column expands from
-        // 0fr → 1fr and the drop zone column flexes from 1fr → 2fr. CSS
-        // transitions on grid-template-columns are widely supported and let
-        // us avoid measuring widths in JS.
-        'transition-[grid-template-columns] duration-300 ease-out',
-        hasFiles ? 'grid-cols-[3fr_2fr]' : 'grid-cols-[1fr_0fr]',
+        'relative mx-auto flex w-full max-w-[720px] flex-1 min-h-0 flex-col',
+        'transition-colors',
+        isDragging && 'rounded-xl bg-support-bg-green/50',
       )}
     >
-      <div className="flex min-w-0 flex-col">
-        <DropZone
-          isDragging={isDragging}
-          onDragEnter={onDragEnter}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-          onBrowseClick={() => acceptFiles(simulateRandomFiles())}
-          farmCount={3}
-          fieldCount={32}
-        />
-      </div>
-
-      {/* File-list column. Always mounted so the grid track can animate; the
-          content fades + slides in once any file lands so it doesn't pop. */}
-      <div
-        className={clsx(
-          'min-w-0 min-h-0 h-full overflow-hidden transition-[opacity,transform] duration-300 ease-out',
-          hasFiles
-            ? 'opacity-100 translate-x-0'
-            : 'opacity-0 translate-x-2 pointer-events-none',
-        )}
-        aria-hidden={!hasFiles}
-      >
-        <FileList files={files} onDelete={deleteFile} />
-      </div>
+      {hasFiles ? (
+        <div className="flex flex-col gap-10 py-10">
+          <CompactHeader
+            onBrowseClick={() => acceptFiles(simulateRandomFiles())}
+          />
+          <FileList files={files} onDelete={deleteFile} />
+        </div>
+      ) : (
+        <EmptyHero onBrowseClick={() => acceptFiles(simulateRandomFiles())} />
+      )}
     </div>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/* Template panel                                                              */
+/* Hero (no files yet) — centred, large title, secondary CTA with file+ icon  */
 /* -------------------------------------------------------------------------- */
 
-/** Minimal spreadsheet pictogram: outlined grid with one cell shaded. */
-const IconSpreadsheet = ({ size = 24 }: { size?: number }) => (
-  <SignageIcon size={size}>
-    <rect
-      x="3.5"
-      y="4.5"
-      width="17"
-      height="15"
-      rx="1.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-    />
+const IconFilePlus = ({ size = 20 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <title>Add file</title>
     <path
-      d="M3.5 9.5h17M3.5 14.5h17M9 4.5v15M15 4.5v15"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    />
-    <rect
-      x="9"
-      y="9.5"
-      width="6"
-      height="5"
-      fill="currentColor"
-      opacity="0.18"
-    />
-  </SignageIcon>
-)
-
-const IconDownload = ({ size = 20 }: { size?: number }) => (
-  <SignageIcon size={size}>
-    <path
-      d="M12 4V15M12 15L7.5 10.5M12 15L16.5 10.5"
+      d="M6 3h7l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
       stroke="currentColor"
       strokeWidth="2"
-      strokeLinecap="round"
       strokeLinejoin="round"
     />
     <path
-      d="M4 19H20"
+      d="M13 3v5h5"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11.5 12.5v5M9 15h5"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
     />
-  </SignageIcon>
+  </svg>
 )
 
-/* -------------------------------------------------------------------------- */
-/* Drop zone                                                                   */
-/* -------------------------------------------------------------------------- */
-
-type DropZoneProps = {
-  isDragging: boolean
-  onDragEnter: (e: DragEvent<HTMLDivElement>) => void
-  onDragOver: (e: DragEvent<HTMLDivElement>) => void
-  onDragLeave: (e: DragEvent<HTMLDivElement>) => void
-  onDrop: (e: DragEvent<HTMLDivElement>) => void
-  onBrowseClick: () => void
-  farmCount: number
-  fieldCount: number
-}
-
-const DropZone = ({
-  isDragging,
-  onDragEnter,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onBrowseClick,
-  farmCount,
-  fieldCount,
-}: DropZoneProps) => (
-  // biome-ignore lint/a11y/noStaticElementInteractions: a div is the only valid drop target here — using <button> would conflict with the nested "Choose files" button below
-  <div
-    onDragEnter={onDragEnter}
-    onDragOver={onDragOver}
-    onDragLeave={onDragLeave}
-    onDrop={onDrop}
-    className={clsx(
-      'relative flex flex-1 min-h-0 flex-col rounded-xl border-2 transition-colors',
-      isDragging
-        ? 'border-support-fg-green bg-support-bg-green text-text-brand-dark'
-        : 'border-border-tertiary bg-bg-primary text-text-primary',
-    )}
-  >
-    {/* Drop target — fills the card. */}
-    <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="flex flex-col items-center gap-1">
-        <p className="text-2xl font-semibold leading-9">
-          Drop files here to get started
-        </p>
-        <p className="text-md text-text-secondary">
-          CSV · Excel · PDF — drag from your desktop, or
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={onBrowseClick}
-        className={clsx(
-          'inline-flex items-center gap-2 rounded-md',
-          'bg-button-primary text-text-primary-inverse',
-          'px-5 py-3 text-md font-semibold tracking-[0.15px]',
-          'hover:bg-button-primary-hover active:bg-button-primary-active',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40 focus-visible:ring-offset-2',
-        )}
-      >
-        <IconPlus size={20} />
-        <span className="pt-[2px]">Choose files</span>
-      </button>
-    </div>
-
-    {/* Template footer — sits inside the same card, separated by a hairline. */}
-    <div className="flex items-center justify-between gap-4 border-t-2 border-border-tertiary px-6 py-4">
-      <div className="flex min-w-0 items-center gap-4">
-        <span
-          aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-md bg-support-bg-green text-text-primary"
-        >
-          <IconSpreadsheet size={24} />
-        </span>
-        <div className="flex min-w-0 flex-col">
-          <p className="text-lg font-semibold text-text-primary">
-            Need a template?
-          </p>
-          <p className="text-md text-text-secondary truncate">
-            A custom Excel template for your {farmCount} farms and {fieldCount}{' '}
-            fields.
-          </p>
-        </div>
-      </div>
+const EmptyHero = ({ onBrowseClick }: { onBrowseClick: () => void }) => (
+  <div className="flex flex-1 flex-col items-center justify-center gap-12 py-16 text-center">
+    <h1 className="max-w-[560px] text-5xl font-medium leading-[1.05] tracking-tight text-text-primary">
+      Drop files to get started
+    </h1>
+    <div className="flex flex-col items-center gap-3">
       <Button
         variant="secondary"
-        leadingIcon={<IconDownload size={20} />}
-        onClick={() => {
-          // Mock download — the prototype has no real template endpoint.
-          const a = document.createElement('a')
-          a.href = '/api/template.xlsx'
-          a.download = ''
-          a.click()
-        }}
+        onClick={onBrowseClick}
+        leadingIcon={<IconFilePlus size={20} />}
       >
-        Download
+        Add files
       </Button>
+      <p className="text-sm text-text-secondary">
+        We can import Excel, CSV Spreadsheet, PDF.
+      </p>
     </div>
   </div>
 )
 
 /* -------------------------------------------------------------------------- */
-/* File list                                                                   */
+/* Compact header (files present) — title + Add more, then list below          */
+/* -------------------------------------------------------------------------- */
+
+const CompactHeader = ({ onBrowseClick }: { onBrowseClick: () => void }) => (
+  <div className="flex items-center justify-between gap-4">
+    <h1 className="text-3xl font-medium leading-tight text-text-primary">
+      Your files
+    </h1>
+    <Button
+      variant="secondary"
+      onClick={onBrowseClick}
+      leadingIcon={<IconFilePlus size={18} />}
+    >
+      Add more
+    </Button>
+  </div>
+)
+
+/* -------------------------------------------------------------------------- */
+/* File list — light-grey boxes, one per uploaded file                         */
 /* -------------------------------------------------------------------------- */
 
 type FileListProps = {
@@ -521,18 +353,13 @@ type FileListProps = {
   onDelete: (id: string) => void
 }
 
-const FileList = ({ files, onDelete }: FileListProps) => {
-  if (files.length === 0) return null
-  return (
-    <div className="flex h-full flex-col overflow-y-auto rounded-xl border-2 border-border-tertiary bg-bg-primary p-2">
-      <ul className="flex flex-col gap-1">
-        {files.map((file) => (
-          <FileRow key={file.id} file={file} onDelete={onDelete} />
-        ))}
-      </ul>
-    </div>
-  )
-}
+const FileList = ({ files, onDelete }: FileListProps) => (
+  <ul className="flex flex-col gap-2">
+    {files.map((file) => (
+      <FileRow key={file.id} file={file} onDelete={onDelete} />
+    ))}
+  </ul>
+)
 
 type FileRowProps = {
   file: UploadedFile
@@ -540,55 +367,27 @@ type FileRowProps = {
 }
 
 const FileRow = ({ file, onDelete }: FileRowProps) => (
-  <li className="flex items-center gap-4 px-6 py-4">
-    <span className="grid size-12 shrink-0 place-items-center rounded-md bg-bg-tertiary text-icon-primary">
-      <IconDocument />
+  <li className="flex items-center gap-4 rounded-lg bg-bg-secondary px-4 py-3">
+    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-bg-tertiary text-icon-primary">
+      <IconDocument size={20} />
     </span>
-    <div className="flex flex-1 flex-col min-w-0 gap-1">
-      <p className="truncate text-md font-semibold text-text-primary">
+    <div className="flex flex-1 min-w-0">
+      <p className="truncate text-md font-medium text-text-primary">
         {file.name}
       </p>
-      <p className="text-sm text-text-secondary">
-        <span className="font-semibold">{labelForKind(file.kind)}</span>
-        <span aria-hidden="true"> · </span>
-        <span className="tabular-nums">{formatSize(file.size)}</span>
-      </p>
     </div>
-
-    {file.status === 'analysing' ? (
-      <span
-        className="flex items-center gap-2 text-sm font-semibold text-text-secondary"
-        aria-live="polite"
-      >
-        <Spinner size={16} />
-        Analysing
-      </span>
-    ) : (
-      <span className="flex items-center gap-2 text-sm font-semibold text-text-brand-dark">
-        <ReadyDot />
-        Ready
-      </span>
-    )}
-
     <button
       type="button"
       onClick={() => onDelete(file.id)}
       aria-label={`Remove ${file.name}`}
       className={clsx(
-        'ml-2 grid size-9 shrink-0 place-items-center rounded-md',
+        'grid size-8 shrink-0 place-items-center rounded-md',
         'text-icon-secondary transition-colors',
-        'hover:bg-bg-secondary hover:text-text-danger',
+        'hover:bg-bg-tertiary hover:text-text-primary',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
       )}
     >
-      <IconTrash />
+      <IconClose size={16} />
     </button>
   </li>
-)
-
-const ReadyDot = () => (
-  <span
-    aria-hidden="true"
-    className="inline-block size-2.5 rounded-pill bg-bg-brand-primary"
-  />
 )

@@ -74,7 +74,17 @@ export type IssueAdapter = {
    * issue + a commit callback that will close the modal once a deeper page
    * confirms the user's choice.
    */
-  optionsPanel: (issue: Issue, commit: (next: IssueState) => void) => IssuePanel
+  /**
+   * Build the resolver panel. `currentState` is the latest committed (or
+   * pending draft) IssueState — adapters that support a draft preview should
+   * seed their internal editor from it so the user sees the AI-drafted /
+   * previously-saved result instead of starting from scratch.
+   */
+  optionsPanel: (
+    issue: Issue,
+    commit: (next: IssueState) => void,
+    currentState?: IssueState,
+  ) => IssuePanel
   /**
    * When true, the modal skips the default "Choose an action" root and
    * mounts `optionsPanel` directly. Use for adapters where there's no

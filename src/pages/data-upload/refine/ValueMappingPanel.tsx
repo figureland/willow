@@ -111,17 +111,22 @@ const ValueRow = ({
 
 export type ValueMappingPanelProps = {
   issue: ValueMappingIssue
+  /** Optional seed — overrides the suggestion-based default. Used by the
+   *  Describe → review flow so the user sees Sandy's drafted mappings. */
+  initialDecisions?: ValueMappingDecisions
   onCommit: (next: IssueState) => void
   onCancel: () => void
 }
 
 export const ValueMappingPanel = ({
   issue,
+  initialDecisions,
   onCommit,
   onCancel,
 }: ValueMappingPanelProps) => {
   // Seed decisions from Sandy's suggestions; left blank where none provided.
   const [decisions, setDecisions] = useState<ValueMappingDecisions>(() => {
+    if (initialDecisions) return initialDecisions
     const seed: ValueMappingDecisions = {}
     for (const sv of issue.sourceValues) {
       seed[sv.value] = sv.suggestion

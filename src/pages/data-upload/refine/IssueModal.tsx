@@ -124,10 +124,14 @@ export const IssueModal = ({
       return renderRoot({ issue, state, adapter, nav, onCommit })
     }
     if (adapter.skipChooseAction) {
-      return adapter.optionsPanel(issue, (next) => {
-        onCommit(next)
-        nav.close()
-      })
+      return adapter.optionsPanel(
+        issue,
+        (next) => {
+          onCommit(next)
+          nav.close()
+        },
+        state,
+      )
     }
     return defaultRootPanel({ issue, state, adapter, nav, onCommit })
   }
@@ -265,10 +269,14 @@ export const IssueModal = ({
             variant="secondary"
             onClick={() => {
               params.nav.push(
-                params.adapter.optionsPanel(params.issue, (next) => {
-                  params.onCommit(next)
-                  params.nav.close()
-                }),
+                params.adapter.optionsPanel(
+                  params.issue,
+                  (next) => {
+                    params.onCommit(next)
+                    params.nav.close()
+                  },
+                  params.state,
+                ),
               )
             }}
           >

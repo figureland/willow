@@ -172,6 +172,38 @@
   --color-support-border-amber: #d97706;
   --color-support-border-green: #00b82b;
   --color-support-border-red: #dc2626;
+
+  /* ----------------------------- Animations --------------------------- */
+  /* File-thumbnail status animations. Tailwind v4 surfaces these as
+     `animate-thumb-outline` and `animate-thumb-tick` utilities. The
+     outline animation works on an SVG <rect> using stroke-dashoffset so
+     the dash visibly travels around the document border. */
+  --animate-thumb-outline: thumb-outline 1.6s linear infinite;
+  --animate-thumb-tick: thumb-tick 320ms cubic-bezier(0.34, 1.56, 0.64, 1)
+    forwards;
+
+  @keyframes thumb-outline {
+    0% {
+      stroke-dashoffset: 0;
+    }
+    100% {
+      stroke-dashoffset: -80;
+    }
+  }
+  @keyframes thumb-tick {
+    0% {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {

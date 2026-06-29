@@ -78,49 +78,53 @@ export const IntroStep = ({
   onResumeDraft,
   onViewPastUploads,
 }: IntroStepProps) => (
-  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-    {/* Left: title + minimal description + start CTA */}
-    <div className="flex flex-col gap-6 max-w-[480px]">
-      <div className="flex flex-col gap-4">
-        <h2 className="text-3xl font-semibold text-text-primary">
-          Upload your farm data
-        </h2>
-        <p className="text-md text-text-secondary">
-          Drop in your spreadsheets, PDFs or exports and Sandy will read them,
-          line up what it found with your farms, and flag anything that needs a
-          second look. You can pause and come back to any step.
-        </p>
-      </div>
-      <div>
-        <Button variant="primary" onClick={onStartNew}>
-          Start a new upload
-        </Button>
-      </div>
-    </div>
+  <div className="mx-auto flex w-full max-w-[760px] flex-col gap-16 px-4 pb-12 pt-16">
+    {/* Hero — large title, short subtitle, single primary CTA */}
+    <section className="flex flex-col items-start gap-6">
+      <h1 className="text-5xl font-medium leading-[1.05] tracking-tight text-text-primary">
+        Upload your farm data
+      </h1>
+      <p className="max-w-[560px] text-lg text-text-secondary">
+        Drop in spreadsheets, PDFs or exports. Sandy reads them, lines them up
+        with your farms, and flags anything that needs a second look.
+      </p>
+      <Button variant="primary" onClick={onStartNew}>
+        Start a new upload
+      </Button>
+    </section>
 
-    {/* Right: drafts list */}
-    <div className="flex flex-col gap-3">
-      <h3 className="text-lg font-semibold text-text-primary">
-        Pick up where you left off
-      </h3>
+    {/* Drafts — quiet secondary section */}
+    <section className="flex flex-col gap-3 border-t-2 border-border-tertiary pt-8">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="text-md font-semibold uppercase tracking-wide text-text-secondary">
+          Pick up where you left off
+        </h2>
+        <button
+          type="button"
+          onClick={onViewPastUploads}
+          className="rounded-sm text-sm font-semibold text-text-brand-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+        >
+          View all past uploads →
+        </button>
+      </div>
       {DRAFTS.length === 0 ? (
         <p className="text-md text-text-secondary">
           No drafts yet — your in-progress uploads will appear here.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col">
           {DRAFTS.map((draft) => (
-            <li key={draft.id}>
-              {/* Whole card is the click target — the "Resume" pill is a
-                  decorative affordance only (a real <button> inside this
-                  one would be invalid HTML). */}
+            <li
+              key={draft.id}
+              className="border-b border-border-tertiary last:border-0"
+            >
               <button
                 type="button"
                 onClick={() => onResumeDraft(draft.resumeAt)}
-                className="group flex w-full items-center gap-6 rounded-xl border-2 border-border-tertiary bg-bg-primary px-6 py-5 text-left transition-colors hover:border-border-secondary-hover hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
+                className="group flex w-full items-center justify-between gap-6 px-1 py-4 text-left transition-colors hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40"
               >
-                <div className="flex flex-1 min-w-0 flex-col gap-2">
-                  <p className="text-md font-semibold text-text-primary truncate">
+                <div className="flex flex-1 min-w-0 flex-col gap-1">
+                  <p className="truncate text-lg font-medium text-text-primary">
                     {draft.title}
                   </p>
                   <p className="text-sm text-text-secondary">
@@ -132,25 +136,16 @@ export const IntroStep = ({
                   </p>
                 </div>
                 <span
-                  className="inline-flex items-center gap-2 rounded-md border-2 border-border-secondary bg-bg-primary px-3 py-2 text-md font-semibold text-text-primary tracking-[0.15px] transition-colors group-hover:border-button-primary group-hover:bg-button-primary group-hover:text-text-primary-inverse"
                   aria-hidden="true"
+                  className="text-md font-semibold text-text-secondary transition-colors group-hover:text-text-primary"
                 >
-                  Resume
+                  Resume →
                 </span>
               </button>
             </li>
           ))}
         </ul>
       )}
-      <div className="flex justify-start pt-1">
-        <button
-          type="button"
-          onClick={onViewPastUploads}
-          className="text-sm font-semibold text-text-brand-dark rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40 hover:underline"
-        >
-          View all past uploads →
-        </button>
-      </div>
-    </div>
+    </section>
   </div>
 )
