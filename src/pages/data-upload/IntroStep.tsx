@@ -6,7 +6,7 @@ import { Button } from '../../components/ui'
 
 /** Step the draft will resume on — must match a wizard step id. */
 export type DraftStepId =
-  | 'upload'
+  | 'add-files'
   | 'refine'
   | 'fix'
   | 'completeness'

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button, SegmentedControl } from '../../../components/ui'
-import { CroppingTableView } from './CroppingTableView'
+import { DataTableView } from './DataTableView'
 import { FieldView } from './FieldView'
 import { IssuesView } from './IssuesView'
 
@@ -160,18 +160,18 @@ const FixIntro = ({ onContinue }: { onContinue: () => void }) => (
 /* Page — the real Fix step body, shown once the user dismisses the intro     */
 /* -------------------------------------------------------------------------- */
 
-type FixView = 'issue' | 'cropping' | 'field'
+type FixView = 'issue' | 'data' | 'field'
 
 const VIEW_OPTIONS = [
   { value: 'issue' as const, label: 'Issue Type' },
-  { value: 'cropping' as const, label: 'Cropping Table' },
+  { value: 'data' as const, label: 'Data Table' },
   { value: 'field' as const, label: 'Field' },
 ]
 
 const DEFAULT_VIEW: FixView = 'issue'
 
 const isFixView = (v: string | null): v is FixView =>
-  v === 'issue' || v === 'cropping' || v === 'field'
+  v === 'issue' || v === 'data' || v === 'field'
 
 type SeverityFilter = 'all' | 'blocking' | 'warning'
 
@@ -237,9 +237,9 @@ const FixPage = () => {
             <IssuesView />
           </div>
         ) : null}
-        {view === 'cropping' ? (
+        {view === 'data' ? (
           <div className="flex-1 overflow-auto">
-            <CroppingTableView />
+            <DataTableView />
           </div>
         ) : null}
         {view === 'field' ? <FieldView /> : null}

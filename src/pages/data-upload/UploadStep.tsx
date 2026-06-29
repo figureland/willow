@@ -1,7 +1,16 @@
 import clsx from 'clsx'
-import { type DragEvent, useEffect, useState } from 'react'
+import { type DragEvent, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Button, IconClose } from '../../components/ui'
+import { Button } from '../../components/ui'
+import { FileRecognitionRow } from './FileRecognitionRow'
+import { FileReviewModal } from './FileReviewModal'
+import {
+  isFileIssue,
+  type RecognitionResult,
+  type ReviewState,
+  recogniseFile,
+  seedReview,
+} from './recognition'
 
 /* -------------------------------------------------------------------------- */
 /* Model                                                                       */
@@ -59,62 +68,6 @@ const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-/* -------------------------------------------------------------------------- */
-/* Signage-style icons                                                         */
-/* -------------------------------------------------------------------------- */
-
-const SignageIcon = ({
-  size = 96,
-  className,
-  children,
-  title,
-}: {
-  size?: number
-  className?: string
-  children: React.ReactNode
-  title?: string
-}) => (
-  // biome-ignore lint/a11y/noSvgWithoutTitle: decorative — parent button / heading owns the label
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden={title ? undefined : true}
-    role={title ? 'img' : undefined}
-    focusable="false"
-    className={className}
-  >
-    {title ? <title>{title}</title> : null}
-    {children}
-  </svg>
-)
-
-/** Generic chunky document. Drives the upload mark and every file-row glyph. */
-const IconDocument = ({
-  size = 32,
-  strokeWidth = 2,
-}: {
-  size?: number
-  strokeWidth?: number
-}) => (
-  <SignageIcon size={size}>
-    <path
-      d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinejoin="round"
-    />
-    <path
-      d="M14 3v4h4"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinejoin="round"
-    />
-  </SignageIcon>
-)
 
 /* -------------------------------------------------------------------------- */
 /* Random-file simulator                                                       */
@@ -178,20 +131,79 @@ const simulateRandomFiles = (): File[] => {
 /* Step component                                                              */
 /* -------------------------------------------------------------------------- */
 
-export type UploadStepProps = {
-  /** Fired whenever the file list changes — lets the wizard gate Continue. */
-  onFilesChange?: (files: UploadedFile[]) => void
+export type UploadSummary = {
+  files: UploadedFile[]
+  /** Files that finished scanning AND need user attention. */
+  issueCount: number
+  /** True once at least one file has finished scanning. */
+  anyProcessed: boolean
+  /** True when every file has finished scanning. */
+  allProcessed: boolean
+  /** True while a re-scan is running after the user changed a setting. */
+  reprocessing: boolean
 }
 
-export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
+export type UploadStepProps = {
+  /** Fired whenever the file list / scan state changes. */
+  onSummaryChange?: (summary: UploadSummary) => void
+  /**
+   * Counter the wizard increments when the user hits Continue while there
+   * are unresolved issues — we open the review modal at the first issue.
+   */
+  reviewRequestToken?: number
+}
+
+/** Per-file simulated processing window. Stagger so the cards don't all
+ *  flip to recognised at the same instant. */
+const PROCESS_BASE_MS = 900
+const PROCESS_JITTER_MS = 1600
+
+export const UploadStep = ({
+  onSummaryChange,
+  reviewRequestToken,
+}: UploadStepProps = {}) => {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragging, setDragging] = useState(false)
-  // Bubble up file changes so the wizard footer can disable Continue until
-  // at least one file has been added.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: stable callback
-  useEffect(() => {
-    onFilesChange?.(files)
-  }, [files])
+  // Per-file recognition output — keyed by file id. Built once per file the
+  // moment it lands so the result is stable across re-renders.
+  const [recognitions, setRecognitions] = useState<
+    Record<string, RecognitionResult>
+  >({})
+  // Which files have finished the simulated scan.
+  const [processed, setProcessed] = useState<Record<string, boolean>>({})
+  // Editable per-file review (category, reviewed flag).
+  const [reviews, setReviews] = useState<Record<string, ReviewState>>({})
+  // Open the review modal — either scoped to a single file (card click) or
+  // to all files Sandy flagged (wizard "Review N issues" Continue).
+  const [reviewScope, setReviewScope] = useState<
+    { kind: 'single'; fileId: string } | { kind: 'issues' } | null
+  >(null)
+  // Snapshot of reviews when the modal opens — lets us decide whether to
+  // re-scan on close.
+  const reviewSnapshotRef = useRef<Record<string, ReviewState> | null>(null)
+  // Set to true while a simulated re-scan is running.
+  const [reprocessing, setReprocessing] = useState(false)
+
+  // Track timers so unmount / delete / re-scan clears them.
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  )
+
+  const startProcessing = (file: UploadedFile, indexAtAdd: number) => {
+    const recognition = recogniseFile(file, indexAtAdd)
+    setRecognitions((prev) => ({ ...prev, [file.id]: recognition }))
+    setReviews((prev) =>
+      prev[file.id]
+        ? prev // keep manual edits across re-scans
+        : { ...prev, [file.id]: seedReview(recognition) },
+    )
+    const delay = PROCESS_BASE_MS + Math.random() * PROCESS_JITTER_MS
+    const timer = setTimeout(() => {
+      setProcessed((prev) => ({ ...prev, [file.id]: true }))
+      timersRef.current.delete(file.id)
+    }, delay)
+    timersRef.current.set(file.id, timer)
+  }
 
   const acceptFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming)
@@ -212,14 +224,117 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
       })
     }
     if (valid.length === 0) return
-    setFiles((curr) => [...valid, ...curr])
+    setFiles((curr) => {
+      const next = [...valid, ...curr]
+      // Seed processing using the new file's *position in the next list* —
+      // keeps the recogniser's odd/even cycling deterministic for the demo.
+      valid.forEach((f, i) => {
+        startProcessing(f, i)
+      })
+      return next
+    })
   }
 
   const deleteFile = (id: string) => {
+    const timer = timersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      timersRef.current.delete(id)
+    }
     setFiles((curr) => curr.filter((f) => f.id !== id))
+    setRecognitions((prev) => {
+      const { [id]: _, ...rest } = prev
+      return rest
+    })
+    setProcessed((prev) => {
+      const { [id]: _, ...rest } = prev
+      return rest
+    })
+    setReviews((prev) => {
+      const { [id]: _, ...rest } = prev
+      return rest
+    })
+  }
+
+  /**
+   * Re-scan only the files whose review settings actually changed. Each
+   * affected file flips back to loading, then resolves as `done` (the user's
+   * edits are treated as "we now know how to read it"). Reviews survive.
+   */
+  const reprocessFiles = (ids: string[]) => {
+    if (ids.length === 0) return
+    // Drop the affected files' processed-flags + clear their timers FIRST,
+    // so the "all processed" gate can't briefly evaluate true between
+    // setReprocessing and setProcessed and immediately clear reprocessing.
+    setProcessed((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        const timer = timersRef.current.get(id)
+        if (timer) {
+          clearTimeout(timer)
+          timersRef.current.delete(id)
+        }
+        delete next[id]
+      }
+      return next
+    })
+    setReprocessing(true)
+    // Promote each re-scanned file to a clean recognition so it leaves the
+    // error / warning state once the user's edits land.
+    setRecognitions((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        const current = next[id]
+        if (!current) continue
+        next[id] = {
+          ...current,
+          kind: 'custom-template',
+          errorMessage: undefined,
+          errorVariant: undefined,
+        }
+      }
+      return next
+    })
+    for (const id of ids) {
+      const delay = PROCESS_BASE_MS + Math.random() * PROCESS_JITTER_MS
+      const timer = setTimeout(() => {
+        setProcessed((prev) => ({ ...prev, [id]: true }))
+        timersRef.current.delete(id)
+      }, delay)
+      timersRef.current.set(id, timer)
+    }
   }
 
   const hasFiles = files.length > 0
+  const allProcessed = hasFiles && files.every((f) => processed[f.id])
+  const issueCount = files.filter((f) => isFileIssue(recognitions[f.id])).length
+
+  // Bubble up summary so the wizard can label / gate Continue.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: stable callback
+  useEffect(() => {
+    onSummaryChange?.({
+      files,
+      issueCount,
+      anyProcessed: files.some((f) => processed[f.id]),
+      allProcessed,
+      reprocessing,
+    })
+  }, [files, issueCount, processed, allProcessed, reprocessing])
+
+  // Once every file has finished the post-edit re-scan, drop the
+  // "reprocessing" flag so the wizard unblocks Continue.
+  useEffect(() => {
+    if (reprocessing && allProcessed) setReprocessing(false)
+  }, [reprocessing, allProcessed])
+
+  // When the wizard wants us to open the review modal (because Continue
+  // was clicked while issues remain), filter the carousel to those issues.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fire only when the token changes
+  useEffect(() => {
+    if (reviewRequestToken === undefined || reviewRequestToken === 0) return
+    setReviewScope({ kind: 'issues' })
+    reviewSnapshotRef.current = reviews
+  }, [reviewRequestToken])
 
   const onDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -243,6 +358,18 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
     if (e.dataTransfer.files.length > 0) acceptFiles(e.dataTransfer.files)
   }
 
+  const modalOpen = reviewScope !== null
+  const handleReviewClose = () => {
+    setReviewScope(null)
+    // Re-scan only the files whose review actually changed.
+    const before = reviewSnapshotRef.current
+    reviewSnapshotRef.current = null
+    if (before) {
+      const changed = changedFileIds(before, reviews)
+      if (changed.length > 0) reprocessFiles(changed)
+    }
+  }
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: page-level drop target
     <div
@@ -257,18 +384,122 @@ export const UploadStep = ({ onFilesChange }: UploadStepProps = {}) => {
       )}
     >
       {hasFiles ? (
-        <div className="flex flex-col gap-10 py-10">
+        <div className="flex flex-col gap-10 py-10 animate-fade-up">
           <CompactHeader
             onBrowseClick={() => acceptFiles(simulateRandomFiles())}
           />
-          <FileList files={files} onDelete={deleteFile} />
+
+          {reprocessing
+            ? (() => {
+                const reprocessingCount = files.filter(
+                  (f) => !processed[f.id],
+                ).length
+                if (reprocessingCount === 0) return null
+                return (
+                  <div className="flex items-center gap-3 rounded-xl border-2 border-border-tertiary bg-bg-secondary px-5 py-3 animate-fade-up">
+                    <p className="text-md text-text-primary">
+                      Processing {reprocessingCount}{' '}
+                      {reprocessingCount === 1 ? 'file' : 'files'} again with
+                      your changes…
+                    </p>
+                  </div>
+                )
+              })()
+            : null}
+
+          <ul className="flex flex-col gap-3">
+            {files.map((file) => {
+              const recognition = recognitions[file.id]
+              const isLoading = !processed[file.id]
+              return (
+                <li key={file.id} className="animate-fade-up">
+                  <FileRecognitionRow
+                    file={file}
+                    loading={isLoading}
+                    recognition={isLoading ? undefined : recognition}
+                    categories={reviews[file.id]?.categories}
+                    onClick={
+                      isLoading
+                        ? undefined
+                        : () => {
+                            reviewSnapshotRef.current = reviews
+                            setReviewScope({ kind: 'single', fileId: file.id })
+                          }
+                    }
+                    onRemove={isLoading ? () => deleteFile(file.id) : undefined}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+
+          {allProcessed && !reprocessing ? <ConfirmationPanel /> : null}
         </div>
       ) : (
         <EmptyHero onBrowseClick={() => acceptFiles(simulateRandomFiles())} />
       )}
+
+      <FileReviewModal
+        open={modalOpen}
+        onOpenChange={(o) => {
+          if (!o) handleReviewClose()
+        }}
+        files={files}
+        recognitions={recognitions}
+        reviews={reviews}
+        onChange={(id, next) => setReviews((curr) => ({ ...curr, [id]: next }))}
+        scope={reviewScope ?? undefined}
+      />
     </div>
   )
 }
+
+/**
+ * Cheap deep-equality on the bits of ReviewState that influence Sandy's
+ * extraction rules. If any of these change while the modal is open, we
+ * trigger a re-scan on close to keep the demo's flow honest.
+ */
+const changedFileIds = (
+  before: Record<string, ReviewState>,
+  after: Record<string, ReviewState>,
+): string[] => {
+  const out: string[] = []
+  for (const id of Object.keys(after)) {
+    const a = before[id]
+    const b = after[id]
+    if (!a) {
+      out.push(id)
+      continue
+    }
+    if (
+      a.matchedTemplateId !== b.matchedTemplateId ||
+      (a.newTemplateName ?? '') !== (b.newTemplateName ?? '') ||
+      (a.description ?? '') !== (b.description ?? '') ||
+      a.categories.join('|') !== b.categories.join('|')
+    ) {
+      out.push(id)
+    }
+  }
+  return out
+}
+
+/**
+ * Once every file is scanned we surface a quiet, non-blocking panel that
+ * names the "Does this look right?" question. The wizard's own Continue
+ * button (in the top bar) advances the user out of this step — we don't
+ * need a second one here.
+ */
+const ConfirmationPanel = () => (
+  <div className="flex flex-col gap-1 rounded-xl border-2 border-border-tertiary bg-bg-secondary px-5 py-4 animate-fade-up">
+    <p className="text-lg font-medium text-text-primary">
+      Does this look right?
+    </p>
+    <p className="text-md text-text-secondary">
+      Tap any file to review or correct its details, then hit Continue to move
+      on.
+    </p>
+  </div>
+)
 
 /* -------------------------------------------------------------------------- */
 /* Hero (no files yet) — centred, large title, secondary CTA with file+ icon  */
@@ -306,7 +537,7 @@ const IconFilePlus = ({ size = 20 }: { size?: number }) => (
 )
 
 const EmptyHero = ({ onBrowseClick }: { onBrowseClick: () => void }) => (
-  <div className="flex flex-1 flex-col items-center justify-center gap-12 py-16 text-center">
+  <div className="flex flex-1 flex-col items-center justify-center gap-12 py-16 text-center animate-fade-up">
     <h1 className="max-w-[560px] text-5xl font-medium leading-[1.05] tracking-tight text-text-primary">
       Drop files to get started
     </h1>
@@ -342,52 +573,4 @@ const CompactHeader = ({ onBrowseClick }: { onBrowseClick: () => void }) => (
       Add more
     </Button>
   </div>
-)
-
-/* -------------------------------------------------------------------------- */
-/* File list — light-grey boxes, one per uploaded file                         */
-/* -------------------------------------------------------------------------- */
-
-type FileListProps = {
-  files: UploadedFile[]
-  onDelete: (id: string) => void
-}
-
-const FileList = ({ files, onDelete }: FileListProps) => (
-  <ul className="flex flex-col gap-2">
-    {files.map((file) => (
-      <FileRow key={file.id} file={file} onDelete={onDelete} />
-    ))}
-  </ul>
-)
-
-type FileRowProps = {
-  file: UploadedFile
-  onDelete: (id: string) => void
-}
-
-const FileRow = ({ file, onDelete }: FileRowProps) => (
-  <li className="flex items-center gap-4 rounded-lg bg-bg-secondary px-4 py-3">
-    <span className="grid size-10 shrink-0 place-items-center rounded-md bg-bg-tertiary text-icon-primary">
-      <IconDocument size={20} />
-    </span>
-    <div className="flex flex-1 min-w-0">
-      <p className="truncate text-md font-medium text-text-primary">
-        {file.name}
-      </p>
-    </div>
-    <button
-      type="button"
-      onClick={() => onDelete(file.id)}
-      aria-label={`Remove ${file.name}`}
-      className={clsx(
-        'grid size-8 shrink-0 place-items-center rounded-md',
-        'text-icon-secondary transition-colors',
-        'hover:bg-bg-tertiary hover:text-text-primary',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-      )}
-    >
-      <IconClose size={16} />
-    </button>
-  </li>
 )

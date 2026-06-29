@@ -8,14 +8,14 @@ import { FixIssuesPage } from './fix/FixIssuesPage'
 import { IntroStep } from './IntroStep'
 import type { IssueState } from './IssueResolverModal'
 import { EXISTING_FARMS, EXISTING_FIELDS, type Issue } from './issues'
-import { RecogniseFilesModal } from './RecogniseFilesModal'
 import { ReviewStep } from './ReviewStep'
+import { SaveAndQuitModal } from './SaveAndQuitModal'
 import { generateSummary } from './summary'
-import { type UploadedFile, UploadStep } from './UploadStep'
+import { UploadStep, type UploadSummary } from './UploadStep'
 import { CANONICAL_VOCAB, MOCK_VALUE_MAPPING_FIXTURES } from './value-mapping'
 
 const BASE_STEP_IDS = [
-  'upload',
+  'add-files',
   'refine',
   'fix',
   'completeness',
@@ -156,38 +156,59 @@ export const DataUploadWizard = () => {
   // step navigation. The inbox in the Refine step is the only writer.
   const [issueState, setIssueState] = useState<Record<string, IssueState>>({})
 
-  // Lifted out of UploadStep so the wizard footer can gate Continue on at
-  // least one file having been added.
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const canContinueUpload = uploadedFiles.length > 0
-
-  // Categorise-files modal — pops up after Continue on the Upload step and
-  // gates the move into Review until the user confirms a data category for
-  // each file.
-  const [categoriseOpen, setCategoriseOpen] = useState(false)
-
-  // Once files are in, the Continue label reflects how many will move forward.
-  // Before any files land we fall back to the generic "Continue" so the
-  // disabled state doesn't read as "Continue with 0 files".
+  // Lifted out of UploadStep so the wizard footer can read the per-file
+  // scan / issue summary and react accordingly.
+  const [uploadSummary, setUploadSummary] = useState<UploadSummary>({
+    files: [],
+    issueCount: 0,
+    anyProcessed: false,
+    allProcessed: false,
+    reprocessing: false,
+  })
+  // Bump this counter to ask UploadStep to open its review modal at the
+  // first issue. (Effect inside the step watches the prop.)
+  const [reviewRequestToken, setReviewRequestToken] = useState(0)
+  const fileCount = uploadSummary.files.length
+  // Continue label switches into "Review X issues" when something needs the
+  // user's attention. While the simulated scan is still running we show
+  // "Processing files…" rather than committing to either copy too early.
   const uploadContinueLabel =
-    uploadedFiles.length > 0
-      ? `Continue with ${uploadedFiles.length} ${
-          uploadedFiles.length === 1 ? 'file' : 'files'
-        }`
-      : undefined
+    fileCount === 0
+      ? undefined
+      : uploadSummary.reprocessing || !uploadSummary.allProcessed
+        ? 'Processing files…'
+        : uploadSummary.issueCount > 0
+          ? `Review ${uploadSummary.issueCount} ${
+              uploadSummary.issueCount === 1 ? 'issue' : 'issues'
+            }`
+          : `Continue with ${fileCount} ${fileCount === 1 ? 'file' : 'files'}`
+  // Continue is only blocked outright when nothing has been uploaded or a
+  // re-scan is mid-flight. When issues exist, the button stays clickable
+  // (and triggers the review modal instead of advancing).
+  const uploadContinueDisabled =
+    fileCount === 0 || uploadSummary.reprocessing || !uploadSummary.allProcessed
 
   const steps: WizardStepConfig[] = useMemo(
     () => [
       {
-        id: 'upload',
-        label: 'Add documents',
-        content: <UploadStep onFilesChange={setUploadedFiles} />,
-        canContinue: canContinueUpload,
+        id: 'add-files',
+        label: 'Add files',
+        content: (
+          <UploadStep
+            onSummaryChange={setUploadSummary}
+            reviewRequestToken={reviewRequestToken}
+          />
+        ),
+        canContinue: !uploadContinueDisabled,
         continueLabel: uploadContinueLabel,
         onContinue: () => {
-          setCategoriseOpen(true)
-          // Don't advance — the modal owns the navigation forward.
-          return false
+          // Issues outstanding → open the review modal instead of
+          // advancing. Returning `false` keeps the wizard on this step.
+          if (uploadSummary.issueCount > 0) {
+            setReviewRequestToken((t) => t + 1)
+            return false
+          }
+          return true
         },
       },
       {
@@ -229,7 +250,15 @@ export const DataUploadWizard = () => {
         hideContinue: true,
       },
     ],
-    [canContinueUpload, uploadContinueLabel, summary, issues, issueState],
+    [
+      uploadContinueDisabled,
+      uploadContinueLabel,
+      uploadSummary.issueCount,
+      reviewRequestToken,
+      summary,
+      issues,
+      issueState,
+    ],
   )
 
   // Redirect missing or unknown step ids to the start step. We do this in an
@@ -243,6 +272,12 @@ export const DataUploadWizard = () => {
   }, [known, navigate])
 
   const exit = () => navigate('/my-farms')
+
+  const [saveQuitOpen, setSaveQuitOpen] = useState(false)
+  // Prototype heuristic — once files have been uploaded we offer a sample
+  // session name. Otherwise the user can save as Untitled.
+  const suggestedSessionName =
+    uploadSummary.files.length > 0 ? '2025/26 Cropping' : 'Untitled'
 
   // The start step takes over the whole page — no top bar, no stepper, no
   // footer. The wizard chrome only appears once the user begins a new upload
@@ -267,17 +302,21 @@ export const DataUploadWizard = () => {
         currentStepId={stepId}
         onNavigate={(next) => navigate(`${DATA_UPLOAD_BASE}/${next}`)}
         onCancel={exit}
-        onSaveAndQuit={exit}
+        onSaveAndQuit={() => setSaveQuitOpen(true)}
         onComplete={exit}
         finishLabel="Finish upload"
       />
-      <RecogniseFilesModal
-        open={categoriseOpen}
-        onOpenChange={setCategoriseOpen}
-        files={uploadedFiles}
-        onConfirm={() => {
-          setCategoriseOpen(false)
-          navigate(`${DATA_UPLOAD_BASE}/refine`)
+      <SaveAndQuitModal
+        open={saveQuitOpen}
+        onOpenChange={setSaveQuitOpen}
+        suggestedName={suggestedSessionName}
+        onSave={() => {
+          setSaveQuitOpen(false)
+          exit()
+        }}
+        onDiscard={() => {
+          setSaveQuitOpen(false)
+          exit()
         }}
       />
     </>
