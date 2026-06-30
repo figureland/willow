@@ -53,7 +53,7 @@ const TIER_DESCRIPTION: Record<Tier, string> = {
   required: 'Required to complete and submit your data to Sandy.',
   encouraged: 'Changes we recommend to make your reports more accurate.',
   optional:
-    'Smaller changes that can help your improve the quality of data in your organisation and access better quality recommendations.',
+    'Smaller changes that can help your improve the quality of data in your organisation.',
 }
 
 const ISSUES: CompletenessIssue[] = [

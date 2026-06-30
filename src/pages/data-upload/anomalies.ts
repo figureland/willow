@@ -274,6 +274,8 @@ export const REGIONAL_ANOMALIES: RegionalAnomaly[] = [
     region: 'East of England',
     series: [
       { label: 'Brookside Leys', value: 5.8 },
+      { label: 'Foxglove Hill', value: 8.9 },
+      { label: 'Amber Harvest', value: 9.1 },
       { label: 'East of England avg.', value: 9.4 },
     ],
     currentIndex: 0,

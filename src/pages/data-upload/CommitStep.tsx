@@ -199,6 +199,19 @@ export const CommitStep = () => {
     removedOperationIds,
   } = useFixState()
 
+  // Commit is the final review — by the time we land here every issue is
+  // notionally resolved. Strip the per-row issue lists so the Status pip
+  // reads clean for every record without us having to reach back into the
+  // classifier history.
+  const cleanCroppingRecords = useMemo(
+    () => croppingRecords.map((r) => ({ ...r, issues: [] })),
+    [croppingRecords],
+  )
+  const cleanOperationRecords = useMemo(
+    () => operationRecords.map((r) => ({ ...r, issues: [] })),
+    [operationRecords],
+  )
+
   // Prefix the cropping + operations grids with the same Status / Action
   // chrome the Fix-issues data table uses, so the commit review reads as
   // the same table the user just edited.
@@ -247,7 +260,10 @@ export const CommitStep = () => {
   // can't bounce the user out of the committing screen.
   useEffect(() => {
     const onRequest = () => {
-      if (stageRef.current === 'review') setStage('confirming')
+      // Skip the interstitial confirmation modal — jump straight into the
+      // committing animation so the user only sees one decision (the
+      // wizard's Save to Sandy button) followed by the loader.
+      if (stageRef.current === 'review') setStage('committing')
     }
     window.addEventListener(COMMIT_REQUEST_EVENT, onRequest)
     return () => window.removeEventListener(COMMIT_REQUEST_EVENT, onRequest)
@@ -283,7 +299,9 @@ export const CommitStep = () => {
 
   return (
     <div className="flex flex-1 min-h-0 flex-col bg-bg-primary">
-      <section className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-8 py-10">
+      {/* Header stays inside the original page-width clamp so the title +
+          subtitle read at the same width as the other wizard surfaces. */}
+      <section className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-8 pt-10">
         <header className="flex flex-col gap-1">
           <h1 className="text-3xl font-semibold text-text-primary">
             Here's what you're adding to Sandy.
@@ -293,7 +311,11 @@ export const CommitStep = () => {
             Save to Sandy.
           </p>
         </header>
+      </section>
 
+      {/* Tables run edge-to-edge so the data has room to breathe at wide
+          viewports. The tab strip + body share the same outer padding. */}
+      <section className="flex flex-col gap-4 px-8 pt-6 pb-10">
         <Tabs<CommitTab> value={tab} onValueChange={setTab}>
           <TabBar>
             <Tab value="cropping">
@@ -305,7 +327,7 @@ export const CommitStep = () => {
           </TabBar>
           <TabPanel value="cropping" className="pt-4">
             <DataTable<CroppingRecord>
-              rows={croppingRecords}
+              rows={cleanCroppingRecords}
               columns={croppingCols}
               selectable={false}
               defaultPageSize={25}
@@ -314,7 +336,7 @@ export const CommitStep = () => {
           </TabPanel>
           <TabPanel value="operations" className="pt-4">
             <DataTable<OperationRecord>
-              rows={operationRecords}
+              rows={cleanOperationRecords}
               columns={operationCols}
               selectable={false}
               defaultPageSize={25}
@@ -430,15 +452,15 @@ const CommitProgress = ({
 const ThinkingDots = () => (
   <div className="flex items-center gap-2" aria-hidden="true">
     <span
-      className="commit-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="commit-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0s' }}
     />
     <span
-      className="commit-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="commit-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0.2s' }}
     />
     <span
-      className="commit-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="commit-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0.4s' }}
     />
   </div>

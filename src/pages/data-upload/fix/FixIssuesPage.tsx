@@ -129,15 +129,15 @@ const FixLoader = ({ onDone }: { onDone: () => void }) => {
 const ThinkingDots = () => (
   <div className="flex items-center gap-2" aria-hidden="true">
     <span
-      className="fix-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="fix-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0s' }}
     />
     <span
-      className="fix-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="fix-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0.2s' }}
     />
     <span
-      className="fix-loader-dot size-3 rounded-full bg-text-brand-dark"
+      className="fix-loader-dot size-3 rounded-full bg-sandy-400"
       style={{ animationDelay: '0.4s' }}
     />
   </div>

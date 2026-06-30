@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { WizardLayout, type WizardStepConfig } from '../../components/ui'
 import { AnomalyDetectionStep } from './AnomalyDetectionStep'
-import { AnomalyStateProvider } from './anomaly-state'
+import { AnomalyStateProvider, useAnomalyState } from './anomaly-state'
 import { CommitStep } from './CommitStep'
 import { CompletenessStep } from './CompletenessStep'
 import {
@@ -211,6 +211,7 @@ const DataUploadWizardInner = () => {
   // issue is resolved (edited, removed, or saved away). Reading via context so
   // the source of truth lives with the data table view + toolbar.
   const { unresolvedIssueCount, hasUnsavedChanges } = useFixState()
+  const { hasUnsavedChanges: anomalyHasUnsavedChanges } = useAnomalyState()
 
   // Lifted out of UploadStep so the wizard footer can read the per-file
   // scan / issue summary and react accordingly.
@@ -276,6 +277,7 @@ const DataUploadWizardInner = () => {
             issues={issues}
             issueState={issueState}
             onIssueStateChange={setIssueState}
+            fileCount={fileCount}
           />
         ),
         // The Refine step renders its own carousel chrome + advance buttons,
@@ -318,6 +320,10 @@ const DataUploadWizardInner = () => {
         label: 'Anomaly detection',
         content: <AnomalyDetectionStep />,
         bare: true,
+        canContinue: !anomalyHasUnsavedChanges,
+        disabledReason: anomalyHasUnsavedChanges
+          ? 'Save or discard your anomaly fixes before continuing.'
+          : undefined,
       },
       {
         id: 'commit',

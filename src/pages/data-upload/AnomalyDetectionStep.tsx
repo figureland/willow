@@ -115,19 +115,13 @@ const SaveBar = () => {
   const { hasUnsavedChanges, saveChanges, discardChanges } = useAnomalyState()
   if (!hasUnsavedChanges) return null
   return (
-    <div className="sticky top-[88px] z-20 flex flex-wrap items-center gap-3 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
-      <p className="text-sm text-text-secondary">
-        You have unsaved changes — save to validate them against the rest of
-        your upload.
-      </p>
-      <div className="ml-auto flex items-center gap-2">
-        <Button variant="secondary" onClick={discardChanges}>
-          Discard changes
-        </Button>
-        <Button variant="primary" onClick={saveChanges}>
-          Save changes
-        </Button>
-      </div>
+    <div className="sticky top-[88px] z-20 flex flex-wrap items-center justify-end gap-2 border-b-2 border-border-tertiary bg-bg-primary px-8 py-3">
+      <Button variant="secondary" onClick={discardChanges}>
+        Discard changes
+      </Button>
+      <Button variant="primary" onClick={saveChanges}>
+        Save changes
+      </Button>
     </div>
   )
 }
@@ -349,7 +343,6 @@ const AnomalyCard = ({
         >
           {anomaly.title}
         </p>
-        <p className={clsx('text-sm', tone.bodySecondary)}>{anomaly.scope}</p>
       </div>
       <span
         aria-hidden="true"
@@ -691,6 +684,47 @@ const ComparisonAnomalyDetail = ({
 /* ComparisonChart — minimal bar chart, current bar highlighted               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Y-axis gutter — five tick labels that line up with the bar-well
+ * gridlines. We mirror the chart's three-row layout (value · well · axis)
+ * so the gutter's middle row co-sits with the bar well and the labels
+ * stack across the same vertical span.
+ */
+const YAxisLabels = ({ max }: { max: number; unit: string }) => {
+  const ticks = [1, 0.75, 0.5, 0.25, 0].map((t) => t * max)
+  const format = (v: number) =>
+    Number.isInteger(v) ? v.toString() : v.toFixed(1)
+  return (
+    <div
+      className="grid w-10 shrink-0 text-right text-xs tabular-nums text-text-secondary"
+      style={{
+        gridTemplateRows: 'auto 1fr auto',
+      }}
+    >
+      {/* Spacer matching the chart's value-label row */}
+      <span style={{ gridRow: 1 }} className="invisible h-5">
+        spacer
+      </span>
+      {/* Tick column — fills the well row, labels stretched between gridlines */}
+      <div style={{ gridRow: 2 }} className="relative pt-2">
+        {ticks.map((value, i) => (
+          <span
+            key={i}
+            className="absolute right-0 -translate-y-1/2 leading-none"
+            style={{ top: `${(i / (ticks.length - 1)) * 100}%` }}
+          >
+            {format(value)}
+          </span>
+        ))}
+      </div>
+      {/* Spacer matching the chart's axis-label row */}
+      <span style={{ gridRow: 3 }} className="invisible pt-2 text-xs">
+        spacer
+      </span>
+    </div>
+  )
+}
+
 const ComparisonChart = ({
   series,
   currentIndex,
@@ -705,67 +739,91 @@ const ComparisonChart = ({
   const max = Math.max(...series.map((p) => p.value), 1)
   return (
     <section className="flex flex-col gap-4 rounded-xl border-2 border-border-tertiary bg-bg-primary p-6">
-      {/* Three-row grid per column — value label · bar well · axis label.
-          The middle row is `1fr` and pinned to a 240px container height, so
-          each bar's percent height resolves against a real number (otherwise
-          the well collapses to its content and all bars look ~4px tall). */}
-      <div
-        className="grid h-60 gap-x-4"
-        style={{
-          gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`,
-          gridTemplateRows: 'auto 1fr auto',
-        }}
-      >
-        {series.map((point, i) => {
-          const isCurrent = i === currentIndex
-          return (
-            <span
-              key={`${point.label}-value`}
-              className={clsx(
-                'flex items-end justify-center text-sm font-semibold tabular-nums',
-                isCurrent ? tone.chartLabelCurrent : 'text-text-secondary',
-              )}
-              style={{ gridColumn: i + 1, gridRow: 1 }}
-            >
-              {point.value} {unit}
-            </span>
-          )
-        })}
-        {series.map((point, i) => {
-          const heightPct = (point.value / max) * 100
-          const isCurrent = i === currentIndex
-          return (
-            <div
-              key={`${point.label}-bar`}
-              className="flex items-end pt-2"
-              style={{ gridColumn: i + 1, gridRow: 2 }}
-            >
+      <div className="flex h-60 items-stretch gap-3">
+        {/* Y-axis gutter — five evenly-spaced value labels matching the
+            gridline ticks. Sits left of the bar grid and shares the same
+            vertical span so labels line up exactly with their gridlines. */}
+        <YAxisLabels max={max} unit={unit} />
+
+        {/* Three-row grid per column — value label · bar well · axis label.
+            The middle row is `1fr` and pinned to the section height, so
+            each bar's percent height resolves against a real number. */}
+        <div
+          className="relative grid flex-1 gap-x-4"
+          style={{
+            gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`,
+            gridTemplateRows: 'auto 1fr auto',
+          }}
+        >
+          {/* Y-axis gridlines — five horizontal rules across the bar well
+              row, anchored to the same ticks as the gutter labels. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 z-0"
+            style={{
+              top: 'calc((100% / 11))',
+              bottom: 'calc((100% / 11))',
+            }}
+          >
+            {[0, 0.25, 0.5, 0.75, 1].map((t) => (
               <div
-                aria-hidden="true"
-                className={clsx(
-                  'w-full rounded-md transition-all',
-                  isCurrent ? tone.chartBarCurrent : tone.chartBar,
-                )}
-                style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                key={t}
+                className="absolute inset-x-0 border-t border-border-tertiary"
+                style={{ top: `${t * 100}%` }}
               />
-            </div>
-          )
-        })}
-        {series.map((point, i) => {
-          const isCurrent = i === currentIndex
-          return (
-            <span
-              key={`${point.label}-axis`}
-              className={clsx(
-                'pt-2 text-center text-xs font-medium',
-                isCurrent ? 'text-text-primary' : 'text-text-secondary',
-              )}
-              style={{ gridColumn: i + 1, gridRow: 3 }}
-            >
-              {point.label}
-            </span>
-          )
-        })}
+            ))}
+          </div>
+          {series.map((point, i) => {
+            const isCurrent = i === currentIndex
+            return (
+              <span
+                key={`${point.label}-value`}
+                className={clsx(
+                  'relative z-10 mx-auto flex max-w-[160px] items-end justify-center text-sm font-semibold tabular-nums',
+                  isCurrent ? tone.chartLabelCurrent : 'text-text-secondary',
+                )}
+                style={{ gridColumn: i + 1, gridRow: 1 }}
+              >
+                {point.value} {unit}
+              </span>
+            )
+          })}
+          {series.map((point, i) => {
+            const heightPct = (point.value / max) * 100
+            const isCurrent = i === currentIndex
+            return (
+              <div
+                key={`${point.label}-bar`}
+                className="relative z-10 flex items-end justify-center pt-2"
+                style={{ gridColumn: i + 1, gridRow: 2 }}
+              >
+                <div
+                  aria-hidden="true"
+                  className={clsx(
+                    'w-full max-w-[160px] rounded-md transition-all',
+                    isCurrent ? tone.chartBarCurrent : tone.chartBar,
+                  )}
+                  style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                />
+              </div>
+            )
+          })}
+          {series.map((point, i) => {
+            const isCurrent = i === currentIndex
+            return (
+              <span
+                key={`${point.label}-axis`}
+                className={clsx(
+                  'mx-auto block max-w-[160px] truncate pt-2 text-center text-xs font-medium',
+                  isCurrent ? 'text-text-primary' : 'text-text-secondary',
+                )}
+                style={{ gridColumn: i + 1, gridRow: 3 }}
+              >
+                {point.label}
+              </span>
+            )
+          })}
+        </div>
       </div>
     </section>
   )
