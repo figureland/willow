@@ -298,24 +298,23 @@ export const CommitStep = () => {
   }
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col bg-bg-primary">
-      {/* Header stays inside the original page-width clamp so the title +
-          subtitle read at the same width as the other wizard surfaces. */}
-      <section className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-8 pt-10">
-        <header className="flex flex-col gap-1">
+    <div className="flex flex-1 min-h-0 flex-col bg-bg-primary pb-24">
+      {/* Header + body share the same `max-w-[1200px]` clamp + `px-8`
+          padding as the Anomaly detection + Completeness steps so all
+          three wizard surfaces feel like one page. */}
+      <section>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-8 py-10">
           <h1 className="text-3xl font-semibold text-text-primary">
             Here's what you're adding to Sandy.
           </h1>
-          <p className="text-md text-text-secondary">
+          <p className="max-w-[640px] text-md text-text-secondary">
             Final review — nothing is saved to your farm record until you hit
             Save to Sandy.
           </p>
-        </header>
+        </div>
       </section>
 
-      {/* Tables run edge-to-edge so the data has room to breathe at wide
-          viewports. The tab strip + body share the same outer padding. */}
-      <section className="flex flex-col gap-4 px-8 pt-6 pb-10">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-8 pt-8">
         <Tabs<CommitTab> value={tab} onValueChange={setTab}>
           <TabBar>
             <Tab value="cropping">
@@ -344,7 +343,7 @@ export const CommitStep = () => {
             />
           </TabPanel>
         </Tabs>
-      </section>
+      </div>
 
       <Modal
         open={stage === 'confirming'}

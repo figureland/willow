@@ -368,14 +368,14 @@ export const CompletenessStep = () => {
           in shape (edge-to-edge), but stays neutral here so the brand
           treatment is reserved for the moment the user is making a call. */}
       <section className="bg-bg-tertiary">
-        <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
+        <div className="mx-auto w-full max-w-[1200px] px-8 py-10">
           <h1 className="text-3xl font-semibold text-text-primary">
             Our recommended changes
           </h1>
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 pt-8">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-8 pt-8">
         <CompletenessSummary appliedImprovements={appliedImprovements} />
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -687,7 +687,7 @@ const CompletenessDetail = ({
           list view carries through, so the user keeps a visual through-line
           from "I picked the required card" to "I'm on the required page". */}
       <section className={clsx(tone.surface, tone.text)}>
-        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 px-8 py-10">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-8 py-10">
           <div className="self-start">
             <Link
               to="/data-upload/completeness"
@@ -732,7 +732,7 @@ const CompletenessDetail = ({
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-10 px-8">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-10 px-8">
         {preview ? (
           <section className="flex flex-col gap-4">
             <header className="flex flex-col gap-1">
