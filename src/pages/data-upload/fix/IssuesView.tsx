@@ -650,7 +650,7 @@ export const IssuesView = () => {
 
   // Active issue lives in the URL so back/forward + refresh keep the user
   // on the same issue.
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const location = useLocation()
   const activeId = searchParams.get('issue')
   const rawSeverity = searchParams.get('severity')
@@ -674,12 +674,6 @@ export const IssuesView = () => {
     else params.set('severity', severity)
     const qs = params.toString()
     return qs ? `${location.pathname}?${qs}` : location.pathname
-  }
-
-  const setActiveId = (id: string) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('issue', id)
-    setSearchParams(params, { replace: true })
   }
 
   // Layout style — defaults to the card-list view. Opt into the legacy
