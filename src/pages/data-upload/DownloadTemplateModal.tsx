@@ -28,28 +28,48 @@ const ALL_FARMS_VALUE = '__all__'
 export type DownloadTemplateModalProps = {
   open: boolean
   onClose: () => void
+  /**
+   * Mode drives the title, body copy + footer button label. `blank` is the
+   * empty-hero flow (start a fresh template). `issues` is the Fix-issues
+   * flow (pre-fill the template with the records + columns Sandy flagged).
+   */
+  mode?: 'blank' | 'issues'
+  /** Pre-selected enterprise. Falls back to the first option when omitted. */
+  defaultEnterprise?: string | null
+  /** Pre-selected farm ids. Falls back to all farms when omitted. */
+  defaultFarmIds?: string[]
+  /** Issues-mode summary line — "Includes X records with Y issues". */
+  issueSummary?: { records: number; issues: number }
 }
 
 export const DownloadTemplateModal = ({
   open,
   onClose,
+  mode = 'blank',
+  defaultEnterprise = null,
+  defaultFarmIds,
+  issueSummary,
 }: DownloadTemplateModalProps) => {
-  const [enterprise, setEnterprise] = useState<string | null>(null)
-  const [farmIds, setFarmIds] = useState<string[]>([])
-  const [allFarms, setAllFarms] = useState(false)
+  const [enterprise, setEnterprise] = useState<string | null>(defaultEnterprise)
+  const [farmIds, setFarmIds] = useState<string[]>(
+    defaultFarmIds ?? FARMS.map((f) => f.id),
+  )
+  const [allFarms, setAllFarms] = useState(
+    !defaultFarmIds || defaultFarmIds.length === FARMS.length,
+  )
   const [phase, setPhase] = useState<'pick' | 'generating' | 'done'>('pick')
 
   // Reset to a clean state every time the modal opens so a previous session
-  // doesn't bleed forward. Default to "all farms" — most exports want a
-  // template that covers the whole organisation, so the user can just pick
-  // an enterprise and hit Download without touching the farm picker.
+  // doesn't bleed forward. Defaults come from the caller; "all farms" is
+  // still the typical fallback for the empty-hero blank-template flow.
   useEffect(() => {
     if (!open) return
-    setEnterprise(null)
-    setFarmIds(FARMS.map((f) => f.id))
-    setAllFarms(true)
+    setEnterprise(defaultEnterprise)
+    const seeded = defaultFarmIds ?? FARMS.map((f) => f.id)
+    setFarmIds(seeded)
+    setAllFarms(seeded.length === FARMS.length)
     setPhase('pick')
-  }, [open])
+  }, [open, defaultEnterprise, defaultFarmIds])
 
   // Simulated file generation — ~1.6s spinner, then a download trigger and
   // a brief "Done" beat before the modal closes itself.
@@ -83,14 +103,23 @@ export const DownloadTemplateModal = ({
   const farmsPicked = allFarms ? FARMS.length : farmIds.length
   const canDownload = !!enterprise && farmsPicked > 0 && phase === 'pick'
 
+  const title =
+    mode === 'issues'
+      ? 'Download a fix-list template'
+      : 'Download a Sandy template'
+  const description =
+    mode === 'issues'
+      ? 'We\u2019ll pre-fill the template with every record Sandy flagged so you can edit and re-upload in one go.'
+      : "Pick an enterprise and the farms you want covered — we'll generate a template ready to import."
+
   return (
     <Modal
       open={open}
       onOpenChange={(next) => {
         if (!next && phase !== 'generating') onClose()
       }}
-      title="Download a Sandy template"
-      description="Pick an enterprise and the farms you want covered — we'll generate a template ready to import."
+      title={title}
+      description={description}
       maxWidth="540px"
       footer={
         phase === 'pick' ? (
@@ -172,6 +201,20 @@ export const DownloadTemplateModal = ({
               placeholder="Pick farms"
             />
           </div>
+          {mode === 'issues' && issueSummary ? (
+            <p className="rounded-lg bg-bg-tertiary px-4 py-3 text-sm text-text-secondary">
+              Includes{' '}
+              <span className="font-semibold text-text-primary">
+                {issueSummary.records.toLocaleString()}
+              </span>{' '}
+              {issueSummary.records === 1 ? 'record' : 'records'} with{' '}
+              <span className="font-semibold text-text-primary">
+                {issueSummary.issues.toLocaleString()}
+              </span>{' '}
+              {issueSummary.issues === 1 ? 'issue' : 'issues'} flagged for
+              review.
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 py-6 text-center">

@@ -42,7 +42,7 @@ export const UPLOAD_STEPS: UploadStep[] = [
     label: 'Add files',
     description:
       'Sandy ingests one or more spreadsheets, PDFs or templates. The user assigns a data category (Operations / Cropping / Soil sampling) to each file so Sandy knows which extraction recipe to apply.',
-    areas: [],
+    areas: ['ingest'],
   },
   {
     id: 'refine',

@@ -113,6 +113,18 @@ export const IconSearch = (props: IconProps) => (
   </FigmaIcon>
 )
 
+/** Classic funnel — three stacked horizontal bars narrowing to a point. */
+export const IconFilter = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M4 5h16M7 12h10M10 19h4"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </FigmaIcon>
+)
+
 /** Inverted of the collapse icon — arrow pointing left, used when the menu is expanded. */
 export const IconMenuHide = (props: IconProps) => (
   <FigmaIcon {...props}>
@@ -317,6 +329,50 @@ export const IconTrend = (props: IconProps) => (
   <FigmaIcon {...props}>
     <path
       d="M3 19h18v1.5H3V19Zm0-2.5 5-5 4 4 7-7 1.5 1.5v-3.5h-3.5L18 8 12 14l-4-4-6 6 1 1.5Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** UX-kind glyphs — one per `UXItemKind`. Used to differentiate validation /
+ *  fix / recommendation / information at a glance across the catalogue and
+ *  in-product surfaces. */
+
+/** Validation — shield outline with a tick inside (gatekeeper rule). */
+export const IconValidation = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l4.6-4.6L17 10l-6 6Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** Fix — wrench / spanner (a concrete correction to apply). */
+export const IconFix = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M21.7 18.6 14.5 11.4a5.5 5.5 0 0 0-7-7L11 8 8 11 4.4 7.5a5.5 5.5 0 0 0 7 7l7.2 7.2 3.1-3.1Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** Recommendation — lightbulb (an optional improvement to consider). */
+export const IconRecommendation = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2Z"
+      fill="currentColor"
+    />
+  </FigmaIcon>
+)
+
+/** Information — circle with an `i` (signal only, no correction implied). */
+export const IconInformation = (props: IconProps) => (
+  <FigmaIcon {...props}>
+    <path
+      d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 15h-2v-6h2v6Zm0-8h-2V7h2v2Z"
       fill="currentColor"
     />
   </FigmaIcon>

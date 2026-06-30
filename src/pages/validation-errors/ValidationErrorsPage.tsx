@@ -1,25 +1,21 @@
 import clsx from 'clsx'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Badge, SegmentedControl } from '../../components/ui'
+import { type ReactNode, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Badge } from '../../components/ui'
 import {
-  areaOf,
   DATA_CATEGORY_LABEL,
   REFINEMENT_TASK_LABEL,
-  VALIDATION_AREA_LABEL,
-  VALIDATION_AREA_ORDER,
+  UX_ITEM_KIND_LABEL,
   VALIDATION_BY_CODE,
-  VALIDATION_ERRORS,
   VALIDATION_SEVERITY_LABEL,
   VALIDATION_TYPE_LABEL,
-  type ValidationArea,
   type ValidationError,
   type ValidationSeverity,
 } from './validation-errors'
 import { KanbanView } from './views/KanbanView'
 
 /* -------------------------------------------------------------------------- */
-/* ValidationPage — categories rail + sidebar list + detail panel             */
+/* UX Content page — one column per upload step, kind-tagged cards inside      */
 /* -------------------------------------------------------------------------- */
 
 const SEVERITY_TONE: Record<ValidationSeverity, 'red' | 'orange'> = {
@@ -31,92 +27,6 @@ const SeverityBadge = ({ severity }: { severity: ValidationSeverity }) => (
   <Badge tone={SEVERITY_TONE[severity]} size="sm">
     {VALIDATION_SEVERITY_LABEL[severity]}
   </Badge>
-)
-
-/* -------------------------------------------------------------------------- */
-/* Categories rail (far left)                                                  */
-/* -------------------------------------------------------------------------- */
-
-const CategoriesRail = ({
-  areas,
-  active,
-  countByArea,
-  onSelect,
-}: {
-  areas: ValidationArea[]
-  active: ValidationArea
-  countByArea: Record<ValidationArea, number>
-  onSelect: (next: ValidationArea) => void
-}) => (
-  <nav
-    aria-label="Validation categories"
-    className="flex w-[200px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary"
-  >
-    <ol className="flex flex-col gap-0.5 p-2">
-      {areas.map((area) => {
-        const count = countByArea[area]
-        const isActive = area === active
-        return (
-          <li key={area}>
-            <button
-              type="button"
-              onClick={() => onSelect(area)}
-              aria-current={isActive ? 'true' : undefined}
-              className={clsx(
-                'flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-md transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-                isActive
-                  ? 'bg-sandy-100 font-medium text-text-brand-dark'
-                  : 'text-text-primary hover:bg-bg-tertiary',
-              )}
-            >
-              <span>{VALIDATION_AREA_LABEL[area]}</span>
-              <span
-                className={clsx(
-                  'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-                  isActive
-                    ? 'bg-bg-primary text-text-brand-dark'
-                    : 'bg-bg-tertiary text-text-secondary',
-                )}
-              >
-                {count}
-              </span>
-            </button>
-          </li>
-        )
-      })}
-    </ol>
-  </nav>
-)
-
-/* -------------------------------------------------------------------------- */
-/* Sidebar list item                                                           */
-/* -------------------------------------------------------------------------- */
-
-type SidebarItemProps = {
-  error: ValidationError
-  active: boolean
-  onSelect: () => void
-}
-
-const SidebarItem = ({ error, active, onSelect }: SidebarItemProps) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    aria-current={active ? 'true' : undefined}
-    className={clsx(
-      'flex w-full flex-col items-start gap-1.5 rounded-lg border-2 px-3 py-3 text-left transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-      active
-        ? 'border-border-primary bg-bg-tertiary'
-        : 'border-transparent bg-bg-primary hover:border-border-tertiary hover:bg-bg-secondary',
-    )}
-  >
-    <span className="text-md font-medium leading-snug text-text-primary">
-      {error.title}
-    </span>
-    <SeverityBadge severity={error.severity} />
-  </button>
 )
 
 /* -------------------------------------------------------------------------- */
@@ -141,6 +51,7 @@ const DetailRow = ({
 const DetailPanel = ({ error }: { error: ValidationError }) => {
   const isRefinement = error.area === 'refinement'
   const metaRows: Array<{ label: string; value: ReactNode }> = [
+    { label: 'Kind', value: UX_ITEM_KIND_LABEL[error.uxKind] },
     { label: 'Severity', value: <SeverityBadge severity={error.severity} /> },
     { label: 'Type', value: VALIDATION_TYPE_LABEL[error.type] },
   ]
@@ -342,214 +253,92 @@ const DetailPanel = ({ error }: { error: ValidationError }) => {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Refinement sidebar — flat, ordered by data category then step               */
-/* -------------------------------------------------------------------------- */
-
-const RefinementSidebar = ({
-  entries,
-  activeCode,
-  onSelect,
-}: {
-  entries: ValidationError[]
-  activeCode: string | null
-  onSelect: (code: string) => void
-}) => {
-  // Sort by data category, then step. Categories appear in the order they
-  // first surface in the entry list (matches the catalogue's declaration
-  // order — Operations first, then Cropping, then anything else).
-  const categoryFirstSeen = new Map<string, number>()
-  for (let i = 0; i < entries.length; i++) {
-    const cat = entries[i].dataCategories?.[0] ?? 'zz-unspecified'
-    if (!categoryFirstSeen.has(cat)) categoryFirstSeen.set(cat, i)
-  }
-  const sorted = [...entries].sort((a, b) => {
-    const ca = a.dataCategories?.[0] ?? 'zz-unspecified'
-    const cb = b.dataCategories?.[0] ?? 'zz-unspecified'
-    const da =
-      (categoryFirstSeen.get(ca) ?? 0) - (categoryFirstSeen.get(cb) ?? 0)
-    if (da !== 0) return da
-    return (a.step ?? 0) - (b.step ?? 0)
-  })
-  return (
-    <ol className="flex flex-col">
-      {sorted.map((e) => (
-        <li key={e.code} className="py-0.5">
-          <SidebarItem
-            error={e}
-            active={e.code === activeCode}
-            onSelect={() => onSelect(e.code)}
-          />
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
-type ViewMode = 'list' | 'kanban'
-
-const VIEW_OPTIONS = [
-  { value: 'list' as const, label: 'List' },
-  { value: 'kanban' as const, label: 'Kanban' },
-]
-
-const isViewMode = (v: string | null | undefined): v is ViewMode =>
-  v === 'list' || v === 'kanban'
-
 export const ValidationErrorsPage = () => {
-  const navigate = useNavigate()
-  const { viewId } = useParams<{ viewId?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const view: ViewMode = isViewMode(viewId) ? viewId : 'list'
-  const setView = (next: ViewMode) => {
-    // Preserve current query (active code selection) on navigation.
-    const search = searchParams.toString()
-    navigate(`/validation/${next}${search ? `?${search}` : ''}`, {
-      replace: true,
-    })
-  }
 
-  // If somebody lands on a bogus view id, snap to list.
-  useEffect(() => {
-    if (viewId && !isViewMode(viewId)) {
-      navigate('/validation/list', { replace: true })
-    }
-  }, [viewId, navigate])
-
-  // Counts per area drive the badges on the categories rail.
-  const countByArea = useMemo(() => {
-    const counts: Record<ValidationArea, number> = {
-      refinement: 0,
-      fixes: 0,
-      completeness: 0,
-      anomalies: 0,
-    }
-    for (const e of VALIDATION_ERRORS) counts[areaOf(e)] += 1
-    return counts
-  }, [])
-
-  // Default to the first area that has any validations (Fixes, today).
-  const [activeArea, setActiveArea] = useState<ValidationArea>(
-    () =>
-      VALIDATION_AREA_ORDER.find((a) => countByArea[a] > 0) ??
-      VALIDATION_AREA_ORDER[0],
-  )
-
-  const filtered = useMemo(
-    () => VALIDATION_ERRORS.filter((e) => areaOf(e) === activeArea),
-    [activeArea],
-  )
-
-  // Selection state — kept across views via URL so back/forward works and
-  // the detail pane never shows a hidden record.
-  const activeCode = searchParams.get('code') ?? filtered[0]?.code ?? ''
+  // Selection state — kept in the URL so back/forward works and the detail
+  // pane never shows a hidden record.
+  const activeCode = searchParams.get('code') ?? ''
   const setActiveCode = (code: string | null) => {
     const params = new URLSearchParams(searchParams)
     if (code) params.set('code', code)
     else params.delete('code')
     setSearchParams(params, { replace: true })
   }
-  // biome-ignore lint/correctness/useExhaustiveDependencies: setSearchParams is stable
-  useEffect(() => {
-    // When the user switches area in List view, snap to the first entry of
-    // the new area so the detail panel always has something to render.
-    if (view !== 'list' || filtered.length === 0) return
-    if (!filtered.some((e) => e.code === activeCode)) {
-      const params = new URLSearchParams(searchParams)
-      params.set('code', filtered[0].code)
-      setSearchParams(params, { replace: true })
-    }
-  }, [view, filtered, activeCode])
 
-  const activeInList = filtered.find((e) => e.code === activeCode)
-  const activeAnywhere = activeCode
+  const activeError = activeCode
     ? (VALIDATION_BY_CODE[activeCode] ?? null)
     : null
 
   return (
     <div className="flex h-screen min-h-0 flex-col bg-bg-secondary">
       <header className="flex items-center justify-between gap-4 border-b-2 border-border-tertiary bg-bg-primary px-6 py-3">
-        <h1 className="text-md font-semibold text-text-primary">Validation</h1>
-        <SegmentedControl<ViewMode>
-          ariaLabel="View mode"
-          options={VIEW_OPTIONS}
-          value={view}
-          onValueChange={setView}
-        />
+        <h1 className="text-md font-semibold text-text-primary">UX Content</h1>
       </header>
 
-      {view === 'list' ? (
-        <div className="flex flex-1 min-h-0">
-          <CategoriesRail
-            areas={VALIDATION_AREA_ORDER}
-            active={activeArea}
-            countByArea={countByArea}
-            onSelect={setActiveArea}
-          />
+      <KanbanLayout
+        activeError={activeError}
+        activeCode={activeError?.code ?? null}
+        onSelect={setActiveCode}
+        onDismiss={() => setActiveCode(null)}
+      />
+    </div>
+  )
+}
 
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex flex-1 min-h-0">
-              <aside className="flex w-[340px] shrink-0 flex-col border-r-2 border-border-tertiary bg-bg-primary">
-                <div className="flex-1 overflow-y-auto px-2 py-2">
-                  {filtered.length === 0 ? (
-                    <p className="px-3 py-6 text-sm text-text-secondary">
-                      No validations defined in{' '}
-                      {VALIDATION_AREA_LABEL[activeArea]} yet.
-                    </p>
-                  ) : activeArea === 'refinement' ? (
-                    <RefinementSidebar
-                      entries={filtered}
-                      activeCode={activeInList?.code ?? null}
-                      onSelect={setActiveCode}
-                    />
-                  ) : (
-                    <ol className="flex flex-col">
-                      {filtered.map((e) => (
-                        <li key={e.code} className="py-0.5">
-                          <SidebarItem
-                            error={e}
-                            active={e.code === activeInList?.code}
-                            onSelect={() => setActiveCode(e.code)}
-                          />
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              </aside>
+/* -------------------------------------------------------------------------- */
+/* Kanban layout — keeps the click-outside / Escape dismiss wiring local       */
+/* -------------------------------------------------------------------------- */
 
-              <main className="flex-1 overflow-y-auto px-8 py-8">
-                {activeInList ? (
-                  <div className="mx-auto w-full max-w-[820px]">
-                    <DetailPanel error={activeInList} />
-                  </div>
-                ) : (
-                  <p className="text-md text-text-secondary">
-                    No validations defined in{' '}
-                    {VALIDATION_AREA_LABEL[activeArea]} yet.
-                  </p>
-                )}
-              </main>
-            </div>
-          </div>
-        </div>
-      ) : null}
+const KanbanLayout = ({
+  activeError,
+  activeCode,
+  onSelect,
+  onDismiss,
+}: {
+  activeError: ValidationError | null
+  activeCode: string | null
+  onSelect: (code: string) => void
+  onDismiss: () => void
+}) => {
+  // Outside-click + Escape dismiss the open detail. Clicks inside the right-
+  // hand panel or on any kanban card (marked with `data-kanban-card`) are
+  // treated as "still interacting" — every other click closes.
+  const panelRef = useRef<HTMLElement>(null)
 
-      {view === 'kanban' ? (
-        <div className="flex flex-1 min-h-0">
-          <KanbanView
-            activeCode={activeAnywhere?.code ?? null}
-            onSelect={setActiveCode}
-          />
-          {activeAnywhere ? (
-            <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-l-2 border-border-tertiary bg-bg-primary p-6">
-              <DetailPanel error={activeAnywhere} />
-            </aside>
-          ) : null}
-        </div>
+  useEffect(() => {
+    if (!activeError) return
+    const handlePointer = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (panelRef.current?.contains(target)) return
+      if (target.closest('[data-kanban-card]')) return
+      onDismiss()
+    }
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onDismiss()
+    }
+    document.addEventListener('mousedown', handlePointer)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handlePointer)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [activeError, onDismiss])
+
+  return (
+    <div className="flex flex-1 min-h-0">
+      <KanbanView activeCode={activeCode} onSelect={onSelect} />
+      {activeError ? (
+        <aside
+          ref={panelRef}
+          className="flex w-[520px] shrink-0 flex-col overflow-y-auto border-l-2 border-border-tertiary bg-bg-primary p-6"
+        >
+          <DetailPanel error={activeError} />
+        </aside>
       ) : null}
     </div>
   )

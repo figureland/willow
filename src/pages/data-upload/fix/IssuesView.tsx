@@ -7,7 +7,8 @@ import {
   type GridColDef,
   Modal,
 } from '../../../components/ui'
-import { IconArrowLeft } from '../../../components/ui/icons'
+import { IconArrowLeft, IconDownload } from '../../../components/ui/icons'
+import { DownloadTemplateModal } from '../DownloadTemplateModal'
 import { actionColumn, SelectionActionBar, statusColumn } from './fix-grid-bits'
 import type { CroppingRecord, OperationRecord } from './fix-records'
 import { useFixState } from './fix-state'
@@ -132,6 +133,17 @@ const IssueCardList = ({
   const unresolved = groups.filter((g) => !resolvedIds.has(g.id))
   const mustFix = unresolved.filter((g) => g.severity === 'blocking').length
   const worthALook = unresolved.filter((g) => g.severity === 'warning').length
+
+  // Records (unique row ids) + issues (one per row × code) affected across
+  // all unresolved groups — drives the "fix-list template" download.
+  const affectedRecordIds = new Set<string>()
+  let issueCount = 0
+  for (const g of unresolved) {
+    issueCount += g.recordIds.length
+    for (const id of g.recordIds) affectedRecordIds.add(id)
+  }
+  const [templateOpen, setTemplateOpen] = useState(false)
+
   return (
     <div className="mx-auto flex w-full max-w-[960px] flex-col gap-6">
       <header className="flex flex-col gap-1">
@@ -142,7 +154,7 @@ const IssueCardList = ({
           We need to fix a few issues before we can proceed.
         </p>
       </header>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <SummaryTile
           stat={mustFix}
           label="Must fix"
@@ -157,6 +169,11 @@ const IssueCardList = ({
           href={hrefForSeverity('warning')}
           active={activeSeverity === 'warning'}
         />
+        <FixListTemplateTile
+          recordsAffected={affectedRecordIds.size}
+          issuesFlagged={issueCount}
+          onClick={() => setTemplateOpen(true)}
+        />
       </div>
       <div className="flex flex-col gap-3">
         {groups.map((group) => (
@@ -168,9 +185,72 @@ const IssueCardList = ({
           />
         ))}
       </div>
+      <DownloadTemplateModal
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        mode="issues"
+        defaultEnterprise="arable"
+        issueSummary={{
+          records: affectedRecordIds.size,
+          issues: issueCount,
+        }}
+      />
     </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* FixListTemplateTile — neutral grey CTA matching the empty-hero template     */
+/* download card, but pinned beside the Must fix / Worth a look stats so the   */
+/* user can grab a pre-filled fix list straight off the summary row.           */
+/* -------------------------------------------------------------------------- */
+
+const FixListTemplateTile = ({
+  recordsAffected,
+  issuesFlagged,
+  onClick,
+}: {
+  recordsAffected: number
+  issuesFlagged: number
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={clsx(
+      'group flex items-start justify-between gap-3 rounded-xl bg-bg-tertiary px-4 py-3 text-left',
+      'transition-all hover:shadow-md hover:-translate-y-px',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+    )}
+  >
+    <div className="flex flex-1 flex-col gap-1">
+      <span className="text-md font-semibold text-text-primary">
+        Need a fix list?
+      </span>
+      <span className="text-sm text-text-secondary">
+        Download a Sandy template pre-filled with the records to fix.
+      </span>
+      <span className="text-xs text-text-secondary">
+        Includes {recordsAffected.toLocaleString()}{' '}
+        {recordsAffected === 1 ? 'record' : 'records'} with{' '}
+        {issuesFlagged.toLocaleString()}{' '}
+        {issuesFlagged === 1 ? 'issue' : 'issues'}.
+      </span>
+    </div>
+    <span
+      aria-hidden="true"
+      className={clsx(
+        'mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-md',
+        'border-2 border-border-secondary bg-bg-primary px-2.5 py-1.5',
+        'text-sm font-semibold text-text-primary',
+        'transition-colors group-hover:bg-bg-secondary group-hover:border-border-secondary-hover',
+      )}
+    >
+      <IconDownload size={16} />
+      Download
+    </span>
+  </button>
+)
 
 /* -------------------------------------------------------------------------- */
 /* SummaryTile — large stat + label, optional anchor for filtering              */

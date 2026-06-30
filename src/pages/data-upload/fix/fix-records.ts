@@ -233,14 +233,15 @@ export const classifyCropping = (
   if (row.yield === 0) out.push(issueFor('yield-zero', 'Yield'))
 
   // Beyond the per-row checks we seed a wider variety of catalogue codes so
-  // every fixes.* type shows up at least once. Each bucket targets a small
-  // slice of the broken-fields set so we don't blanket every row.
+  // every fixes.* type shows up across multiple cards. Buckets are tighter
+  // than before so the issues page reads as a busy review surface.
   if (!BROKEN_FIELD_NAMES.has(row.fieldName)) return out
 
-  if (inBucket(row.id, 12, 0)) {
-    out.push(issueFor('duplicate-cropping'))
-  }
-  if (inBucket(row.id, 14, 1)) {
+  // Duplicates — two distinct cards in this category.
+  if (inBucket(row.id, 8, 0)) out.push(issueFor('duplicate-cropping'))
+
+  // Max length — spread across two different fields so we get two cards.
+  if (inBucket(row.id, 9, 1)) {
     out.push(
       issueFor(
         'max-length-exceeded',
@@ -249,7 +250,17 @@ export const classifyCropping = (
       ),
     )
   }
-  if (inBucket(row.id, 16, 2)) {
+  if (inBucket(row.id, 11, 2)) {
+    out.push(
+      issueFor(
+        'max-length-exceeded',
+        'Crop name',
+        'Crop name longer than the 60-character cap.',
+      ),
+    )
+  }
+
+  if (inBucket(row.id, 10, 3)) {
     out.push(
       issueFor(
         'year-invalid',
@@ -258,7 +269,9 @@ export const classifyCropping = (
       ),
     )
   }
-  if (inBucket(row.id, 18, 3)) {
+
+  // Date invalid — spread across two date columns.
+  if (inBucket(row.id, 11, 4)) {
     out.push(
       issueFor(
         'date-invalid',
@@ -267,7 +280,18 @@ export const classifyCropping = (
       ),
     )
   }
-  if (inBucket(row.id, 20, 4)) {
+  if (inBucket(row.id, 13, 5)) {
+    out.push(
+      issueFor(
+        'date-invalid',
+        'Harvest date',
+        'Harvest date does not parse — Sandy expects DD-MMM-YY.',
+      ),
+    )
+  }
+
+  // Decimal range — yield + working area both have realistic ranges.
+  if (inBucket(row.id, 12, 6)) {
     out.push(
       issueFor(
         'decimal-out-of-range',
@@ -276,7 +300,17 @@ export const classifyCropping = (
       ),
     )
   }
-  if (inBucket(row.id, 22, 5)) {
+  if (inBucket(row.id, 15, 7)) {
+    out.push(
+      issueFor(
+        'decimal-out-of-range',
+        'Working area',
+        'Working area outside the 0.1–500 ha range Sandy expects.',
+      ),
+    )
+  }
+
+  if (inBucket(row.id, 14, 8)) {
     out.push(
       issueFor(
         'crop-area-exceeds-field',
@@ -285,12 +319,35 @@ export const classifyCropping = (
       ),
     )
   }
-  if (inBucket(row.id, 24, 6)) {
+
+  if (inBucket(row.id, 17, 9)) {
     out.push(
       issueFor(
         'harvest-gt-total',
         'Yield',
         'Yield × area exceeds the total harvest on file.',
+      ),
+    )
+  }
+
+  if (inBucket(row.id, 19, 10)) {
+    out.push(
+      issueFor(
+        'positive-int-required',
+        'Harvest year',
+        'Harvest year recorded as a negative number.',
+      ),
+    )
+  }
+
+  // Synthetic farm-duplicate hint — surface on a single deterministic row
+  // so the "Farm already exists" card always appears in the demo.
+  if (inBucket(row.id, 50, 7)) {
+    out.push(
+      issueFor(
+        'duplicate-farm',
+        'Farm name',
+        'Two farms in this upload share the same Sandy ID.',
       ),
     )
   }
@@ -308,13 +365,11 @@ export const classifyOperation = (
 
   if (!BROKEN_FIELD_NAMES.has(row.fieldName)) return out
 
-  if (inBucket(row.id, 12, 0)) {
-    out.push(issueFor('duplicate-operation'))
-  }
-  if (inBucket(row.id, 14, 1)) {
-    out.push(issueFor('duplicate-fertiliser'))
-  }
-  if (inBucket(row.id, 16, 2)) {
+  if (inBucket(row.id, 9, 0)) out.push(issueFor('duplicate-operation'))
+  if (inBucket(row.id, 11, 1)) out.push(issueFor('duplicate-fertiliser'))
+
+  // Positive-int-required across two integer-shaped columns.
+  if (inBucket(row.id, 10, 2)) {
     out.push(
       issueFor(
         'positive-int-required',
@@ -323,7 +378,18 @@ export const classifyOperation = (
       ),
     )
   }
-  if (inBucket(row.id, 18, 3)) {
+  if (inBucket(row.id, 13, 3)) {
+    out.push(
+      issueFor(
+        'positive-int-required',
+        'Applied area',
+        'Applied area recorded as a negative number.',
+      ),
+    )
+  }
+
+  // Date invalid across operation date column.
+  if (inBucket(row.id, 11, 4)) {
     out.push(
       issueFor(
         'date-invalid',
@@ -332,7 +398,20 @@ export const classifyOperation = (
       ),
     )
   }
-  if (inBucket(row.id, 20, 4)) {
+
+  // Year invalid on the harvest year column.
+  if (inBucket(row.id, 14, 5)) {
+    out.push(
+      issueFor(
+        'year-invalid',
+        'Harvest year',
+        'Year on this operation reads as 5 digits.',
+      ),
+    )
+  }
+
+  // Max length — two distinct columns produce two cards.
+  if (inBucket(row.id, 12, 6)) {
     out.push(
       issueFor(
         'max-length-exceeded',
@@ -341,10 +420,36 @@ export const classifyOperation = (
       ),
     )
   }
+  if (inBucket(row.id, 15, 7)) {
+    out.push(
+      issueFor(
+        'max-length-exceeded',
+        'Operation type',
+        'Operation type label exceeds the Sandy cap.',
+      ),
+    )
+  }
+
+  // Decimal range covers applied area beyond the realistic envelope.
+  if (inBucket(row.id, 16, 8)) {
+    out.push(
+      issueFor(
+        'decimal-out-of-range',
+        'Applied area',
+        'Applied area outside the 0.1–500 ha range Sandy expects.',
+      ),
+    )
+  }
+
+  // Required-missing on operationType deepens the must-fix pile.
+  if (inBucket(row.id, 17, 9)) {
+    out.push(issueFor('required-missing', 'Operation type'))
+  }
+
   // Cross-record cases — emitted here against single rows so the demo
   // surfaces them without needing a real cross-record join. The copy hints
   // at the relationship (a missing cropping key / a deletion in the file).
-  if (inBucket(row.id, 18, 5)) {
+  if (inBucket(row.id, 9, 7)) {
     out.push(
       issueFor(
         'orphan-operation',
@@ -353,7 +458,7 @@ export const classifyOperation = (
       ),
     )
   }
-  if (inBucket(row.id, 26, 6)) {
+  if (inBucket(row.id, 13, 8)) {
     out.push(
       issueFor(
         'deletion-not-allowed',

@@ -1,13 +1,30 @@
 import clsx from 'clsx'
-import { Badge } from '../../../components/ui'
+import type { ComponentType } from 'react'
+import {
+  IconFix,
+  IconInformation,
+  type IconProps,
+  IconRecommendation,
+  IconValidation,
+} from '../../../components/ui/icons'
 import { UPLOAD_STEPS, type UploadStep } from '../../../validations/steps'
 import {
   areaOf,
   DATA_CATEGORY_LABEL,
-  VALIDATION_AREA_LABEL,
+  UX_ITEM_KIND_LABEL,
+  type UXItemKind,
   VALIDATION_ERRORS,
   type ValidationError,
 } from '../validation-errors'
+
+/* Kind → leading icon on each card. Differentiation comes from the glyph
+ * itself; colour stays neutral so the row reads as plain content. */
+const KIND_VISUAL: Record<UXItemKind, { Icon: ComponentType<IconProps> }> = {
+  validation: { Icon: IconValidation },
+  fix: { Icon: IconFix },
+  recommendation: { Icon: IconRecommendation },
+  information: { Icon: IconInformation },
+}
 
 /* -------------------------------------------------------------------------- */
 /* KanbanView — one column per step, validation cards stacked inside           */
@@ -27,35 +44,43 @@ const ValidationCard = ({
   error: ValidationError
   active: boolean
   onSelect: () => void
-}) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    aria-current={active ? 'true' : undefined}
-    className={clsx(
-      'flex w-full flex-col items-start gap-2 rounded-lg border-2 px-3 py-3 text-left transition-colors',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
-      active
-        ? 'border-border-primary bg-bg-tertiary'
-        : 'border-border-tertiary bg-bg-primary hover:border-border-secondary hover:bg-bg-secondary',
-    )}
-  >
-    <div className="flex w-full items-center justify-between gap-2">
-      <Badge tone={error.severity === 'blocking' ? 'red' : 'orange'} size="sm">
-        {error.severity === 'blocking' ? 'Blocking' : 'Warning'}
-      </Badge>
-      {error.dataCategories && error.dataCategories.length > 0 ? (
-        <span className="text-xs text-text-secondary">
-          {error.dataCategories.map((c) => DATA_CATEGORY_LABEL[c]).join(', ')}
+}) => {
+  const { Icon, chipClass } = KIND_VISUAL[error.uxKind]
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'true' : undefined}
+      data-kanban-card
+      className={clsx(
+        'flex w-full items-start gap-2.5 rounded-lg border-2 px-3 py-3 text-left transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sandy-600/40',
+        active
+          ? 'border-border-primary bg-bg-tertiary'
+          : 'border-border-tertiary bg-bg-secondary hover:border-border-secondary hover:bg-bg-tertiary',
+      )}
+    >
+      <span
+        className={clsx(
+          'mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+          chipClass,
+        )}
+      >
+        <Icon size={16} title={UX_ITEM_KIND_LABEL[error.uxKind]} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-sm font-medium leading-snug text-text-primary">
+          {error.title}
         </span>
-      ) : null}
-    </div>
-    <span className="text-sm font-medium leading-snug text-text-primary">
-      {error.title}
-    </span>
-    <code className="font-mono text-xs text-text-secondary">{error.code}</code>
-  </button>
-)
+        {error.dataCategories && error.dataCategories.length > 0 ? (
+          <span className="text-xs text-text-secondary">
+            {error.dataCategories.map((c) => DATA_CATEGORY_LABEL[c]).join(', ')}
+          </span>
+        ) : null}
+      </div>
+    </button>
+  )
+}
 
 const KanbanColumn = ({
   step,
@@ -68,7 +93,7 @@ const KanbanColumn = ({
   activeCode: string | null
   onSelect: (code: string) => void
 }) => (
-  <section className="flex w-[300px] shrink-0 flex-col gap-3 rounded-xl bg-bg-secondary p-3">
+  <section className="flex w-[300px] shrink-0 flex-col gap-3 rounded-xl border-2 border-border-tertiary bg-bg-primary p-3 shadow-sm">
     <header className="flex items-start gap-2 px-1 py-1">
       <span className="inline-flex shrink-0 items-center justify-center rounded-pill bg-bg-brand-primary px-2 py-0.5 text-xs font-semibold tracking-[0.15px] text-text-primary-inverse">
         Step {step.number}
@@ -77,16 +102,6 @@ const KanbanColumn = ({
         <h3 className="text-md font-semibold text-text-primary">
           {step.label}
         </h3>
-        {step.areas.length > 0 ? (
-          <p className="text-xs text-text-secondary">
-            {step.areas.map((a) => VALIDATION_AREA_LABEL[a]).join(' · ')} ·{' '}
-            {validations.length}
-          </p>
-        ) : (
-          <p className="text-xs text-text-secondary">
-            No catalogued validations
-          </p>
-        )}
       </div>
     </header>
 

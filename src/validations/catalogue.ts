@@ -81,6 +81,7 @@ const ALL_DATA_CATEGORIES: DataCategory[] = [
 const MATCH_FARMS_ENTRY: ValidationError = {
   code: 'refinement.match-farms',
   area: 'refinement',
+  uxKind: 'validation',
   dataCategories: ALL_DATA_CATEGORIES,
   refinementTask: 'identity',
   step: 1,
@@ -120,6 +121,7 @@ const MATCH_FARMS_ENTRY: ValidationError = {
 const MATCH_FIELDS_ENTRY: ValidationError = {
   code: 'refinement.match-fields',
   area: 'refinement',
+  uxKind: 'validation',
   dataCategories: ALL_DATA_CATEGORIES,
   refinementTask: 'identity',
   step: 2,
@@ -164,6 +166,7 @@ const schemaTransformationEntry = (
 ): ValidationError => ({
   code: `refinement.${category}.schema-transformation`,
   area: 'refinement',
+  uxKind: 'validation',
   dataCategories: [category],
   refinementTask: 'schema-transformation',
   step: 3,
@@ -210,6 +213,7 @@ const valueMappingEntry = (
   return {
     code: `refinement.${category}.value-mapping`,
     area: 'refinement',
+    uxKind: 'validation',
     dataCategories: [category],
     refinementTask: 'value-mapping',
     step: 4,
@@ -481,6 +485,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.general.required',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'attribute',
     severity: 'blocking',
@@ -506,6 +511,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.general.max-length',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'attribute',
     severity: 'blocking',
@@ -531,6 +537,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.general.year-invalid',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'attribute',
     severity: 'blocking',
@@ -556,6 +563,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.general.date-invalid',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'attribute',
     severity: 'blocking',
@@ -582,6 +590,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.field.positive-int',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'data-point',
     severity: 'blocking',
@@ -607,6 +616,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.field.decimal-range',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'data-point',
     severity: 'blocking',
@@ -633,6 +643,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.crop-type-unknown',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'attribute',
     type: 'reference',
     severity: 'blocking',
@@ -660,6 +671,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.planting-after-harvest',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-field',
     type: 'cross-field',
     severity: 'blocking',
@@ -686,6 +698,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.harvest-gt-total',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-field',
     type: 'cross-field',
     severity: 'blocking',
@@ -711,6 +724,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.yield-zero',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-field',
     type: 'data-point',
     severity: 'warning',
@@ -737,6 +751,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.area-exceeds-field',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-field',
     type: 'business',
     severity: 'warning',
@@ -760,6 +775,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.cropping.duplicate',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'blocking',
@@ -787,6 +803,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.operations.duplicate',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'warning',
@@ -808,6 +825,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.fertiliser.duplicate',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'warning',
@@ -831,6 +849,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.farm.duplicate-sandy-id',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'blocking',
@@ -863,6 +882,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.operations.orphan',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'blocking',
@@ -891,6 +911,7 @@ const FIXES_ENTRIES: ValidationError[] = [
   {
     code: 'fixes.operations.deletion-not-allowed',
     area: 'fixes',
+    uxKind: 'fix',
     subcategory: 'cross-record',
     type: 'business',
     severity: 'blocking',
@@ -916,12 +937,291 @@ const FIXES_ENTRIES: ValidationError[] = [
 ]
 
 /* -------------------------------------------------------------------------- */
+/* Ingest — file-level acceptance gates the user sees on the Add files step    */
+/* -------------------------------------------------------------------------- */
+
+const INGEST_ENTRIES: ValidationError[] = [
+  {
+    code: 'ingest.file.type-supported',
+    area: 'ingest',
+    uxKind: 'validation',
+    type: 'structural',
+    severity: 'blocking',
+    scope: 'file',
+    title: 'File type is PDF, CSV or Excel',
+    messageTemplate:
+      'File type {extension} is not supported. Upload a PDF, CSV or Excel file.',
+    uxCopy:
+      'Sandy only ingests PDF, CSV or Excel files. Convert or replace the upload to continue.',
+    trigger:
+      'Uploaded file is not one of .pdf, .csv, .xls or .xlsx (checked by extension and mime type).',
+    example: 'A .docx file dragged onto the Add files step.',
+    actions: [
+      action(
+        'remove-from-file',
+        'Replace with a supported file',
+        'Drop the rejected file and upload the same data as a PDF, CSV or Excel.',
+      ),
+      action(
+        'exclude',
+        'Skip this file',
+        'Removes the unsupported file from the upload set.',
+      ),
+    ],
+  },
+  {
+    code: 'ingest.file.template-match',
+    area: 'ingest',
+    uxKind: 'validation',
+    type: 'structural',
+    severity: 'warning',
+    scope: 'file',
+    title: 'File matches a known template',
+    messageTemplate:
+      "We couldn't match this file to any built-in or saved template.",
+    uxCopy:
+      "Sandy didn't recognise this file's layout against any built-in or custom template — confirm a template or save this layout as a new one.",
+    trigger:
+      'Recognition completes with kind `unrecognised` (no Sandy template, FMS export or saved custom template matched).',
+    example: 'A bespoke agronomist export Sandy has never seen before.',
+    actions: [
+      action(
+        'choose-alternative',
+        'Attach to an existing template',
+        'Pick a built-in or saved custom template the file actually matches.',
+      ),
+      action(
+        'create-new',
+        'Save layout as a new template',
+        'Promote this file to a new custom template the user can reuse on future uploads.',
+      ),
+      action(
+        'exclude',
+        'Skip this file',
+        'Removes the file from the upload set.',
+      ),
+    ],
+  },
+]
+
+/* -------------------------------------------------------------------------- */
+/* Completeness — optional fields surfaced as recommendations                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Sandy can land the upload without these, but supplying them lifts the
+ * completeness percentages used by downstream sustainability reports.
+ *
+ * Each entry corresponds to a leaf node in `COMPLETENESS_SUMMARY` (the
+ * per-area roll-up rendered on the Completeness step) and lists the action
+ * the user takes to opt in.
+ */
+const completenessEntry = (
+  slug: string,
+  scope: ValidationError['scope'],
+  title: string,
+  uxCopy: string,
+  example?: string,
+): ValidationError => ({
+  code: `completeness.${slug}`,
+  area: 'completeness',
+  uxKind: 'recommendation',
+  type: 'attribute',
+  severity: 'warning',
+  scope,
+  title,
+  messageTemplate: '',
+  uxCopy,
+  trigger:
+    'The field is empty across some or all of the affected records and is not strictly required to land the upload.',
+  example,
+  actions: [
+    action(
+      'edit-value',
+      'Supply the missing values',
+      'Inline edit each affected record so the optional field is populated.',
+    ),
+    action(
+      'acknowledge',
+      'Skip for now',
+      "Leave the field empty — Sandy falls back to its default assumption and the completeness score doesn't move.",
+    ),
+  ],
+})
+
+const COMPLETENESS_ENTRIES: ValidationError[] = [
+  completenessEntry(
+    'farms.address',
+    'farm',
+    'Farm address',
+    'Add the postal address for each farm so Sandy can attribute results to the right region.',
+    'Brookside Leys has no address recorded.',
+  ),
+  completenessEntry(
+    'fields.boundary',
+    'field',
+    'Field boundary',
+    'Upload or draw a boundary for each field so Sandy can compute real areas instead of relying on declared size.',
+  ),
+  completenessEntry(
+    'cropping.previous-crop',
+    'cropping',
+    'Previous crop',
+    'Record the previous crop on each field — used in carbon and nitrogen calculations.',
+  ),
+  completenessEntry(
+    'operations.application-method',
+    'operations',
+    'Application method',
+    'Record how each fertiliser or crop-protection product was applied (broadcast, banded, foliar, …).',
+  ),
+  completenessEntry(
+    'inputs.fertiliser.composition',
+    'fertiliser',
+    'Manufactured fertiliser composition',
+    "Supply N/P/K composition for any manufactured fertiliser product Sandy doesn't already know about.",
+  ),
+  completenessEntry(
+    'inputs.crop-protection.active-ingredient',
+    'fertiliser',
+    'Crop protection active ingredient',
+    "Record the active ingredient and concentration for any crop-protection product that isn't in the Sandy catalogue.",
+  ),
+  completenessEntry(
+    'soil.sampling-date',
+    'soil',
+    'Soil sampling date',
+    'Add the sampling date so Sandy can locate the result in the right season.',
+  ),
+]
+
+/* -------------------------------------------------------------------------- */
+/* Anomalies — outlier checks surfaced on the Anomalies step                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Anomalies come in three flavours (see `src/pages/data-upload/anomalies.ts`):
+ *
+ *   - spot anomalies → `uxKind: 'fix'` (Sandy has a concrete correction).
+ *   - trend anomalies → `uxKind: 'information'` (compare against prior years
+ *     — no recommended fix, the user sanity-checks).
+ *   - regional anomalies → `uxKind: 'information'` (compare against region).
+ */
+
+const spotAnomalyEntry = (
+  slug: string,
+  title: string,
+  uxCopy: string,
+  example: string,
+): ValidationError => ({
+  code: `anomalies.spot.${slug}`,
+  area: 'anomalies',
+  uxKind: 'fix',
+  type: 'data-point',
+  severity: 'warning',
+  scope: 'general',
+  title,
+  messageTemplate: '',
+  uxCopy,
+  trigger:
+    'A value differs from its neighbours by an order of magnitude — usually the signature of a decimal slip or unit mix-up.',
+  example,
+  actions: [
+    action(
+      'accept-suggestion',
+      'Apply suggested change',
+      "Replaces the cell with Sandy's suggested value.",
+    ),
+    action(
+      'edit-value',
+      'Edit value manually',
+      'Inline edit the cell to the value the user picks.',
+    ),
+    action('acknowledge', 'Leave as-is', 'Keeps the unusual value untouched.'),
+  ],
+})
+
+const comparisonAnomalyEntry = (
+  slug: string,
+  kind: 'trend' | 'regional',
+  title: string,
+  uxCopy: string,
+  example: string,
+): ValidationError => ({
+  code: `anomalies.${kind}.${slug}`,
+  area: 'anomalies',
+  uxKind: 'information',
+  type: 'business',
+  severity: 'warning',
+  scope: 'general',
+  title,
+  messageTemplate: '',
+  uxCopy,
+  trigger:
+    kind === 'trend'
+      ? "An aggregate value (yield, applied N, …) differs materially from the user's own prior years for the same field or crop."
+      : 'An aggregate value differs materially from the regional benchmark Sandy holds for the same crop and season.',
+  example,
+  actions: [
+    action(
+      'acknowledge',
+      'Mark as reviewed',
+      'Confirms the user has sanity-checked the figure and is happy to proceed.',
+    ),
+    action(
+      'edit-value',
+      'Adjust the underlying records',
+      'Opens the affected rows in an editable grid so the user can correct any input mistakes.',
+    ),
+  ],
+})
+
+const ANOMALY_ENTRIES: ValidationError[] = [
+  spotAnomalyEntry(
+    'decimal-slip',
+    'A value looks 1,000× higher than its neighbours',
+    'Sandy spotted a single value that reads as a thousand-fold spike against the rows around it — the typical signature of a missing decimal separator.',
+    'A nitrogen application of 1000 kgN/ha next to neighbours at 1.0 kgN/ha.',
+  ),
+  spotAnomalyEntry(
+    'unit-mixup',
+    'A yield value looks like it was recorded in the wrong unit',
+    'Sandy spotted a row whose order of magnitude matches a unit mismatch (kg/ha vs t/ha) against its neighbours.',
+    'A winter wheat yield of 9,420 next to neighbours around 9.4 t/ha.',
+  ),
+  comparisonAnomalyEntry(
+    'yield-vs-prior-year',
+    'trend',
+    'A field yield is well outside its prior-year range',
+    "Sandy noticed an aggregate yield that is several times larger or smaller than the user's own historical range for the same field and crop.",
+    'Saltway winter wheat reads as 48.6 t/ha against 9.3 t/ha last season.',
+  ),
+  comparisonAnomalyEntry(
+    'fertiliser-vs-prior-year',
+    'trend',
+    'Fertiliser use is well below the rolling average',
+    "Sandy noticed total seasonal applications that are a small fraction of the user's historical average for the same farm and crop.",
+    'Spring nitrogen of 31 kgN/ha against a 5-year average of 175 kgN/ha.',
+  ),
+  comparisonAnomalyEntry(
+    'yield-vs-region',
+    'regional',
+    'A reported yield is well below the regional average',
+    'Sandy noticed an aggregate yield that sits materially below the regional benchmark for the same crop and season.',
+    'Brookside Leys winter wheat 5.8 t/ha against an East of England average of 9.4 t/ha.',
+  ),
+]
+
+/* -------------------------------------------------------------------------- */
 /* Exported catalogue + lookup helpers                                         */
 /* -------------------------------------------------------------------------- */
 
 export const VALIDATION_ERRORS: ValidationError[] = [
+  ...INGEST_ENTRIES,
   ...REFINEMENT_ENTRIES,
   ...FIXES_ENTRIES,
+  ...COMPLETENESS_ENTRIES,
+  ...ANOMALY_ENTRIES,
 ]
 
 export const VALIDATION_BY_CODE: Record<string, ValidationError> =

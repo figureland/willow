@@ -20,6 +20,7 @@ export type ValidationSeverity = 'blocking' | 'warning'
 /**
  * Top-level area of Sandy's onboarding flow this validation belongs to.
  * Each area maps onto a step in the data-upload wizard:
+ *   - ingest      — file-level acceptance gates (type, template match).
  *   - refinement  — feedback / interactive disambiguation as Sandy ingests
  *                   data (unknown farms/fields, file structure, value mapping).
  *   - fixes       — row-level rule failures Sandy already knows about
@@ -29,12 +30,14 @@ export type ValidationSeverity = 'blocking' | 'warning'
  *   - anomalies   — statistical / outlier checks against historical baselines.
  */
 export type ValidationArea =
+  | 'ingest'
   | 'refinement'
   | 'fixes'
   | 'completeness'
   | 'anomalies'
 
 export const VALIDATION_AREA_ORDER: ValidationArea[] = [
+  'ingest',
   'refinement',
   'fixes',
   'completeness',
@@ -42,10 +45,54 @@ export const VALIDATION_AREA_ORDER: ValidationArea[] = [
 ]
 
 export const VALIDATION_AREA_LABEL: Record<ValidationArea, string> = {
+  ingest: 'Ingest',
   refinement: 'Refinement',
   fixes: 'Fixes',
   completeness: 'Completeness',
   anomalies: 'Anomalies',
+}
+
+/* -------------------------------------------------------------------------- */
+/* UX item kind — grand schema for every piece of feedback Sandy surfaces      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The shape of the UX response a user sees for any catalogue entry:
+ *   - validation     — gatekeeper rule. Sandy cannot proceed until it passes
+ *                      (filetype acceptance, schema shape, required fields,
+ *                      unrecognised values that block extraction).
+ *   - fix            — there is a concrete, recommended correction. The user
+ *                      applies it inline (typo, decimal slip, duplicate row).
+ *   - recommendation — opt-in improvement. Sandy can land the upload without
+ *                      it, but flagging it lets the user supply richer data
+ *                      (completeness items, optional spot anomaly tweaks).
+ *   - information    — context only. No correction is implied — Sandy is
+ *                      surfacing the signal so the user can sanity-check it
+ *                      (trend / regional comparisons).
+ */
+export type UXItemKind = 'validation' | 'fix' | 'recommendation' | 'information'
+
+export const UX_ITEM_KIND_ORDER: UXItemKind[] = [
+  'validation',
+  'fix',
+  'recommendation',
+  'information',
+]
+
+export const UX_ITEM_KIND_LABEL: Record<UXItemKind, string> = {
+  validation: 'Validation',
+  fix: 'Fix',
+  recommendation: 'Recommendation',
+  information: 'Information',
+}
+
+export const UX_ITEM_KIND_DESCRIPTION: Record<UXItemKind, string> = {
+  validation: 'A gatekeeper rule Sandy needs to pass before it can continue.',
+  fix: 'A specific correction the user can apply to make the data right.',
+  recommendation:
+    'An optional improvement that makes downstream reports richer.',
+  information:
+    'A signal Sandy is surfacing so the user can sanity-check it. No correction is implied.',
 }
 
 /**
@@ -256,6 +303,12 @@ export type ValidationError = {
   code: string
   /** Wizard area this validation belongs to. */
   area: ValidationArea
+  /**
+   * Grand UX taxonomy — what kind of response does this surface to the user?
+   * See `UXItemKind` for the meaning of each value. Catalogue entries set
+   * this explicitly so the UI doesn't have to infer it from severity / area.
+   */
+  uxKind: UXItemKind
   type: ValidationType
   severity: ValidationSeverity
   scope: ValidationScope

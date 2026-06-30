@@ -331,8 +331,14 @@ const DataUploadWizardInner = () => {
         content: <CommitStep />,
         bare: true,
         continueLabel: 'Save to Sandy',
-        // Fire a window-level event the CommitStep listens for — opens the
-        // confirmation modal it owns internally. Returning `false` keeps
+        // Block Save to Sandy until the user has either saved or discarded
+        // any pending in-line edits on the commit data table.
+        canContinue: !hasUnsavedChanges,
+        disabledReason: hasUnsavedChanges
+          ? 'Save or discard your edits before saving to Sandy.'
+          : undefined,
+        // Fire a window-level event the CommitStep listens for — kicks
+        // straight into the committing animation. Returning `false` keeps
         // the wizard on the commit step (the modal handles its own success
         // path with a redirect home).
         onContinue: () => {

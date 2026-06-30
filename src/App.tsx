@@ -95,14 +95,14 @@ export const App = () => (
         />
         <Route path="/design-system" element={<DesignSystemPage />} />
       </Route>
+      <Route path="/validation" element={<ValidationErrorsPage />} />
       <Route
-        path="/validation"
-        element={<Navigate to="/validation/list" replace />}
+        path="/validation/:viewId"
+        element={<Navigate to="/validation" replace />}
       />
-      <Route path="/validation/:viewId" element={<ValidationErrorsPage />} />
       <Route
         path="/validation-errors"
-        element={<Navigate to="/validation/list" replace />}
+        element={<Navigate to="/validation" replace />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

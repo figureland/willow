@@ -52,9 +52,7 @@ export const SuggestionCard = ({
           <p
             className={clsx(
               'text-md',
-              isSmart
-                ? 'text-text-primary-inverse/80'
-                : 'text-text-secondary',
+              isSmart ? 'text-text-primary-inverse/80' : 'text-text-secondary',
             )}
           >
             {description}
