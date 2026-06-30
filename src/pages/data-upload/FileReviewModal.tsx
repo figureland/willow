@@ -457,16 +457,16 @@ const FileReviewPanel = ({
           ) : (
             <>
               <p className="text-sm text-text-secondary">
-                We couldn't match this file to a saved template. Link it to one
-                Sandy already knows, or describe it so we can mint a new
-                template.
+                Sandy didn't recognise this file's layout against any built-in
+                or custom template — confirm a template or save this layout as a
+                new one.
               </p>
               <div>
                 <Button
                   variant="secondary"
                   onClick={() => setChangingTemplate(true)}
                 >
-                  Link to existing template
+                  Attach to an existing template
                 </Button>
               </div>
               <div className="flex flex-col gap-1 border-t border-border-tertiary pt-3">
@@ -479,7 +479,7 @@ const FileReviewPanel = ({
                     variant="secondary"
                     onClick={() => setDescribeOpen(true)}
                   >
-                    Create new template
+                    Save layout as a new template
                   </Button>
                 </div>
               </div>

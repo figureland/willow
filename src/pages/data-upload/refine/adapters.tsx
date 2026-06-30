@@ -815,7 +815,7 @@ const SharedOptionsBody = ({
       <RadioGroup<OptionId> value={choice} onValueChange={setChoice}>
         <OptionRadio
           value="select"
-          title={`Select another ${cfg.noun}`}
+          title={`Choose a different existing ${cfg.noun}`}
           description={`Match this to a ${cfg.noun} that already exists on Sandy.`}
           active={choice === 'select'}
         >
@@ -842,8 +842,8 @@ const SharedOptionsBody = ({
 
         <OptionRadio
           value="exclude"
-          title={`Exclude this ${cfg.noun} from the upload`}
-          description="Skip every row that references it."
+          title={`Exclude this ${cfg.noun}`}
+          description={`Drops every row that references this ${cfg.noun} name from the upload.`}
           tone="danger"
           active={choice === 'exclude'}
         >
@@ -999,7 +999,7 @@ const BatchOptionsBody = ({
       <RadioGroup<BatchOptionId> value={choice} onValueChange={setChoice}>
         <OptionRadio
           value="select"
-          title="Attach to another farm"
+          title="Choose a different existing field"
           description="Pick the farm these fields belong to."
           active={choice === 'select'}
         >
@@ -1013,7 +1013,7 @@ const BatchOptionsBody = ({
 
         <OptionRadio
           value="create"
-          title="Create new fields"
+          title="Create a new field"
           description="Add these as new fields under the suggested farm."
           active={choice === 'create'}
         >
@@ -1024,8 +1024,8 @@ const BatchOptionsBody = ({
 
         <OptionRadio
           value="exclude"
-          title="Exclude these fields from the upload"
-          description="Skip every row that references them."
+          title="Exclude this field"
+          description="Drops every row that references this field name from the upload."
           tone="danger"
           active={choice === 'exclude'}
         >

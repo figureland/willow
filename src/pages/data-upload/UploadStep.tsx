@@ -240,7 +240,8 @@ export const UploadStep = ({
       const kind = inferKind(file.name)
       if (kind === 'invalid') {
         toast.error(`${file.name} isn't a supported file type`, {
-          description: 'Accepted formats: CSV, Excel, PDF.',
+          description:
+            'Sandy only ingests PDF, CSV or Excel files. Convert or replace the upload to continue.',
         })
         continue
       }
@@ -585,7 +586,7 @@ const EmptyHero = ({ onBrowseClick }: { onBrowseClick: () => void }) => {
           Add files
         </Button>
         <p className="text-sm text-text-secondary">
-          We can import Excel, CSV Spreadsheet, PDF.
+          We can import Excel, spreadsheets in CSV format, and PDF documents.
         </p>
       </div>
 

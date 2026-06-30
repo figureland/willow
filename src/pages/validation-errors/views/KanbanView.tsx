@@ -45,7 +45,7 @@ const ValidationCard = ({
   active: boolean
   onSelect: () => void
 }) => {
-  const { Icon, chipClass } = KIND_VISUAL[error.uxKind]
+  const { Icon } = KIND_VISUAL[error.uxKind]
   return (
     <button
       type="button"
@@ -60,13 +60,8 @@ const ValidationCard = ({
           : 'border-border-tertiary bg-bg-secondary hover:border-border-secondary hover:bg-bg-tertiary',
       )}
     >
-      <span
-        className={clsx(
-          'mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
-          chipClass,
-        )}
-      >
-        <Icon size={16} title={UX_ITEM_KIND_LABEL[error.uxKind]} />
+      <span className="mt-0.5 inline-flex shrink-0 items-center justify-center text-text-primary">
+        <Icon size={18} title={UX_ITEM_KIND_LABEL[error.uxKind]} />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-sm font-medium leading-snug text-text-primary">

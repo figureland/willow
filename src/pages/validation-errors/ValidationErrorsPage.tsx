@@ -276,7 +276,9 @@ export const ValidationErrorsPage = () => {
   return (
     <div className="flex h-screen min-h-0 flex-col bg-bg-secondary">
       <header className="flex items-center justify-between gap-4 border-b-2 border-border-tertiary bg-bg-primary px-6 py-3">
-        <h1 className="text-md font-semibold text-text-primary">UX Content</h1>
+        <h1 className="text-md font-semibold text-text-primary">
+          UX Content: Validation, Feedback and Suggestions
+        </h1>
       </header>
 
       <KanbanLayout

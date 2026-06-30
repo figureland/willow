@@ -119,8 +119,8 @@ export const ColumnMappingModal = ({
       onOpenChange={(next) => {
         if (!next) onClose()
       }}
-      title="Map your file's columns"
-      description="Pair each Sandy property with the sheet and column it lives on. We'll review the inferred structure together once you confirm."
+      title="Operations schema transformation"
+      description="Tell Sandy where each canonical operations property lives in the upload. Sandy proposes a column for every property; confirm or point at a different column."
       maxWidth="780px"
       fillHeight
       footer={
@@ -133,7 +133,7 @@ export const ColumnMappingModal = ({
             onClick={handleConfirm}
             disabled={filledCount === 0}
           >
-            Confirm mapping ({filledCount} of {properties.length})
+            Confirm all suggested columns ({filledCount} of {properties.length})
           </Button>
         </>
       }

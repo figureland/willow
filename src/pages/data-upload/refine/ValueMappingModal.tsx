@@ -396,7 +396,7 @@ export const ValueMappingReview = ({
             onClick={handleConfirm}
             disabled={mappedCount === 0}
           >
-            Confirm mapping ({mappedCount} of {total})
+            Accept suggested mappings ({mappedCount} of {total})
           </Button>
         </div>
       ) : null}
